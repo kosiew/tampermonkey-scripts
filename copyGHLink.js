@@ -12,42 +12,55 @@
 (function () {
   "use strict";
 
-  // Create the copy button
-  function createCopyButton() {
-    var titleElement = document.querySelector(".js-issue-title");
-    var issueNumberElement = document.querySelector(".gh-header-number");
-    var issueUrl = window.location.href;
-
-    const buttonLabel = "Copy as Markdown";
-    // Create the button element
-    var button = document.createElement("button");
+  function createButton(buttonLabel) {
+    const button = document.createElement("button");
     button.className = "btn btn-sm";
     button.style.marginLeft = "10px";
     button.innerText = buttonLabel;
-
-    // Add an event listener to handle the button click
-    button.addEventListener("click", function () {
-      var markdown =
-        "[" + titleElement.textContent.trim() + "](" + issueUrl + ")";
-      copyToClipboard(markdown);
-      button.innerText = "Copied";
-      setTimeout(() => (button.innerText = buttonLabel), 2000);
-    });
-
-    // Insert the button after the title
-    titleElement.parentNode.insertBefore(button, titleElement.nextSibling);
+    return button;
   }
 
+  // Create the copy button
+  function createCopyButtons() {
+    const titleElement = document.querySelector(".js-issue-title");
+    const issueNumberElement = document.querySelector(".gh-header-number");
+    const issueUrl = window.location.href;
+    const title = titleElement.textContent.trim();
+    const issueNumber = issueNumberElement.textContent.trim();
+
+    const buttonLabel1 = "Copy as Markdown";
+    const button1 = createButton(buttonLabel1);
+
+    const buttonLabel2 = "Copy as Title with Link";
+    const button2 = createButton(buttonLabel2);
+
+    function addEventListener(button, markdown) {
+      button.addEventListener("click", function () {
+        const originalText = this.innerText;
+        copyToClipboard(markdown);
+        this.innerText = "Copied";
+        setTimeout(() => (this.innerText = originalText), 2000);
+      });
+    }
+
+    addEventListener(button1, "[" + title + "](" + issueUrl + ")");
+    addEventListener(button2, `${issueNumber} ${title} - ${issueUrl}`);
+
+    titleElement.parentNode.insertBefore(button2, titleElement.nextSibling);
+    titleElement.parentNode.insertBefore(button1, titleElement.nextSibling);
+  }
   // Copy the given text to the clipboard
   function copyToClipboard(text) {
-    var textarea = document.createElement("textarea");
-    textarea.value = text;
-    document.body.appendChild(textarea);
-    textarea.select();
-    document.execCommand("copy");
-    document.body.removeChild(textarea);
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        console.log("Text copied to clipboard");
+      })
+      .catch((error) => {
+        console.error("Error copying text: ", error);
+      });
   }
 
   // Call the function to create the copy button
-  createCopyButton();
+  createCopyButtons();
 })();
