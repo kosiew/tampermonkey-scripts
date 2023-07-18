@@ -6,6 +6,7 @@ javascript: (function () {
     { name: "enableComments", value: true },
     { name: "showSharedJournals", value: true },
     { name: "showSearchButton", value: true },
+    { name: "enableE2EEKeyGeneration", value: true },
     { name: "showNewTimelineRows", value: true }
   ];
 
