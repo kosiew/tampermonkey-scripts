@@ -30,7 +30,7 @@
           ? prTitleElem.getAttribute("id").match(/\d+/)
           : null;
         const prNum = prNumMatch ? prNumMatch[0] : "";
-        prList.push(`- ${prNum}: ${prTitle} - ${prLink}`);
+        prList.push(`- PR ${prNum}: ${prTitle} - ${prLink}`);
       });
       return prList.join("\n");
     }
