@@ -234,7 +234,8 @@
   function notify(text) {
     d.log("notify+ " + text);
     const title = NOTIFICATION_TITLE;
-    GM_notification({ title, text });
+    const timeout = 5000;
+    GM_notification({ title, text, timeout });
   }
 
   function getDecimalHours() {
