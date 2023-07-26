@@ -555,9 +555,6 @@
   function generateClassName(name, month = "") {
     const combined = name + month;
     const validClassName = combined.replace(/[^a-z0-9-_]/gi, "_").toLowerCase();
-    d.log(
-      `generateClassName: name:${name} month:${month} class:${validClassName}`
-    );
     return validClassName;
   }
 
@@ -674,22 +671,11 @@
   function generateMinMaxByMonth(db) {
     d.group("generateMinMaxByMonth+ ");
     const result = {};
-    d.log("generateMinMaxByMonth db:" + JSON.stringify(db));
 
     // keys, values in db
     for (const [date, monthsRows] of Object.entries(db)) {
-      console.log(
-        `%c👀  ==> [generateMinMax] 👀`,
-        "background-color: #0595DE; color: yellow; padding: 8px; border-radius: 4px;",
-        { date, monthsRows }
-      );
       for (const monthRow of monthsRows) {
         const { month, low, high } = monthRow;
-        console.log(
-          `%c👀  ==> [generateMinMax] 👀`,
-          "background-color: #0595DE; color: yellow; padding: 8px; border-radius: 4px;",
-          { month, low, high }
-        );
         if (result[month]) {
           result[month].min = Math.min(result[month].min, low);
           result[month].max = Math.max(result[month].max, high);
@@ -698,7 +684,6 @@
         }
       }
     }
-    d.log("generateMinMaxByMonth- " + JSON.stringify(result));
     d.groupEnd();
     return result;
   }
@@ -716,7 +701,13 @@
       Math.abs(high - settlement),
       Math.abs(low - settlement)
     );
-    return change;
+    const sign = (high - settlement) * (low - settlement) < 0 ? -1 : 1;
+    console.log(
+      `%c👀  ==> [] 👀`,
+      "background-color: #0595DE; color: yellow; padding: 8px; border-radius: 4px;",
+      { sign }
+    );
+    return sign * change;
   }
 
   function addToolTip(todayJson, db) {
