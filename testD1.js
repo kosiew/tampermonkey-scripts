@@ -1,5 +1,6 @@
 javascript: (function () {
   d1.keyValueStore.set("is-dev", true);
+  const INTERVAL = 200;
   const features = [
     { name: "enableExperimentalAI", value: true },
     { name: "prefilledEntryURLs", value: true },
@@ -7,14 +8,29 @@ javascript: (function () {
     { name: "showSharedJournals", value: true },
     { name: "showSearchButton", value: true },
     { name: "enableE2EEKeyGeneration", value: true },
-    { name: "showNewTimelineRows", value: true }
+    { name: "showNewTimelineRows", value: true },
+    { name: "enablePasskeys", value: true },
+    { name: "showProfileSharingSetting", value: true }
   ];
 
-  function setFeature(feature) {
-    d1.featureFlagStore.set(feature.name, feature.value);
+  async function setFeature(feature) {
+    await d1.userSettingsRepository.setFeatureFlag(feature.name, feature.value);
   }
 
-  features.forEach(setFeature);
+  function setFeatures(features) {
+    let index = 0;
+    const intervalID = setInterval(function () {
+      if (index >= features.length) {
+        clearInterval(intervalID);
+      } else {
+        setFeature(features[index]);
+        index++;
+      }
+    }, INTERVAL);
+  }
+
+  setFeatures(features);
+
   const css = `@keyframes shake {
         0% { transform: translate(1px, 1px) rotate(0deg); }
         10% { transform: translate(-1px, -2px) rotate(-1deg); }
