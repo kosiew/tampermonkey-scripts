@@ -10,6 +10,7 @@ javascript: (function () {
     { name: "enableE2EEKeyGeneration", value: true },
     { name: "showNewTimelineRows", value: true },
     { name: "enablePasskeys", value: true },
+    { name: "enableE2EEKeyFromGoogleDrive", value: true },
     { name: "showProfileSharingSetting", value: true }
   ];
 
