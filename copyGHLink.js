@@ -20,7 +20,7 @@
     return button;
   }
 
-  // Create the copy button
+  // Create the copy buttons
   function createCopyButtons() {
     const titleElement = document.querySelector(".js-issue-title");
     const issueNumberElement = document.querySelector(".gh-header-number");
@@ -34,6 +34,9 @@
     const buttonLabel2 = "Copy as Title with Link";
     const button2 = createButton(buttonLabel2);
 
+    const buttonLabel3 = "Copy PR Title";
+    const button3 = createButton(buttonLabel3);
+
     function addEventListener(button, markdown) {
       button.addEventListener("click", function () {
         const originalText = this.innerText;
@@ -44,8 +47,10 @@
     }
 
     addEventListener(button1, "[" + title + "](" + issueUrl + ")");
-    addEventListener(button2, `${issueNumber} ${title} - ${issueUrl}`);
+    addEventListener(button2, `# ${issueNumber} ${title} - ${issueUrl}`);
+    addEventListener(button3, title);
 
+    titleElement.parentNode.insertBefore(button3, titleElement.nextSibling);
     titleElement.parentNode.insertBefore(button2, titleElement.nextSibling);
     titleElement.parentNode.insertBefore(button1, titleElement.nextSibling);
   }
@@ -61,6 +66,6 @@
       });
   }
 
-  // Call the function to create the copy button
+  // Call the function to create the copy buttons
   createCopyButtons();
 })();
