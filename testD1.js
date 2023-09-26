@@ -11,7 +11,9 @@ javascript: (function () {
     { name: "showNewTimelineRows", value: true },
     { name: "enablePasskeys", value: true },
     { name: "enableE2EEKeyFromGoogleDrive", value: true },
-    { name: "showProfileSharingSetting", value: true }
+    { name: "enableManageTemplates", value: true },
+    { name: "showProfileSharingSetting", value: true },
+    { name: "enableMediaView", value: true }
   ];
 
   async function setFeature(feature) {
