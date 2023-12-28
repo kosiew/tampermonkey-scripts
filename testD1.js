@@ -5,7 +5,7 @@ javascript: (function () {
     { name: "enableExperimentalAI", value: true },
     { name: "prefilledEntryURLs", value: true },
     { name: "enableComments", value: true },
-    { name: "showSharedJournals", value: true },
+    { name: "playwrightShowSharedJournals", value: true },
     { name: "showSearchButton", value: true },
     { name: "enableE2EEKeyGeneration", value: true },
     { name: "showNewTimelineRows", value: true },
@@ -13,7 +13,9 @@ javascript: (function () {
     { name: "enableE2EEKeyFromGoogleDrive", value: true },
     { name: "enableManageTemplates", value: true },
     { name: "showProfileSharingSetting", value: true },
-    { name: "enableMediaView", value: true }
+    { name: "enableMediaView", value: true },
+    { name: "showEditParticipantProfile", value: true },
+    { name: "showDailyPrompt", value: true }
   ];
 
   async function setFeature(feature) {
