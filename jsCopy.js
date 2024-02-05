@@ -116,6 +116,35 @@ javascript: (function () {
     }, animationInterval);
   }
 
+  function shake() {
+    const css = `@keyframes shake {
+        0% { transform: translate(1px, 1px) rotate(0deg); }
+        10% { transform: translate(-1px, -2px) rotate(-1deg); }
+        20% { transform: translate(-3px, 0px) rotate(1deg); }
+        30% { transform: translate(3px, 2px) rotate(0deg); }
+        40% { transform: translate(1px, -1px) rotate(1deg); }
+        50% { transform: translate(-1px, 2px) rotate(-1deg); }
+        60% { transform: translate(-3px, 1px) rotate(0deg); }
+        70% { transform: translate(3px, 1px) rotate(-1deg); }
+        80% { transform: translate(-1px, -1px) rotate(1deg); }
+        90% { transform: translate(1px, 2px) rotate(0deg); }
+        100% { transform: translate(1px, -2px) rotate(-1deg); }
+    }`;
+
+    const style = document.createElement("style");
+    if (document.getElementById("shakeStyle")) {
+      document.getElementById("shakeStyle").remove();
+    }
+    style.id = "shakeStyle";
+    document.head.appendChild(style);
+    style.sheet.insertRule(css, 0);
+    document.body.style.animation = "shake 0.5s";
+    document.body.style.animationIterationCount = "1";
+    document.body.addEventListener("animationend", () => {
+      document.body.style.animation = "";
+    });
+  }
+
   function addClick(array) {
     for (const elem of array) {
       elem.addEventListener("click", () => {
@@ -137,19 +166,9 @@ javascript: (function () {
       });
     }
   }
-  for (let i = 1; i <= 6; i++) {
-    const tag = `h${i}`;
-    dlog(tag);
-    const headers = document.querySelectorAll(tag);
-
-    addClick(headers);
-  }
-
-  const strong = document.querySelectorAll("strong");
-  addClick(strong);
 
   copyToClipboard(location.href);
-  setTimeout(animateBody, WAIT_MILISECONDS);
+  setTimeout(shake, WAIT_MILISECONDS);
 })();
 
 // working
