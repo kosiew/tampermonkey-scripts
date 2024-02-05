@@ -7,6 +7,7 @@ javascript: (function () {
     { name: "enableComments", value: true },
     { name: "playwrightShowSharedJournals", value: true },
     { name: "showSearchButton", value: true },
+    { name: "showSearchFilterPills", value: true },
     { name: "enableE2EEKeyGeneration", value: true },
     { name: "showNewTimelineRows", value: true },
     { name: "enablePasskeys", value: true },
