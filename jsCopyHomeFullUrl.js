@@ -167,10 +167,9 @@ javascript: (function () {
     }
   }
 
-  const baseUrl = `${location.protocol}//${location.host}`.replace(
-    "https://",
-    ""
-  );
+  const baseUrl = `${location.protocol}//${location.host}`
+    .replace("https://", "")
+    .replace("www.", "");
   const fullUrl = document.location.href;
 
   copyToClipboard(`${baseUrl} ${fullUrl}`);
