@@ -87,12 +87,15 @@ javascript: (function () {
 
   async function addTagToSelectedPhotos() {
     const selector = "div.tile-selection";
-    const selectedPhotos = document.querySelectorAll(selector);
-    selectedPhotos.forEach((photo) => {
+    const selectors = document.querySelectorAll(selector);
+    const photoTiles = [];
+    selectors.forEach((photo) => {
+      const tile = photo.closest("div.photo-tile");
+      photoTiles.push(tile);
       photo.click();
     });
     const tag = "test123"; // getTag();
-    for (const photo of selectedPhotos) {
+    for (const photo of photoTiles) {
       await addTagToPhoto(photo, tag);
     }
   }
@@ -108,10 +111,8 @@ javascript: (function () {
       { photo }
     );
 
-    // find ancestor element div.photo-tile
-    const parent = photo.closest("div.photo-tile");
     // find child element img.photo
-    const img = parent.querySelector("img.photo");
+    const img = photo.querySelector("img.photo");
 
     hoverOver(img);
     const selector = "button[aria-label='Show detailed information']";
