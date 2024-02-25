@@ -1,93 +1,146 @@
 javascript: (function () {
-  function waitForElementAndAct(selector, action, timeout = 10000) {
-    // Default timeout of 10 seconds
+  function hoverOver(element, onHover) {
+    console.log(
+      `%c👀  ==> [hoverOver] 👀`,
+      "background-color: #0595DE; color: yellow; padding: 8px; border-radius: 4px;",
+      { element }
+    );
+    // Simulate a mouseover event to trigger the hover state
+    element.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+
+    // Call the onHover callback function, if provided
+    if (onHover) {
+      onHover();
+    }
+  }
+
+  function hoverLeave(element, onLeave) {
+    // Simulate a mouseleave event to trigger the leave state
+    element.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+
+    // Call the onLeave callback function, if provided
+    if (onLeave) {
+      onLeave();
+    }
+  }
+
+  function waitForElement(childSelector, timeoutDuration = 5000) {
+    return new Promise((resolve, reject) => {
+      const intervalId = setInterval(() => {
+        const element = document.querySelector(childSelector);
+        if (element) {
+          clearInterval(intervalId);
+          resolve(element);
+        }
+      }, 100); // Check every 100ms
+
+      // Set a timeout to stop checking if the element doesn't appear
+      setTimeout(() => {
+        clearInterval(intervalId);
+        reject(new Error(`Timeout waiting for element: ${childSelector}`));
+      }, timeoutDuration);
+    });
+  }
+
+  function waitForElementAndAct(selector, action, timeout = 5000) {
+    // Default timeout of 30 seconds
     console.log(
       `%c==> waitForElementAndAct[${selector}]:`,
       "background-color: #0595DE; color: yellow; padding: 8px; border-radius: 4px;"
     );
 
-    const observer = new MutationObserver((mutationsList, observer) => {
-      for (const mutation of mutationsList) {
-        if (mutation.type === "childList") {
-          mutation.addedNodes.forEach((node) => {
-            if (node.nodeType === 1 && node.matches(selector)) {
-              action(node);
-              observer.disconnect();
-            }
-          });
+    return new Promise((resolve, reject) => {
+      const startTime = Date.now(); // Record the start time for timeout checks
+      const observer = new MutationObserver((mutationsList, observer) => {
+        for (const mutation of mutationsList) {
+          if (mutation.type === "childList") {
+            mutation.addedNodes.forEach((node) => {
+              // Check if the added node matches the selector
+              if (node.nodeType === 1 && node.matches(selector)) {
+                action(node); // Perform the specified action on the node
+                observer.disconnect(); // Stop observing after the action is performed
+                resolve(); // Resolve the promise successfully
+              } else {
+                console.log(
+                  `%c👀  ==> [observer - not match] 👀`,
+                  "background-color: #0595DE; color: yellow; padding: 8px; border-radius: 4px;",
+                  { node }
+                );
+              }
+            });
+          }
         }
-      }
+
+        // Check for timeout
+        if (Date.now() - startTime > timeout) {
+          observer.disconnect(); // Stop observing due to timeout
+          reject(
+            new Error(`waitForElementAndAct timed out waiting for ${selector}`)
+          );
+        }
+      });
+
+      const config = { childList: true, subtree: true };
+      observer.observe(document.body, config);
     });
-
-    const config = { childList: true, subtree: true };
-    observer.observe(document.body, config);
-
-    // Set a timeout to stop observing if the element doesn't appear within the specified time
-    const timeoutId = setTimeout(() => {
-      observer.disconnect();
-      console.log(
-        `%c==> Timeout waiting for element[${selector}]:`,
-        "background-color: #DE5959; color: white; padding: 8px; border-radius: 4px;"
-      );
-    }, timeout);
-
-    // If the element is found and the action is performed, clear the timeout
-    observer.callback = (mutationsList, observer) => {
-      clearTimeout(timeoutId);
-    };
   }
 
-  function addTagToSelectedPhotos() {
+  async function addTagToSelectedPhotos() {
     const selector = "div.tile-selection";
     const selectedPhotos = document.querySelectorAll(selector);
     selectedPhotos.forEach((photo) => {
       photo.click();
     });
-    const tag = getTag();
-    selectedPhotos.forEach((photo) => {
-      addTagToPhoto(photo, tag);
-    });
-    selectedPhotos.forEach((photo) => {
-      photo.click();
-    });
+    const tag = "test123"; // getTag();
+    for (const photo of selectedPhotos) {
+      await addTagToPhoto(photo, tag);
+    }
   }
 
   function getTag() {
     return prompt("Enter the tag to add to the selected photos");
   }
 
-  function addTagToPhoto(photo, tag) {
+  async function addTagToPhoto(photo, tag) {
     console.log(
       `%c==> [addTagToPhoto]`,
       "background-color: #0595DE; color: yellow; padding: 8px; border-radius: 4px;",
       { photo }
     );
+
+    // find ancestor element div.photo-tile
+    const parent = photo.closest("div.photo-tile");
+    // find child element img.photo
+    const img = parent.querySelector("img.photo");
+
+    hoverOver(img);
     const selector = "button[aria-label='Show detailed information']";
     // Directly click the button if it's expected to be immediately available
-    const detailButton = photo.querySelector(selector);
-    if (detailButton) {
-      detailButton.click();
-    } else {
-      // If the button might not be immediately available, wait for it
-      waitForElementAndAct(selector, (button) => button.click());
+    let detailButton = document.querySelector(selector);
+    if (!detailButton) {
+      const body = document.body;
+      detailButton = await waitForElement(selector);
     }
+    detailButton.click();
+
+    const addTagSelector = "button.add-tag-button";
+    const addTagButton = await waitForElement(addTagSelector);
+    addTagButton.click();
 
     // Then, wait for the tag input field to appear
     const tagInputSelector = "div.add-tag-input input";
-    waitForElementAndAct(tagInputSelector, (tagInput) => {
-      tagInput.value = tag;
-      tagInput.dispatchEvent(new Event("input", { bubbles: true }));
-      tagInput.dispatchEvent(new Event("change", { bubbles: true }));
-    });
+    const tagInput = await waitForElement(tagInputSelector);
+    tagInput.value = tag;
+    tagInput.dispatchEvent(new Event("input", { bubbles: true }));
+    tagInput.dispatchEvent(new Event("change", { bubbles: true }));
 
     // Finally, click the "Close" button
     // which has this selector div.details-panel button[aria-label='Close']
     const closeButtonSelector = "div.details-panel button[aria-label='Close']";
-    const closeButton = photo.querySelector(closeButtonSelector);
+    const closeButton = await waitForElement(closeButtonSelector);
     if (closeButton) {
       closeButton.click();
-    } else {
-      waitForElementAndAct(closeButtonSelector, (button) => button.click());
     }
+    hoverLeave(img);
   }
 })();
