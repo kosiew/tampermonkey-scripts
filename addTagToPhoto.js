@@ -134,13 +134,13 @@ javascript: (function () {
     detailButton.click();
   }
 
-  async function clickAddTagButton(photo) {
+  async function clickAddTagButton() {
     console.log(
       `%c==> [clickAddTagButton]`,
       "background-color: #0595DE; color: yellow; padding: 8px; border-radius: 4px;"
     );
     const addTagSelector = "button.add-tag-button";
-    const addTagButton = await waitForElement(photo, addTagSelector);
+    const addTagButton = await waitForElement(document.body, addTagSelector);
     addTagButton.click();
   }
 
@@ -161,7 +161,10 @@ javascript: (function () {
     );
     // which has this selector div.details-panel button[aria-label='Close']
     const closeButtonSelector = "button[aria-label='Close']";
-    const closeButton = await waitForElement(photo, closeButtonSelector);
+    const closeButton = await waitForElement(
+      document.body,
+      closeButtonSelector
+    );
     if (closeButton) {
       closeButton.click();
     }
@@ -173,13 +176,15 @@ javascript: (function () {
       "background-color: #0595DE; color: yellow; padding: 8px; border-radius: 4px;"
     );
     const tagInputSelector = "div.add-tag-input input";
-    await waitForElement(photo, tagInputSelector, 10000).catch((error) => {
-      console.error(
-        `%c👀  ==> [waitForElement - tagInputSelector] 👀`,
-        "background-color: #0595DE; color: yellow; padding: 8px; border-radius: 4px;",
-        error
-      );
-    });
+    await waitForElement(document.body, tagInputSelector, 10000).catch(
+      (error) => {
+        console.error(
+          `%c👀  ==> [waitForElement - tagInputSelector] 👀`,
+          "background-color: #0595DE; color: yellow; padding: 8px; border-radius: 4px;",
+          error
+        );
+      }
+    );
   }
 
   async function addTagToPhoto(photo, tag) {
@@ -193,13 +198,13 @@ javascript: (function () {
 
     await clickDetailButton(photo);
 
-    await clickAddTagButton(photo);
+    await clickAddTagButton();
 
     // await addTag(tag);
 
     // wait for "div.add-tag-input input" to disappear
-    await waitForTagInputToDisappear(photo);
-    await clickCloseButton(photo);
+    await waitForTagInputToDisappear();
+    await clickCloseButton();
     hoverLeave(img);
   }
 })();
