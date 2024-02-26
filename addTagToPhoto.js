@@ -15,6 +15,10 @@ javascript: (function () {
   }
 
   function hoverLeave(element, onLeave) {
+    console.log(
+      `%c==> [hoverLeave]`,
+      "background-color: #0595DE; color: yellow; padding: 8px; border-radius: 4px;"
+    );
     // Simulate a mouseleave event to trigger the leave state
     element.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
 
@@ -24,10 +28,10 @@ javascript: (function () {
     }
   }
 
-  function waitForElement(childSelector, timeoutDuration = 5000) {
+  function waitForElement(parent, childSelector, timeoutDuration = 5000) {
     return new Promise((resolve, reject) => {
       const intervalId = setInterval(() => {
-        const element = document.querySelector(childSelector);
+        const element = parent.querySelector(childSelector);
         if (element) {
           clearInterval(intervalId);
           resolve(element);
@@ -85,7 +89,7 @@ javascript: (function () {
     });
   }
 
-  async function addTagToSelectedPhotos() {
+  function getPhotoTiles() {
     const selector = "div.tile-selection";
     const selectors = document.querySelectorAll(selector);
     const photoTiles = [];
@@ -94,6 +98,11 @@ javascript: (function () {
       photoTiles.push(tile);
       checkmark.click();
     });
+    return photoTiles;
+  }
+
+  async function addTagToSelectedPhotos() {
+    const photoTiles = getPhotoTiles();
     const tag = "test123"; // getTag();
     for (const photo of photoTiles) {
       await addTagToPhoto(photo, tag);
@@ -108,47 +117,69 @@ javascript: (function () {
     // find child element img.photo
     const img = photo.querySelector("img.photo");
     hoverOver(img);
+    return img;
   }
 
-  async function clickDetailButton() {
+  async function clickDetailButton(photo) {
+    console.log(
+      `%c==> [clickDetailButton]`,
+      "background-color: #0595DE; color: yellow; padding: 8px; border-radius: 4px;"
+    );
     const selector = "button[aria-label='Show detailed information']";
     // Directly click the button if it's expected to be immediately available
-    let detailButton = document.querySelector(selector);
+    let detailButton = photo.querySelector(selector);
     if (!detailButton) {
-      detailButton = await waitForElement(selector);
+      detailButton = await waitForElement(photo, selector);
     }
     detailButton.click();
   }
 
-  async function clickAddTagButton() {
+  async function clickAddTagButton(photo) {
+    console.log(
+      `%c==> [clickAddTagButton]`,
+      "background-color: #0595DE; color: yellow; padding: 8px; border-radius: 4px;"
+    );
     const addTagSelector = "button.add-tag-button";
-    const addTagButton = await waitForElement(addTagSelector);
+    const addTagButton = await waitForElement(photo, addTagSelector);
     addTagButton.click();
   }
 
   async function addTag(tag) {
     // wait for the tag input field to appear
     const tagInputSelector = "div.add-tag-input input";
-    const tagInput = await waitForElement(tagInputSelector);
+    const tagInput = await waitForElement(photo, tagInputSelector);
     tagInput.value = tag;
     tagInput.dispatchEvent(new Event("input", { bubbles: true }));
     tagInput.dispatchEvent(new Event("change", { bubbles: true }));
     tagInput.dispatchEvent(new Event("blur", { bubbles: true }));
-    const enterKeyEvent = new KeyboardEvent("keydown", {
-      key: "Enter",
-      code: "Enter",
-      bubbles: true
-    });
-    tagInput.dispatchEvent(enterKeyEvent);
   }
 
   async function clickCloseButton() {
+    console.log(
+      `%c==> [clickCloseButton]`,
+      "background-color: #0595DE; color: yellow; padding: 8px; border-radius: 4px;"
+    );
     // which has this selector div.details-panel button[aria-label='Close']
-    const closeButtonSelector = "div.details-panel button[aria-label='Close']";
-    const closeButton = await waitForElement(closeButtonSelector);
+    const closeButtonSelector = "button[aria-label='Close']";
+    const closeButton = await waitForElement(photo, closeButtonSelector);
     if (closeButton) {
       closeButton.click();
     }
+  }
+
+  async function waitForTagInputToDisappear() {
+    console.log(
+      `%c==> [waitForTagInputToDisappear]`,
+      "background-color: #0595DE; color: yellow; padding: 8px; border-radius: 4px;"
+    );
+    const tagInputSelector = "div.add-tag-input input";
+    await waitForElement(photo, tagInputSelector, 10000).catch((error) => {
+      console.error(
+        `%c👀  ==> [waitForElement - tagInputSelector] 👀`,
+        "background-color: #0595DE; color: yellow; padding: 8px; border-radius: 4px;",
+        error
+      );
+    });
   }
 
   async function addTagToPhoto(photo, tag) {
@@ -158,14 +189,17 @@ javascript: (function () {
       { photo }
     );
 
-    hoverOverImage(photo);
+    const img = hoverOverImage(photo);
 
-    await clickDetailButton();
+    await clickDetailButton(photo);
 
-    await clickAddTagButton();
+    await clickAddTagButton(photo);
 
-    await addTag(tag);
-    await clickCloseButton();
+    // await addTag(tag);
+
+    // wait for "div.add-tag-input input" to disappear
+    await waitForTagInputToDisappear(photo);
+    await clickCloseButton(photo);
     hoverLeave(img);
   }
 })();
