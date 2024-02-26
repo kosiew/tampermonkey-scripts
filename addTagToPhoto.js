@@ -89,10 +89,10 @@ javascript: (function () {
     const selector = "div.tile-selection";
     const selectors = document.querySelectorAll(selector);
     const photoTiles = [];
-    selectors.forEach((photo) => {
-      const tile = photo.closest("div.photo-tile");
+    selectors.forEach((checkmark) => {
+      const tile = checkmark.closest("div.photo-tile");
       photoTiles.push(tile);
-      photo.click();
+      checkmark.click();
     });
     const tag = "test123"; // getTag();
     for (const photo of photoTiles) {
@@ -104,6 +104,53 @@ javascript: (function () {
     return prompt("Enter the tag to add to the selected photos");
   }
 
+  function hoverOverImage(photo) {
+    // find child element img.photo
+    const img = photo.querySelector("img.photo");
+    hoverOver(img);
+  }
+
+  async function clickDetailButton() {
+    const selector = "button[aria-label='Show detailed information']";
+    // Directly click the button if it's expected to be immediately available
+    let detailButton = document.querySelector(selector);
+    if (!detailButton) {
+      detailButton = await waitForElement(selector);
+    }
+    detailButton.click();
+  }
+
+  async function clickAddTagButton() {
+    const addTagSelector = "button.add-tag-button";
+    const addTagButton = await waitForElement(addTagSelector);
+    addTagButton.click();
+  }
+
+  async function addTag(tag) {
+    // wait for the tag input field to appear
+    const tagInputSelector = "div.add-tag-input input";
+    const tagInput = await waitForElement(tagInputSelector);
+    tagInput.value = tag;
+    tagInput.dispatchEvent(new Event("input", { bubbles: true }));
+    tagInput.dispatchEvent(new Event("change", { bubbles: true }));
+    tagInput.dispatchEvent(new Event("blur", { bubbles: true }));
+    const enterKeyEvent = new KeyboardEvent("keydown", {
+      key: "Enter",
+      code: "Enter",
+      bubbles: true
+    });
+    tagInput.dispatchEvent(enterKeyEvent);
+  }
+
+  async function clickCloseButton() {
+    // which has this selector div.details-panel button[aria-label='Close']
+    const closeButtonSelector = "div.details-panel button[aria-label='Close']";
+    const closeButton = await waitForElement(closeButtonSelector);
+    if (closeButton) {
+      closeButton.click();
+    }
+  }
+
   async function addTagToPhoto(photo, tag) {
     console.log(
       `%c==> [addTagToPhoto]`,
@@ -111,37 +158,14 @@ javascript: (function () {
       { photo }
     );
 
-    // find child element img.photo
-    const img = photo.querySelector("img.photo");
+    hoverOverImage(photo);
 
-    hoverOver(img);
-    const selector = "button[aria-label='Show detailed information']";
-    // Directly click the button if it's expected to be immediately available
-    let detailButton = document.querySelector(selector);
-    if (!detailButton) {
-      const body = document.body;
-      detailButton = await waitForElement(selector);
-    }
-    detailButton.click();
+    await clickDetailButton();
 
-    const addTagSelector = "button.add-tag-button";
-    const addTagButton = await waitForElement(addTagSelector);
-    addTagButton.click();
+    await clickAddTagButton();
 
-    // Then, wait for the tag input field to appear
-    const tagInputSelector = "div.add-tag-input input";
-    const tagInput = await waitForElement(tagInputSelector);
-    tagInput.value = tag;
-    tagInput.dispatchEvent(new Event("input", { bubbles: true }));
-    tagInput.dispatchEvent(new Event("change", { bubbles: true }));
-
-    // Finally, click the "Close" button
-    // which has this selector div.details-panel button[aria-label='Close']
-    const closeButtonSelector = "div.details-panel button[aria-label='Close']";
-    const closeButton = await waitForElement(closeButtonSelector);
-    if (closeButton) {
-      closeButton.click();
-    }
+    await addTag(tag);
+    await clickCloseButton();
     hoverLeave(img);
   }
 })();
