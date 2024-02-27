@@ -172,7 +172,7 @@ javascript: (function () {
     .replace("www.", "");
   const fullUrl = document.location.href;
 
-  copyToClipboard(`${baseUrl} ${fullUrl}`);
+  copyItemsToClipboard([fullUrl, baseUrl]);
   setTimeout(shake, WAIT_MILISECONDS);
 })();
 
