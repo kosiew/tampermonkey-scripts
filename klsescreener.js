@@ -28,17 +28,29 @@
     }, interval);
   }
 
-  // add a button after <h3>Stocks Screener</h3>
+  // add a button to before the Clear button
+  // <div class="">
+  // <input type="reset" class="btn btn-warning" value="Clear">
+  // </div>
   function addFilterButton() {
-    waitForElement("h3", (element) => {
-      // look for h3 element that contains Stocks Screener
-      if (element.textContent == "Stocks Screener") {
-        const button = document.createElement("button");
-        button.textContent = "Apply Filters";
-        button.style.marginLeft = "10px";
-        button.addEventListener("click", setFilterValues);
-        element.after(button);
-      }
+    waitForElement(".btn-warning", (clearButton) => {
+      // get the div that contains the clear button
+      const clearButtonDiv = clearButton.parentElement;
+
+      const filterButton = document.createElement("input");
+      // enclose the button in a div
+      const filterDiv = document.createElement("div");
+      filterDiv.className = "form-group";
+      filterDiv.appendChild(filterButton);
+
+      filterButton.type = "button";
+      filterButton.value = "Apply Filters";
+      filterButton.className = "btn btn-primary";
+      filterButton.addEventListener("click", setFilterValues);
+
+      // place the div before the clear button div
+
+      clearButtonDiv.insertAdjacentElement("beforebegin", filterDiv);
     });
   }
 
@@ -109,6 +121,6 @@
 
   // Wait for the page to fully load before running the script
   window.addEventListener("load", () => {
-    setFilterValues();
+    addFilterButton();
   });
 })();
