@@ -6,7 +6,7 @@
 // @author       Siew Kam Onn
 // @match        https://github.com/*/pull/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
-// @grant        none
+// @grant        GM.openInTab
 // ==/UserScript==
 
 (function () {
@@ -32,7 +32,7 @@
     diffButton.innerHTML = "View Diff";
     diffButton.onclick = () => {
       const currentUrl = window.location.href;
-      window.open(`${currentUrl}.diff`, "_blank");
+      GM.openInTab(`${currentUrl}.diff`, true);
     };
 
     // Insert after the details element
