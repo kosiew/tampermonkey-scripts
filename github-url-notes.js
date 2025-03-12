@@ -10,26 +10,32 @@
 // @grant        GM.getValue
 // @grant        GM.setValue
 // @grant        GM.registerMenuCommand
+// @grant        unsafeWindow
 // @connect      api.github.com
 // @connect      github.com
+// @noframes
 // ==/UserScript==
 
 (function () {
   "use strict";
 
-  const CLEANUP_DAYS = 30; // Days after which unused notes can be removed
+  // Constants
+  const CLEANUP_DAYS = 30;
   const GIST_DESCRIPTION = "GitHub URL Notes";
   const GIST_FILENAME = "github-url-notes.json";
-  const AUTH_TIMEOUT = 60000; // 1 minute timeout between auth attempts
+  const AUTH_TIMEOUT = 60000;
   const AUTH_STATE_KEY = "auth_state";
   const AUTH_WINDOW_KEY = "auth_window_open";
 
+  // State variables
   let notes = {};
   let accessToken = null;
   let gistId = null;
   let clientId = null;
   let authTimeoutId = null;
   let authWindow = null;
+  let isInitialized = false;
+  let isInitializing = false;
 
   function debugLog(message, data = null) {
     const timestamp = new Date().toISOString();
@@ -41,118 +47,148 @@
     }
   }
 
+  // Safe storage access wrapper
+  async function safeStorageAccess(action) {
+    try {
+      return await action();
+    } catch (error) {
+      debugLog("Storage access error:", error);
+      return null;
+    }
+  }
+
   async function checkConfiguration() {
     debugLog("Checking configuration");
-    clientId = await GM.getValue("github_client_id", null);
-    debugLog("Retrieved client ID:", clientId ? "exists" : "null");
-    if (!clientId) {
-      const input = prompt(
-        "Please enter your GitHub OAuth App Client ID.\n" +
-          "To create one:\n" +
-          "1. Go to GitHub Settings > Developer settings > OAuth Apps\n" +
-          '2. Click "New OAuth App"\n' +
-          "3. Fill in:\n" +
-          "   - Application name: GitHub URL Notes\n" +
-          "   - Homepage URL: https://github.com\n" +
-          "   - Authorization callback URL: https://github.com\n" +
-          "4. Copy the Client ID and paste it here:"
+    try {
+      clientId = await safeStorageAccess(() =>
+        GM.getValue("github_client_id", null)
       );
+      debugLog("Retrieved client ID:", clientId ? "exists" : "null");
 
-      if (input) {
-        clientId = input.trim();
-        await GM.setValue("github_client_id", clientId);
-      } else {
-        console.error("GitHub Client ID is required for the script to work");
-        return false;
-      }
-    }
-    return true;
-  }
+      if (!clientId) {
+        const input = prompt(
+          "Please enter your GitHub OAuth App Client ID.\n" +
+            "To create one:\n" +
+            "1. Go to GitHub Settings > Developer settings > OAuth Apps\n" +
+            '2. Click "New OAuth App"\n' +
+            "3. Fill in:\n" +
+            "   - Application name: GitHub URL Notes\n" +
+            "   - Homepage URL: https://github.com\n" +
+            "   - Authorization callback URL: https://github.com\n" +
+            "4. Copy the Client ID and paste it here:"
+        );
 
-  // Add debounce function
-  function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-      const later = () => {
-        clearTimeout(timeout);
-        func(...args);
-      };
-      clearTimeout(timeout);
-      timeout = setTimeout(later, wait);
-    };
-  }
-
-  // Add initialization guard
-  let isInitialized = false;
-
-  async function initializeGist() {
-    debugLog("Initializing gist");
-
-    // Add a function to check if we're on the OAuth callback page
-    function isOAuthCallback() {
-      const params = new URLSearchParams(window.location.search);
-      return params.has("code") && params.has("state");
-    }
-
-    // Handle OAuth callback
-    async function handleOAuthCallback() {
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get("code");
-      const state = params.get("state");
-      const savedState = await GM.getValue(AUTH_STATE_KEY, "");
-
-      if (state === savedState) {
-        // Post message back to the opener window
-        if (window.opener) {
-          window.opener.postMessage(
-            { type: "oauth-token", token: code, state: state },
-            "https://github.com"
+        if (input) {
+          clientId = input.trim();
+          await safeStorageAccess(() =>
+            GM.setValue("github_client_id", clientId)
           );
-          window.close();
+          return true;
+        } else {
+          console.error("GitHub Client ID is required for the script to work");
+          return false;
         }
       }
+      return true;
+    } catch (error) {
+      debugLog("Configuration check error:", error);
+      return false;
+    }
+  }
+
+  // Add initialization queue
+  const initQueue = [];
+  let isProcessingQueue = false;
+
+  async function processInitQueue() {
+    if (isProcessingQueue) return;
+    isProcessingQueue = true;
+
+    while (initQueue.length > 0) {
+      const task = initQueue.shift();
+      try {
+        await task();
+      } catch (error) {
+        debugLog("Error processing init task:", error);
+      }
     }
 
-    // Check if we're on the OAuth callback page
-    if (isOAuthCallback()) {
-      debugLog("On OAuth callback page, handling callback");
-      await handleOAuthCallback();
+    isProcessingQueue = false;
+  }
+
+  async function queueInitTask(task) {
+    initQueue.push(task);
+    if (!isProcessingQueue) {
+      await processInitQueue();
+    }
+  }
+
+  // Updated initialization function
+  async function initializeGist() {
+    if (isInitializing) {
+      debugLog("Already initializing, skipping");
       return;
     }
 
-    // Prevent multiple initializations
     if (isInitialized) {
       debugLog("Already initialized, skipping");
       return;
     }
 
-    if (!(await checkConfiguration())) return;
+    isInitializing = true;
+    debugLog("Starting initialization");
 
-    accessToken = await GM.getValue("github_token", null);
-    gistId = await GM.getValue("notes_gist_id", null);
-    debugLog("Current state:", {
-      hasToken: !!accessToken,
-      hasGistId: !!gistId
-    });
+    try {
+      // Check if we're on the OAuth callback page
+      const params = new URLSearchParams(window.location.search);
+      if (params.has("code") && params.has("state")) {
+        debugLog("On OAuth callback page, handling callback");
+        await handleOAuthCallback(params);
+        isInitializing = false;
+        return;
+      }
 
-    // Check if there's a stale auth window open
-    const isAuthWindowOpen = await GM.getValue(AUTH_WINDOW_KEY, false);
-    debugLog("Auth window state:", { isAuthWindowOpen });
+      if (!(await checkConfiguration())) {
+        isInitializing = false;
+        return;
+      }
 
-    if (isAuthWindowOpen) {
-      debugLog("Cleaning up stale auth state");
-      await cleanupAuth();
+      // Safely retrieve stored values
+      accessToken = await safeStorageAccess(() =>
+        GM.getValue("github_token", null)
+      );
+      gistId = await safeStorageAccess(() =>
+        GM.getValue("notes_gist_id", null)
+      );
+
+      debugLog("Current state:", {
+        hasToken: !!accessToken,
+        hasGistId: !!gistId
+      });
+
+      // Check for stale auth window
+      const isAuthWindowOpen = await safeStorageAccess(() =>
+        GM.getValue(AUTH_WINDOW_KEY, false)
+      );
+      if (isAuthWindowOpen) {
+        debugLog("Cleaning up stale auth state");
+        await cleanupAuth();
+      }
+
+      if (!accessToken) {
+        debugLog("No access token found, starting authentication");
+        await authenticateGitHub();
+      } else {
+        debugLog("Access token exists, loading notes");
+        await loadNotes();
+      }
+
+      isInitialized = true;
+    } catch (error) {
+      debugLog("Initialization error:", error);
+    } finally {
+      isInitializing = false;
     }
-
-    if (!accessToken) {
-      debugLog("No access token found, starting authentication");
-      await authenticateGitHub();
-    } else {
-      debugLog("Access token exists, loading notes");
-      await loadNotes();
-    }
-
-    isInitialized = true;
   }
 
   async function cleanupAuth() {
@@ -505,6 +541,19 @@
     addNotesButton();
   }, 250); // 250ms debounce time
 
+  // Add debounce function
+  function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
+
   // Initialize
   debugLog("Script initialization started");
 
@@ -519,21 +568,18 @@
     debouncedAddNotesButton();
   });
 
-  // Wait for DOMContentLoaded to start observing
+  // Observer Callback
   document.addEventListener("DOMContentLoaded", () => {
-    // Only observe the header container for changes
-    const headerContainer = document.querySelector(".Header");
-    if (headerContainer) {
-      observer.observe(headerContainer, {
-        childList: true,
-        subtree: true
-      });
-      // Initial check for notes button
-      debouncedAddNotesButton();
-    }
-
-    // Start initialization
-    initializeGist();
+    queueInitTask(async () => {
+      const headerContainer = document.querySelector(".Header");
+      if (headerContainer) {
+        observer.observe(headerContainer, {
+          childList: true,
+          subtree: true
+        });
+        await initializeGist();
+      }
+    });
   });
 
   // Cleanup observer when page is unloaded
