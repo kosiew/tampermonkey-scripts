@@ -5,7 +5,6 @@
 // @description  Adds a button to view PR diff in new tab
 // @author       Siew Kam Onn
 // @match        https://github.com/*/pull/*
-// @match        https://github.com/*/issues/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
 // @grant        GM.openInTab
 // ==/UserScript==
