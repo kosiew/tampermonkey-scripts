@@ -13,6 +13,7 @@
 // @grant        unsafeWindow
 // @connect      api.github.com
 // @connect      github.com
+// @connect      login.github.com
 // @noframes
 // @run-at       document-end
 // ==/UserScript==
@@ -303,6 +304,51 @@
     isInitializing = false;
   }
 
+  async function exchangeCodeForToken(code) {
+    debugLog("Exchanging code for access token");
+    return new Promise((resolve, reject) => {
+      GM.xmlHttpRequest({
+        method: "POST",
+        url: "https://github.com/login/oauth/access_token",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json"
+        },
+        data: JSON.stringify({
+          client_id: clientId,
+          client_secret: null, // Not needed for client-side flow
+          code: code
+        }),
+        onload: (response) => {
+          debugLog("Token exchange response received", {
+            status: response.status,
+            headers: response.headers
+          });
+          if (response.status >= 200 && response.status < 300) {
+            const data = JSON.parse(response.responseText);
+            if (data.access_token) {
+              debugLog("Successfully obtained access token");
+              resolve(data.access_token);
+            } else {
+              debugLog("No access token in response", { data });
+              reject(new Error("No access token in response"));
+            }
+          } else {
+            debugLog("Token exchange failed", {
+              status: response.status,
+              response: response.responseText
+            });
+            reject(new Error(`Token exchange failed: ${response.status}`));
+          }
+        },
+        onerror: (error) => {
+          debugLog("Token exchange network error", { error });
+          reject(error);
+        }
+      });
+    });
+  }
+
   async function handleOAuthCallback(params) {
     debugLog("Handling OAuth callback");
     const code = params.get("code");
@@ -314,11 +360,16 @@
     if (state === savedState) {
       debugLog("State matches, proceeding with callback");
       if (window.opener) {
-        window.opener.postMessage(
-          { type: "oauth-token", token: code, state: state },
-          "https://github.com"
-        );
-        window.close();
+        try {
+          const token = await exchangeCodeForToken(code);
+          window.opener.postMessage(
+            { type: "oauth-token", token: token, state: state },
+            "https://github.com"
+          );
+          window.close();
+        } catch (error) {
+          debugLog("Token exchange failed", { error: error.message }, "error");
+        }
       }
     } else {
       debugLog(
