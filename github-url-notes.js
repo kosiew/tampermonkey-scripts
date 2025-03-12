@@ -9,6 +9,7 @@
 // @grant        GM.getValue
 // @grant        GM.setValue
 // @grant        GM.deleteValue
+// @grant        GM.registerMenuCommand
 // ==/UserScript==
 
 (function () {
@@ -55,7 +56,7 @@
       border: 1px solid var(--color-border-default, #d0d7de);
       border-radius: 6px;
     }
-    
+
     .gh-note-button {
       padding: 3px 8px;
       margin: 0 4px;
@@ -259,23 +260,12 @@
         const existingNote = await getNote();
         mainButton.textContent = existingNote ? "Edit Note" : "Save Note";
 
-        const exportButton = document.createElement("button");
-        exportButton.className = "gh-note-button";
-        exportButton.textContent = "Export";
-
-        const importButton = document.createElement("button");
-        importButton.className = "gh-note-button";
-        importButton.textContent = "Import";
-
-        const deleteOldButton = document.createElement("button");
-        deleteOldButton.className = "gh-note-button";
-        deleteOldButton.textContent = "Delete Old";
-        deleteOldButton.title = "Delete notes older than 180 days";
+        const cancelButton = document.createElement("button");
+        cancelButton.className = "gh-note-button";
+        cancelButton.textContent = "Cancel";
 
         container.appendChild(mainButton);
-        container.appendChild(exportButton);
-        container.appendChild(importButton);
-        container.appendChild(deleteOldButton);
+        container.appendChild(cancelButton);
 
         // Insert after the header
         header.parentNode.insertBefore(container, header.nextSibling);
@@ -287,21 +277,20 @@
           modal.querySelector(".gh-note-textarea").value = note || "";
           modal.style.display = "block";
         };
-
-        exportButton.onclick = exportNotes;
-        importButton.onclick = importNotes;
-        deleteOldButton.onclick = async () => {
-          if (
-            confirm(
-              "Are you sure you want to delete all notes older than 180 days?"
-            )
-          ) {
-            await deleteOldNotes();
-          }
-        };
       }
     }, 500);
   }
+
+  // Register Tampermonkey menu commands
+  GM.registerMenuCommand("Export GitHub Notes", exportNotes);
+  GM.registerMenuCommand("Import GitHub Notes", importNotes);
+  GM.registerMenuCommand("Delete Notes (Older than 180 days)", async () => {
+    if (
+      confirm("Are you sure you want to delete all notes older than 180 days?")
+    ) {
+      await deleteOldNotes();
+    }
+  });
 
   // Initialize
   createButtons();
