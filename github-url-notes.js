@@ -18,7 +18,7 @@
 
   const NOTES_KEY = "github_url_notes";
 
-  // Styles for the modal
+  // Styles for the modal and floating button
   const styles = `
     .gh-note-modal {
       display: none;
@@ -30,7 +30,7 @@
       height: 100%;
       background-color: rgba(0,0,0,0.4);
     }
-
+    
     .gh-note-modal-content {
       background-color: var(--color-canvas-default, #fff);
       margin: 15% auto;
@@ -40,7 +40,7 @@
       width: 50%;
       position: relative;
     }
-
+    
     .gh-note-close {
       position: absolute;
       right: 10px;
@@ -48,7 +48,7 @@
       font-size: 20px;
       cursor: pointer;
     }
-
+    
     .gh-note-textarea {
       width: 100%;
       min-height: 100px;
@@ -57,35 +57,28 @@
       border: 1px solid var(--color-border-default, #d0d7de);
       border-radius: 6px;
     }
-
+    
+    .gh-note-button-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1000;
+    }
+    
     .gh-note-button {
-      padding: 3px 8px;
-      margin: 0 4px;
+      padding: 8px 16px;
+      font-size: 14px;
       border-radius: 6px;
-      font-size: 12px;
-      border: 1px solid var(--color-border-default, #d0d7de);
-      background-color: var(--color-canvas-default, #fff);
-      color: var(--color-fg-default, #24292f);
-      cursor: pointer;
-      opacity: 0.8;
-      transition: opacity 0.2s;
-    }
-
-    .gh-note-button:hover {
-      opacity: 1;
-    }
-
-    .gh-note-button-primary {
+      border: 1px solid rgba(27, 31, 36, 0.15);
       background-color: var(--color-success-fg, #2ea44f);
       color: var(--color-fg-on-emphasis, #fff);
-      border: 1px solid rgba(27, 31, 36, 0.15);
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      transition: opacity 0.2s;
     }
-
-    .gh-note-button-container {
-      display: inline-flex;
-      gap: 4px;
-      margin-left: 8px;
-      align-items: center;
+    
+    .gh-note-button:hover {
+      opacity: 0.9;
     }
   `;
 
@@ -137,7 +130,7 @@
         <span class="gh-note-close">&times;</span>
         <h3>Note for this page</h3>
         <textarea class="gh-note-textarea"></textarea>
-        <button class="gh-note-button gh-note-button-primary gh-note-save">Save</button>
+        <button class="gh-note-button gh-note-save">Save</button>
       </div>
     `;
 
@@ -236,137 +229,44 @@
     }
   }
 
-  // Create button container and buttons
   async function createButtons() {
-    // Remove any existing buttons first
-    const existingButtons = document.querySelectorAll(
-      ".gh-note-button-container"
-    );
-    existingButtons.forEach((button) => button.remove());
+    if (document.querySelector(".gh-note-button-container")) return;
 
-    let buttonPlaced = false;
+    const container = document.createElement("div");
+    container.className = "gh-note-button-container";
 
-    async function placeButton() {
-      if (buttonPlaced) return;
+    const mainButton = document.createElement("button");
+    mainButton.className = "gh-note-button";
 
-      // Try specific GitHub locations in order of preference
-      const possibleContainers = [
-        // File view
-        document.querySelector("#repos-header-breadcrumb-content"),
-        // PR/Issue view
-        document.querySelector("#partial-discussion-header .gh-header-show"),
-        // Repository root
-        document.querySelector(
-          "#repository-container-header .AppHeader-localBar"
-        ),
-        // Fallbacks
-        document.querySelector(".js-sticky-header-content"),
-        document.querySelector("#partial-discussion-header > div.d-flex"),
-        document.querySelector(".gh-header-actions"),
-        document.querySelector(".pagehead-actions")
-      ].filter(Boolean);
+    // Set initial button text based on whether there's an existing note
+    const existingNote = await getNote();
+    mainButton.textContent = existingNote ? "Edit Note" : "Save Note";
 
-      const container = possibleContainers[0]; // Take the first available container
+    container.appendChild(mainButton);
+    document.body.appendChild(container);
 
-      if (container && !container.querySelector(".gh-note-button-container")) {
-        const buttonContainer = document.createElement("div");
-        buttonContainer.className = "gh-note-button-container";
-        buttonContainer.style.display = "inline-flex";
-        buttonContainer.style.alignItems = "center";
-        buttonContainer.style.verticalAlign = "middle";
-        buttonContainer.style.marginLeft = "8px";
-        buttonContainer.style.position = "relative";
-        buttonContainer.style.zIndex = "100";
+    const modal = createNoteModal(mainButton);
 
-        const mainButton = document.createElement("button");
-        mainButton.className = "gh-note-button gh-note-button-primary";
-
-        // Set initial button text based on whether there's an existing note
-        const existingNote = await getNote();
-        mainButton.textContent = existingNote ? "Edit Note" : "Save Note";
-
-        buttonContainer.appendChild(mainButton);
-
-        // Insert at the beginning of the container
-        container.insertBefore(buttonContainer, container.firstChild);
-
-        const modal = createNoteModal(mainButton);
-
-        mainButton.onclick = async () => {
-          const note = await getNote();
-          modal.querySelector(".gh-note-textarea").value = note || "";
-          modal.style.display = "block";
-        };
-
-        buttonPlaced = true;
-      }
-    }
-
-    // Try to place button immediately and set up observers
-    await placeButton();
-
-    // Clean up existing observer
-    if (window.ghNotesObserver) {
-      window.ghNotesObserver.disconnect();
-    }
-
-    // Set up observers for both DOM changes and URL changes
-    const observer = new MutationObserver(async () => {
-      if (!buttonPlaced) {
-        await placeButton();
-      }
-    });
-
-    window.ghNotesObserver = observer;
-
-    // Start observing with a more focused approach
-    const targetNode = document.querySelector("main") || document.body;
-    observer.observe(targetNode, {
-      childList: true,
-      subtree: true
-    });
-
-    // Also watch for navigation changes
-    const navigationObserver = new MutationObserver(async (mutations) => {
-      const urlChange = mutations.some(
-        (mutation) =>
-          mutation.target.nodeType === Node.ELEMENT_NODE &&
-          (mutation.target.matches("head > title") ||
-            mutation.target.matches('head > meta[property="og:url"]'))
-      );
-
-      if (urlChange) {
-        buttonPlaced = false;
-        await placeButton();
-      }
-    });
-
-    navigationObserver.observe(document.head, {
-      childList: true,
-      subtree: true,
-      characterData: true
-    });
-
-    // Quick retries for dynamic content
-    [100, 500, 1000].forEach((delay) => {
-      setTimeout(async () => {
-        if (!buttonPlaced) {
-          await placeButton();
-        }
-      }, delay);
-    });
+    mainButton.onclick = async () => {
+      const note = await getNote();
+      modal.querySelector(".gh-note-textarea").value = note || "";
+      modal.style.display = "block";
+    };
   }
 
-  // Clean up function to remove buttons and disconnect observer
-  function cleanup() {
-    const existingButtons = document.querySelectorAll(
-      ".gh-note-button-container"
-    );
-    existingButtons.forEach((button) => button.remove());
-    if (window.ghNotesObserver) {
-      window.ghNotesObserver.disconnect();
-    }
+  // Initialize
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", createButtons);
+  } else {
+    createButtons();
   }
+
+  // Handle GitHub's Turbo navigation
+  document.addEventListener("turbo:load", createButtons);
+  document.addEventListener("turbo:render", createButtons);
+
+  // Also handle regular page loads
+  window.addEventListener("load", createButtons);
 
   // Register Tampermonkey menu commands
   GM.registerMenuCommand("Export GitHub Notes", exportNotes);
@@ -378,24 +278,4 @@
       await deleteOldNotes();
     }
   });
-
-  // Initialize as soon as DOM is ready
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", createButtons);
-  } else {
-    createButtons();
-  }
-
-  // Handle GitHub's Turbo navigation
-  document.addEventListener("turbo:load", () => {
-    cleanup();
-    createButtons();
-  });
-  document.addEventListener("turbo:render", () => {
-    cleanup();
-    createButtons();
-  });
-
-  // Also try again when the window loads (backup)
-  window.addEventListener("load", createButtons);
 })();
