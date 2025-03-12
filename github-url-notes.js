@@ -14,7 +14,7 @@
 // @connect      api.github.com
 // @connect      github.com
 // @noframes
-// @run-at       document-start
+// @run-at       document-end
 // ==/UserScript==
 
 (function () {
@@ -140,19 +140,50 @@
     throw new Error("Header container not found after all retries");
   }
 
+  async function checkConfiguration() {
+    debugLog("Starting configuration check");
+    try {
+      clientId = await safeStorageAccess("github_client_id", () =>
+        GM.getValue("github_client_id", null)
+      );
+      debugLog("Configuration state:", {
+        hasClientId: !!clientId,
+        documentState: document.readyState,
+        currentUrl: window.location.href
+      });
+
+      if (!clientId) {
+        const input = prompt(
+          "Please enter your GitHub OAuth App Client ID.\n" +
+            "To create one:\n" +
+            "1. Go to GitHub Settings > Developer settings > OAuth Apps\n" +
+            '2. Click "New OAuth App"\n' +
+            "3. Fill in:\n" +
+            "   - Application name: GitHub URL Notes\n" +
+            "   - Homepage URL: https://github.com\n" +
+            "   - Authorization callback URL: https://github.com\n" +
+            "4. Copy the Client ID and paste it here:"
+        );
+
+        if (input) {
+          clientId = input.trim();
+          await safeStorageAccess("github_client_id", () =>
+            GM.setValue("github_client_id", clientId)
+          );
+          return true;
+        }
+        debugLog("No client ID provided", null, "error");
+        return false;
+      }
+      return true;
+    } catch (error) {
+      debugLog("Configuration check failed", { error: error.message }, "error");
+      return false;
+    }
+  }
+
   // Enhanced initialization function
   async function initializeGist() {
-    debugLog(
-      "🔍 Checking initialization prerequisites",
-      {
-        isInitializing,
-        isInitialized,
-        hasGM: typeof GM !== "undefined",
-        documentState: document.readyState
-      },
-      "init"
-    );
-
     if (isInitializing) {
       debugLog("⚠️ Initialization already in progress", null, "init");
       return;
@@ -166,28 +197,28 @@
     isInitializing = true;
 
     try {
-      // Wait for document to be interactive at minimum
-      if (document.readyState === "loading") {
-        debugLog("Waiting for document to be ready");
+      debugLog("🔍 Starting initialization sequence", {
+        readyState: document.readyState,
+        documentIsReady: document.readyState !== "loading"
+      });
+
+      // Wait for document to be fully loaded
+      if (document.readyState !== "complete") {
+        debugLog("Waiting for document to be fully loaded");
         await new Promise((resolve) => {
-          document.addEventListener("DOMContentLoaded", resolve, {
-            once: true
-          });
+          window.addEventListener("load", resolve, { once: true });
         });
       }
+
+      // Small delay to ensure GM APIs are fully available
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Verify script environment
       if (typeof GM === "undefined") {
         throw new Error("GM APIs not available");
       }
 
-      // Find header with retry logic
-      const header = await findHeader();
-      if (!header) {
-        throw new Error("Could not find header container");
-      }
-
-      // Test storage access
+      // Test storage access with retry
       debugLog("Testing storage access...", null, "storage");
       const testKey = "storage_test";
       await safeStorageAccess(testKey, async () => {
@@ -197,14 +228,11 @@
         return testValue;
       });
 
-      // Continue with normal initialization
+      // Rest of initialization
       // Check if we're on the OAuth callback page
       const params = new URLSearchParams(window.location.search);
       if (params.has("code") && params.has("state")) {
-        debugLog("OAuth callback detected", {
-          code: params.get("code")?.substring(0, 4) + "...",
-          state: params.get("state")
-        });
+        debugLog("OAuth callback detected");
         await handleOAuthCallback(params);
         isInitializing = false;
         return;
@@ -258,17 +286,50 @@
         },
         "error"
       );
-      // Schedule a retry if it was a temporary failure
-      setTimeout(() => {
-        if (!isInitialized) {
-          debugLog("Retrying initialization");
-          initializeGist();
-        }
-      }, 2000);
+
+      // Only retry if it wasn't a critical failure
+      if (!error.message.includes("GM APIs not available")) {
+        setTimeout(() => {
+          if (!isInitialized) {
+            debugLog("Scheduling initialization retry");
+            isInitializing = false;
+            initializeGist();
+          }
+        }, 2000);
+      }
       return;
     }
 
     isInitializing = false;
+  }
+
+  async function handleOAuthCallback(params) {
+    debugLog("Handling OAuth callback");
+    const code = params.get("code");
+    const state = params.get("state");
+    const savedState = await safeStorageAccess("auth_state", () =>
+      GM.getValue(AUTH_STATE_KEY, "")
+    );
+
+    if (state === savedState) {
+      debugLog("State matches, proceeding with callback");
+      if (window.opener) {
+        window.opener.postMessage(
+          { type: "oauth-token", token: code, state: state },
+          "https://github.com"
+        );
+        window.close();
+      }
+    } else {
+      debugLog(
+        "State mismatch in OAuth callback",
+        {
+          received: state,
+          saved: savedState
+        },
+        "error"
+      );
+    }
   }
 
   async function cleanupAuth() {
@@ -705,15 +766,17 @@
   };
 
   // Update initialization timing
-  if (document.readyState === "loading") {
-    debugLog("⏳ Document still loading, adding ready listener", null, "init");
-    document.addEventListener("DOMContentLoaded", documentReady);
+  debugLog("🏁 Initial script load", {
+    readyState: document.readyState,
+    timing: performance.now()
+  });
+
+  // Always wait for full page load
+  if (document.readyState !== "complete") {
+    debugLog("Waiting for full page load");
+    window.addEventListener("load", documentReady);
   } else {
-    debugLog(
-      "📄 Document already ready, executing initialization",
-      null,
-      "init"
-    );
+    debugLog("Page already loaded, proceeding with initialization");
     documentReady();
   }
 })();
