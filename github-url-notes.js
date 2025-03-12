@@ -22,16 +22,29 @@
   const GIST_FILENAME = "github-url-notes.json";
   const AUTH_TIMEOUT = 60000; // 1 minute timeout between auth attempts
   const AUTH_STATE_KEY = "auth_state";
+  const AUTH_WINDOW_KEY = "auth_window_open";
 
   let notes = {};
   let accessToken = null;
   let gistId = null;
   let clientId = null;
-  let isAuthenticating = false;
-  let lastAuthAttempt = 0;
+  let authTimeoutId = null;
+  let authWindow = null;
+
+  function debugLog(message, data = null) {
+    const timestamp = new Date().toISOString();
+    const logMessage = `[GitHub Notes ${timestamp}] ${message}`;
+    if (data) {
+      console.log(logMessage, data);
+    } else {
+      console.log(logMessage);
+    }
+  }
 
   async function checkConfiguration() {
+    debugLog("Checking configuration");
     clientId = await GM.getValue("github_client_id", null);
+    debugLog("Retrieved client ID:", clientId ? "exists" : "null");
     if (!clientId) {
       const input = prompt(
         "Please enter your GitHub OAuth App Client ID.\n" +
@@ -57,78 +70,133 @@
   }
 
   async function initializeGist() {
+    debugLog("Initializing gist");
     if (!(await checkConfiguration())) return;
 
     accessToken = await GM.getValue("github_token", null);
     gistId = await GM.getValue("notes_gist_id", null);
+    debugLog("Current state:", {
+      hasToken: !!accessToken,
+      hasGistId: !!gistId
+    });
+
+    // Check if there's a stale auth window open
+    const isAuthWindowOpen = await GM.getValue(AUTH_WINDOW_KEY, false);
+    debugLog("Auth window state:", { isAuthWindowOpen });
+
+    if (isAuthWindowOpen) {
+      debugLog("Cleaning up stale auth state");
+      await cleanupAuth();
+    }
 
     if (!accessToken) {
+      debugLog("No access token found, starting authentication");
       await authenticateGitHub();
     } else {
+      debugLog("Access token exists, loading notes");
       await loadNotes();
     }
   }
 
+  async function cleanupAuth() {
+    debugLog("Cleaning up authentication state");
+    // Clear any existing auth state
+    await GM.setValue(AUTH_STATE_KEY, "");
+    await GM.setValue(AUTH_WINDOW_KEY, false);
+    if (authTimeoutId) {
+      debugLog("Clearing auth timeout");
+      clearTimeout(authTimeoutId);
+      authTimeoutId = null;
+    }
+    if (authWindow && !authWindow.closed) {
+      debugLog("Closing auth window");
+      authWindow.close();
+      authWindow = null;
+    }
+    debugLog("Auth cleanup complete");
+  }
+
   async function authenticateGitHub() {
-    // Check if authentication is already in progress
-    if (isAuthenticating) {
-      console.log("Authentication already in progress");
+    debugLog("Starting GitHub authentication");
+    // Check if auth window is already open
+    const isAuthWindowOpen = await GM.getValue(AUTH_WINDOW_KEY, false);
+    debugLog("Current auth window state:", { isAuthWindowOpen });
+
+    if (isAuthWindowOpen) {
+      debugLog(
+        "Authentication window is already open, aborting new auth attempt"
+      );
       return;
     }
 
-    // Check for timeout between auth attempts
-    const now = Date.now();
-    if (now - lastAuthAttempt < AUTH_TIMEOUT) {
-      console.log("Please wait before trying to authenticate again");
-      return;
-    }
-
-    isAuthenticating = true;
-    lastAuthAttempt = now;
+    await cleanupAuth();
 
     // Generate a random state value for security
     const state = Math.random().toString(36).substring(7);
+    debugLog("Generated auth state:", state);
     await GM.setValue(AUTH_STATE_KEY, state);
+    await GM.setValue(AUTH_WINDOW_KEY, true);
 
     const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=gist&state=${state}`;
-    const authWindow = window.open(authUrl, "_blank", "width=600,height=600");
+    debugLog("Opening auth window with URL:", authUrl);
+    authWindow = window.open(authUrl, "_blank", "width=600,height=600");
 
-    // Clean up auth state after timeout
-    setTimeout(async () => {
-      if (isAuthenticating) {
-        isAuthenticating = false;
-        await GM.setValue(AUTH_STATE_KEY, "");
-        if (authWindow && !authWindow.closed) {
-          authWindow.close();
-        }
-      }
+    if (!authWindow) {
+      debugLog("Error: Popup was blocked");
+      await cleanupAuth();
+      return;
+    }
+
+    // Set up auth timeout
+    debugLog("Setting up auth timeout");
+    authTimeoutId = setTimeout(async () => {
+      debugLog("Auth timeout reached");
+      await cleanupAuth();
     }, AUTH_TIMEOUT);
 
-    // Listen for the OAuth callback
-    window.addEventListener("message", async function authCallback(event) {
+    // Set up one-time event listener for auth callback
+    const authCallback = async function (event) {
+      debugLog("Received postMessage event:", { origin: event.origin });
       if (event.origin !== "https://github.com") return;
 
       if (event.data.type === "oauth-token") {
+        debugLog("Received oauth-token message");
         // Verify state to prevent CSRF
         const savedState = await GM.getValue(AUTH_STATE_KEY, "");
+        debugLog("State verification:", {
+          received: event.data.state,
+          saved: savedState,
+          matches: event.data.state === savedState
+        });
+
         if (event.data.state !== savedState) {
-          console.error("Invalid state parameter");
+          debugLog("Error: Invalid state parameter");
           return;
         }
 
+        debugLog("Removing event listener and cleaning up auth state");
+        window.removeEventListener("message", authCallback);
+        await cleanupAuth();
+
+        debugLog("Saving access token and proceeding");
         accessToken = event.data.token;
         await GM.setValue("github_token", accessToken);
-        await GM.setValue(AUTH_STATE_KEY, ""); // Clear the state
-        isAuthenticating = false;
-
-        if (authWindow && !authWindow.closed) {
-          authWindow.close();
-        }
-
-        window.removeEventListener("message", authCallback);
         await createOrFindGist();
       }
-    });
+    };
+
+    debugLog("Adding message event listener");
+    window.addEventListener("message", authCallback);
+
+    // Check periodically if the window was closed manually
+    debugLog("Setting up window close checker");
+    const checkWindow = setInterval(async () => {
+      if (authWindow && authWindow.closed) {
+        debugLog("Auth window was closed manually");
+        clearInterval(checkWindow);
+        await cleanupAuth();
+      }
+    }, 1000);
   }
 
   async function createOrFindGist() {
@@ -359,12 +427,10 @@
       "Are you sure you want to reconfigure the GitHub Client ID? This will require re-authentication."
     );
     if (confirmed) {
-      isAuthenticating = false; // Reset auth state
-      lastAuthAttempt = 0; // Reset auth timeout
+      await cleanupAuth();
       await GM.setValue("github_client_id", null);
       await GM.setValue("github_token", null);
       await GM.setValue("notes_gist_id", null);
-      await GM.setValue(AUTH_STATE_KEY, "");
       clientId = null;
       accessToken = null;
       gistId = null;
@@ -373,6 +439,7 @@
   }
 
   // Initialize
+  debugLog("Script initialization started");
   initializeGist();
 
   // Add menu commands
@@ -383,6 +450,9 @@
 
   // Observer for dynamic page updates
   const observer = new MutationObserver(() => {
+    debugLog(
+      "DOM mutation observed, checking if notes button needs to be added"
+    );
     addNotesButton();
   });
 
