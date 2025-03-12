@@ -1,30 +1,137 @@
 // ==UserScript==
 // @name         GitHub URL Notes Manager
 // @namespace    http://tampermonkey.net/
-// @version      1.1
-// @description  Adds a button to manage notes for GitHub URLs with local storage
+// @version      1.2
+// @description  Adds a button to manage notes for GitHub URLs with Gist storage
 // @author       Siew Kam Onn
 // @match        https://github.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
+// @grant        GM.xmlHttpRequest
+// @grant        GM.getValue
+// @grant        GM.setValue
 // @grant        GM.registerMenuCommand
+// @connect      api.github.com
+// @connect      github.com
 // ==/UserScript==
 
 (function () {
   "use strict";
 
-  const STORAGE_KEY = "github-url-notes";
   const CLEANUP_DAYS = 30; // Days after which unused notes can be removed
+  const GIST_DESCRIPTION = "GitHub URL Notes";
+  const CLIENT_ID = "YOUR_GITHUB_CLIENT_ID"; // You'll need to create this in GitHub Developer Settings
+  const GIST_FILENAME = "github-url-notes.json";
 
-  // Store notes in memory
   let notes = {};
+  let accessToken = null;
+  let gistId = null;
 
-  function loadNotes() {
-    const savedNotes = localStorage.getItem(STORAGE_KEY);
-    notes = savedNotes ? JSON.parse(savedNotes) : {};
+  async function initializeGist() {
+    accessToken = await GM.getValue("github_token", null);
+    gistId = await GM.getValue("notes_gist_id", null);
+
+    if (!accessToken) {
+      await authenticateGitHub();
+    } else {
+      await loadNotes();
+    }
   }
 
-  function saveNotes() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+  function authenticateGitHub() {
+    const authUrl = `https://github.com/login/oauth/authorize?client_id=${CLIENT_ID}&scope=gist`;
+    const authWindow = window.open(authUrl, "_blank", "width=600,height=600");
+
+    // Listen for the OAuth callback
+    window.addEventListener("message", async function (event) {
+      if (event.origin !== "https://github.com") return;
+      if (event.data.type === "oauth-token") {
+        accessToken = event.data.token;
+        await GM.setValue("github_token", accessToken);
+        authWindow.close();
+        await createOrFindGist();
+      }
+    });
+  }
+
+  async function createOrFindGist() {
+    try {
+      // First try to find existing gist
+      const gists = await makeGitHubRequest("GET", "gists");
+      const existingGist = gists.find(
+        (g) => g.description === GIST_DESCRIPTION
+      );
+
+      if (existingGist) {
+        gistId = existingGist.id;
+      } else {
+        // Create new gist if none exists
+        const response = await makeGitHubRequest("POST", "gists", {
+          description: GIST_DESCRIPTION,
+          public: false,
+          files: {
+            [GIST_FILENAME]: {
+              content: JSON.stringify({})
+            }
+          }
+        });
+        gistId = response.id;
+      }
+
+      await GM.setValue("notes_gist_id", gistId);
+      await loadNotes();
+    } catch (error) {
+      console.error("Error creating/finding gist:", error);
+    }
+  }
+
+  async function makeGitHubRequest(method, endpoint, data = null) {
+    return new Promise((resolve, reject) => {
+      GM.xmlHttpRequest({
+        method: method,
+        url: `https://api.github.com/${endpoint}`,
+        headers: {
+          Authorization: `token ${accessToken}`,
+          Accept: "application/vnd.github.v3+json",
+          "Content-Type": "application/json"
+        },
+        data: data ? JSON.stringify(data) : null,
+        onload: (response) => {
+          if (response.status >= 200 && response.status < 300) {
+            resolve(JSON.parse(response.responseText));
+          } else {
+            reject(new Error(`Request failed: ${response.status}`));
+          }
+        },
+        onerror: reject
+      });
+    });
+  }
+
+  async function loadNotes() {
+    try {
+      if (!gistId) return;
+      const gist = await makeGitHubRequest("GET", `gists/${gistId}`);
+      const content = gist.files[GIST_FILENAME].content;
+      notes = JSON.parse(content);
+    } catch (error) {
+      console.error("Error loading notes:", error);
+      notes = {};
+    }
+  }
+
+  async function saveNotes() {
+    try {
+      if (!gistId) return;
+      await makeGitHubRequest("PATCH", `gists/${gistId}`, {
+        files: {
+          [GIST_FILENAME]: {
+            content: JSON.stringify(notes, null, 2)
+          }
+        }
+      });
+    } catch (error) {
+      console.error("Error saving notes:", error);
+    }
   }
 
   function exportNotes() {
@@ -46,16 +153,15 @@
     input.type = "file";
     input.accept = "application/json";
 
-    input.onchange = (e) => {
+    input.onchange = async (e) => {
       const file = e.target.files[0];
       const reader = new FileReader();
 
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         try {
           const importedNotes = JSON.parse(event.target.result);
-          // Merge with existing notes, newer notes take precedence
           notes = { ...notes, ...importedNotes };
-          saveNotes();
+          await saveNotes();
           alert("Notes imported successfully!");
         } catch (error) {
           alert("Error importing notes. Please check the file format.");
@@ -127,12 +233,12 @@
     const saveButton = document.createElement("button");
     saveButton.className = "btn btn-primary";
     saveButton.innerHTML = "Save";
-    saveButton.onclick = () => {
+    saveButton.onclick = async () => {
       notes[url] = {
         text: textarea.value,
         lastModified: Date.now()
       };
-      saveNotes();
+      await saveNotes();
       dialog.remove();
     };
 
@@ -162,7 +268,7 @@
     }
 
     if (modified) {
-      saveNotes();
+      await saveNotes();
       alert("Old notes have been cleaned up");
     } else {
       alert("No old notes to clean up");
@@ -170,9 +276,9 @@
   }
 
   // Initialize
-  loadNotes();
+  initializeGist();
 
-  // Add cleanup command to Tampermonkey menu
+  // Add menu commands
   GM.registerMenuCommand("Cleanup Old Notes", cleanupOldNotes);
   GM.registerMenuCommand("Export Notes", exportNotes);
   GM.registerMenuCommand("Import Notes", importNotes);
