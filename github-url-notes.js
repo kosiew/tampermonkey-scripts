@@ -30,7 +30,7 @@
       height: 100%;
       background-color: rgba(0,0,0,0.4);
     }
-    
+
     .gh-note-modal-content {
       background-color: var(--color-canvas-default, #fff);
       margin: 15% auto;
@@ -40,7 +40,7 @@
       width: 50%;
       position: relative;
     }
-    
+
     .gh-note-close {
       position: absolute;
       right: 10px;
@@ -48,7 +48,7 @@
       font-size: 20px;
       cursor: pointer;
     }
-    
+
     .gh-note-textarea {
       width: 100%;
       min-height: 100px;
@@ -70,17 +70,17 @@
       opacity: 0.8;
       transition: opacity 0.2s;
     }
-    
+
     .gh-note-button:hover {
       opacity: 1;
     }
-    
+
     .gh-note-button-primary {
       background-color: var(--color-success-fg, #2ea44f);
       color: var(--color-fg-on-emphasis, #fff);
       border: 1px solid rgba(27, 31, 36, 0.15);
     }
-    
+
     .gh-note-button-container {
       display: inline-flex;
       gap: 4px;
@@ -249,49 +249,34 @@
     async function placeButton() {
       if (buttonPlaced) return;
 
-      // Try to find the appropriate container
-      const stickyContent =
-        document.querySelector(".js-sticky-header-content") ||
-        document.querySelector(".sticky-content");
-      const discussionHeader = document.querySelector(
-        "#partial-discussion-header > div.d-flex.flex-items-center.flex-wrap.mt-0.gh-header-meta"
-      );
-      const anyHeader =
-        document.querySelector(".gh-header-actions") ||
-        document.querySelector(".gh-header-meta") ||
-        document.querySelector(".pagehead-actions");
+      // Try specific GitHub locations in order of preference
+      const possibleContainers = [
+        // File view
+        document.querySelector("#repos-header-breadcrumb-content"),
+        // PR/Issue view
+        document.querySelector("#partial-discussion-header .gh-header-show"),
+        // Repository root
+        document.querySelector(
+          "#repository-container-header .AppHeader-localBar"
+        ),
+        // Fallbacks
+        document.querySelector(".js-sticky-header-content"),
+        document.querySelector("#partial-discussion-header > div.d-flex"),
+        document.querySelector(".gh-header-actions"),
+        document.querySelector(".pagehead-actions")
+      ].filter(Boolean);
 
-      let targetContainer = null;
-      let insertMethod = "append";
+      const container = possibleContainers[0]; // Take the first available container
 
-      if (stickyContent && stickyContent.offsetParent !== null) {
-        // Check if sticky content is visible
-        targetContainer = stickyContent;
-        insertMethod = "prepend";
-      } else if (discussionHeader) {
-        targetContainer = discussionHeader;
-      } else if (anyHeader) {
-        targetContainer = anyHeader;
-      }
-
-      if (
-        targetContainer &&
-        !targetContainer.querySelector(".gh-note-button-container")
-      ) {
-        const container = document.createElement("div");
-        container.className = "gh-note-button-container";
-
-        // Update the container styles based on where it will be placed
-        if (insertMethod === "prepend") {
-          container.style.position = "relative";
-          container.style.display = "inline-flex";
-          container.style.alignItems = "center";
-          container.style.marginRight = "8px";
-        } else {
-          container.style.display = "inline-flex";
-          container.style.alignItems = "center";
-          container.style.marginLeft = "8px";
-        }
+      if (container && !container.querySelector(".gh-note-button-container")) {
+        const buttonContainer = document.createElement("div");
+        buttonContainer.className = "gh-note-button-container";
+        buttonContainer.style.display = "inline-flex";
+        buttonContainer.style.alignItems = "center";
+        buttonContainer.style.verticalAlign = "middle";
+        buttonContainer.style.marginLeft = "8px";
+        buttonContainer.style.position = "relative";
+        buttonContainer.style.zIndex = "100";
 
         const mainButton = document.createElement("button");
         mainButton.className = "gh-note-button gh-note-button-primary";
@@ -300,14 +285,10 @@
         const existingNote = await getNote();
         mainButton.textContent = existingNote ? "Edit Note" : "Save Note";
 
-        container.appendChild(mainButton);
+        buttonContainer.appendChild(mainButton);
 
-        // Insert the button in the appropriate location
-        if (insertMethod === "prepend") {
-          targetContainer.insertBefore(container, targetContainer.firstChild);
-        } else {
-          targetContainer.appendChild(container);
-        }
+        // Insert at the beginning of the container
+        container.insertBefore(buttonContainer, container.firstChild);
 
         const modal = createNoteModal(mainButton);
 
@@ -321,34 +302,59 @@
       }
     }
 
-    // Try to place the button immediately
+    // Try to place button immediately and set up observers
     await placeButton();
 
-    // Clean up any existing observers
+    // Clean up existing observer
     if (window.ghNotesObserver) {
       window.ghNotesObserver.disconnect();
     }
 
-    // Set up a MutationObserver to watch for dynamic changes
-    const observer = new MutationObserver(async (mutations) => {
-      await placeButton();
+    // Set up observers for both DOM changes and URL changes
+    const observer = new MutationObserver(async () => {
+      if (!buttonPlaced) {
+        await placeButton();
+      }
     });
 
-    // Save the observer reference
     window.ghNotesObserver = observer;
 
-    // Start observing the document with the configured parameters
-    observer.observe(document.body, {
+    // Start observing with a more focused approach
+    const targetNode = document.querySelector("main") || document.body;
+    observer.observe(targetNode, {
       childList: true,
       subtree: true
     });
 
-    // Cleanup after 10 seconds if button is placed
-    setTimeout(() => {
-      if (buttonPlaced && window.ghNotesObserver) {
-        window.ghNotesObserver.disconnect();
+    // Also watch for navigation changes
+    const navigationObserver = new MutationObserver(async (mutations) => {
+      const urlChange = mutations.some(
+        (mutation) =>
+          mutation.target.nodeType === Node.ELEMENT_NODE &&
+          (mutation.target.matches("head > title") ||
+            mutation.target.matches('head > meta[property="og:url"]'))
+      );
+
+      if (urlChange) {
+        buttonPlaced = false;
+        await placeButton();
       }
-    }, 10000);
+    });
+
+    navigationObserver.observe(document.head, {
+      childList: true,
+      subtree: true,
+      characterData: true
+    });
+
+    // Quick retries for dynamic content
+    [100, 500, 1000].forEach((delay) => {
+      setTimeout(async () => {
+        if (!buttonPlaced) {
+          await placeButton();
+        }
+      }, delay);
+    });
   }
 
   // Clean up function to remove buttons and disconnect observer
