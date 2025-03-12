@@ -10,6 +10,7 @@
 // @grant        GM.setValue
 // @grant        GM.deleteValue
 // @grant        GM.registerMenuCommand
+// @run-at       document-start
 // ==/UserScript==
 
 (function () {
@@ -237,23 +238,37 @@
 
   // Create button container and buttons
   async function createButtons() {
-    // Wait for the sticky header to be loaded
-    const headerInterval = setInterval(async () => {
+    let buttonPlaced = false;
+
+    async function placeButton() {
+      if (buttonPlaced) return;
+
       const stickyContent =
         document.querySelector(".js-sticky-header-content") ||
         document.querySelector(".sticky-content");
+      const discussionHeader = document.querySelector(
+        "#partial-discussion-header > div.d-flex.flex-items-center.flex-wrap.mt-0.gh-header-meta"
+      );
+      const anyHeader =
+        document.querySelector(".gh-header-actions") ||
+        document.querySelector(".gh-header-meta") ||
+        document.querySelector(".pagehead-actions");
 
-      if (stickyContent) {
-        clearInterval(headerInterval);
-
+      if (stickyContent || discussionHeader || anyHeader) {
         const container = document.createElement("div");
         container.className = "gh-note-button-container";
 
-        // Update the container styles to fit in the sticky header
-        container.style.position = "relative";
-        container.style.display = "inline-flex";
-        container.style.alignItems = "center";
-        container.style.marginRight = "8px";
+        // Update the container styles based on where it will be placed
+        if (stickyContent) {
+          container.style.position = "relative";
+          container.style.display = "inline-flex";
+          container.style.alignItems = "center";
+          container.style.marginRight = "8px";
+        } else {
+          container.style.display = "inline-flex";
+          container.style.alignItems = "center";
+          container.style.marginLeft = "8px";
+        }
 
         const mainButton = document.createElement("button");
         mainButton.className = "gh-note-button gh-note-button-primary";
@@ -264,8 +279,14 @@
 
         container.appendChild(mainButton);
 
-        // Insert at the beginning of the sticky content
-        stickyContent.insertBefore(container, stickyContent.firstChild);
+        // Insert the button in the appropriate location
+        if (stickyContent) {
+          stickyContent.insertBefore(container, stickyContent.firstChild);
+        } else if (discussionHeader) {
+          discussionHeader.appendChild(container);
+        } else if (anyHeader) {
+          anyHeader.appendChild(container);
+        }
 
         const modal = createNoteModal(mainButton);
 
@@ -274,11 +295,31 @@
           modal.querySelector(".gh-note-textarea").value = note || "";
           modal.style.display = "block";
         };
-      }
-    }, 500);
 
-    // Add a timeout to stop checking after 10 seconds
-    setTimeout(() => clearInterval(headerInterval), 10000);
+        buttonPlaced = true;
+      }
+    }
+
+    // Try to place the button immediately
+    await placeButton();
+
+    // Set up a MutationObserver to watch for dynamic changes
+    const observer = new MutationObserver(async (mutations) => {
+      await placeButton();
+    });
+
+    // Start observing the document with the configured parameters
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    // Cleanup after 10 seconds if button is placed
+    setTimeout(() => {
+      if (buttonPlaced) {
+        observer.disconnect();
+      }
+    }, 10000);
   }
 
   // Register Tampermonkey menu commands
@@ -292,6 +333,17 @@
     }
   });
 
-  // Initialize
-  createButtons();
+  // Initialize as soon as DOM is ready
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", createButtons);
+  } else {
+    createButtons();
+  }
+
+  // Handle GitHub's Turbo navigation
+  document.addEventListener("turbo:load", createButtons);
+  document.addEventListener("turbo:render", createButtons);
+
+  // Also try again when the window loads (backup)
+  window.addEventListener("load", createButtons);
 })();
