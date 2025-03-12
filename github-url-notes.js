@@ -74,7 +74,10 @@
     ".Header",
     'header[role="banner"]',
     "#repository-container-header",
-    ".gh-header-actions"
+    ".gh-header-actions",
+    ".js-header-wrapper header", // Added more specific selectors
+    ".js-header-wrapper .Header",
+    "header.Header"
   ];
   const MAX_HEADER_RETRIES = 10;
   const HEADER_RETRY_DELAY = 500;
@@ -613,11 +616,28 @@
   }
 
   function addNotesButton() {
-    const container = document.querySelector(".Header");
+    // Try multiple possible container locations
+    const containerSelectors = [
+      ".Header",
+      ".Header-item:last-child",
+      ".Header .d-flex",
+      'header[role="banner"]',
+      "#repository-container-header",
+      ".gh-header-actions"
+    ];
+
+    let container;
+    for (const selector of containerSelectors) {
+      container = document.querySelector(selector);
+      if (container) break;
+    }
+
     if (!container || container.querySelector(".notes-button")) return;
 
     const buttonContainer = document.createElement("div");
-    buttonContainer.style = "display: flex; gap: 5px;margin-left: 10px;";
+    buttonContainer.style =
+      "display: flex; gap: 5px; margin-left: 10px; align-items: center;";
+    buttonContainer.className = "Header-item"; // Add GitHub's header item class
 
     const notesButton = document.createElement("button");
     notesButton.className = "btn btn-sm notes-button";
