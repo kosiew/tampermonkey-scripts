@@ -499,7 +499,31 @@
   async function createOrFindGist() {
     debugLog("Starting createOrFindGist operation");
     try {
-      // First try to find existing gist
+      // First try to load existing gist ID from storage
+      const storedGistId = await safeStorageAccess("notes_gist_id", () =>
+        GM.getValue("notes_gist_id", null)
+      );
+
+      if (storedGistId) {
+        debugLog("Found stored gist ID, verifying it exists", {
+          id: storedGistId
+        });
+        try {
+          // Verify the gist still exists and is accessible
+          const gist = await makeGitHubRequest("GET", `gists/${storedGistId}`);
+          if (gist && gist.files && gist.files[GIST_FILENAME]) {
+            debugLog("Verified existing gist is valid", { id: storedGistId });
+            gistId = storedGistId;
+            return;
+          }
+        } catch (error) {
+          debugLog("Stored gist is no longer valid, will create new one", {
+            error: error.message
+          });
+        }
+      }
+
+      // If we get here, we need to create or find a gist
       debugLog("Fetching user's gists");
       const gists = await makeGitHubRequest("GET", "gists");
       debugLog("Gists fetched successfully", { count: gists.length });
@@ -526,8 +550,17 @@
         debugLog("Created new gist", { id: gistId });
       }
 
+      // Verify we have a valid gist ID before saving
+      if (!gistId) {
+        throw new Error("Failed to obtain valid gist ID");
+      }
+
       debugLog("Saving gist ID to storage", { id: gistId });
-      await GM.setValue("notes_gist_id", gistId);
+      await safeStorageAccess("gist_id_save", () =>
+        GM.setValue("notes_gist_id", gistId)
+      );
+
+      // Test the gist works by loading notes
       await loadNotes();
     } catch (error) {
       debugLog(
@@ -538,7 +571,14 @@
         },
         "error"
       );
-      throw error; // Propagate error up
+
+      // Clear any invalid gist ID
+      gistId = null;
+      await safeStorageAccess("gist_id_clear", () =>
+        GM.setValue("notes_gist_id", null)
+      );
+
+      throw error;
     }
   }
 
@@ -635,9 +675,13 @@
   async function saveNotes() {
     debugLog("Starting saveNotes operation");
     try {
+      // If no gist ID, try to recover by recreating gist
       if (!gistId) {
-        debugLog("No gist ID available, cannot save notes", null, "error");
-        return;
+        debugLog("No gist ID available, attempting recovery");
+        await createOrFindGist();
+        if (!gistId) {
+          throw new Error("Could not recover gist ID");
+        }
       }
 
       debugLog("Saving notes to gist", {
@@ -664,7 +708,16 @@
         },
         "error"
       );
-      throw error; // Propagate error up
+
+      // If this was an authentication error, trigger re-auth
+      if (error.response && error.response.status === 401) {
+        debugLog("Auth error detected, triggering re-authentication");
+        accessToken = null;
+        await GM.setValue("github_token", null);
+        await authenticateGitHub();
+      }
+
+      throw error;
     }
   }
 
