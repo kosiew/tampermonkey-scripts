@@ -41,8 +41,10 @@
 
   // Enhanced debug logging with context tracking
   let logSequence = 0;
+
   function debugLog(message, data = null, type = "info") {
     logSequence++;
+
     const timestamp = new Date().toISOString();
     const prefix =
       type === "error"
@@ -415,85 +417,135 @@
 
   async function authenticateGitHub() {
     debugLog("Starting GitHub authentication");
-    // Check if auth window is already open
-    const isAuthWindowOpen = await GM.getValue(AUTH_WINDOW_KEY, false);
-    debugLog("Current auth window state:", { isAuthWindowOpen });
-
-    if (isAuthWindowOpen) {
-      debugLog(
-        "Authentication window is already open, aborting new auth attempt"
+    try {
+      // First clean up any stale auth state
+      const isAuthWindowOpen = await safeStorageAccess("auth_window", () =>
+        GM.getValue(AUTH_WINDOW_KEY, false)
       );
-      return;
-    }
 
-    await cleanupAuth();
-
-    // Generate a random state value for security
-    const state = Math.random().toString(36).substring(7);
-    debugLog("Generated auth state:", state);
-    await GM.setValue(AUTH_STATE_KEY, state);
-    await GM.setValue(AUTH_WINDOW_KEY, true);
-
-    const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=gist&state=${state}`;
-    debugLog("Opening auth window with URL:", authUrl);
-    authWindow = window.open(authUrl, "_blank", "width=600,height=600");
-
-    if (!authWindow) {
-      debugLog("Error: Popup was blocked");
-      await cleanupAuth();
-      return;
-    }
-
-    // Set up auth timeout
-    debugLog("Setting up auth timeout");
-    authTimeoutId = setTimeout(async () => {
-      debugLog("Auth timeout reached");
-      await cleanupAuth();
-    }, AUTH_TIMEOUT);
-
-    // Set up one-time event listener for auth callback
-    const authCallback = async function (event) {
-      debugLog("Received postMessage event:", { origin: event.origin });
-      if (event.origin !== "https://github.com") return;
-
-      if (event.data.type === "oauth-token") {
-        debugLog("Received oauth-token message");
-        // Verify state to prevent CSRF
-        const savedState = await GM.getValue(AUTH_STATE_KEY, "");
-        debugLog("State verification:", {
-          received: event.data.state,
-          saved: savedState,
-          matches: event.data.state === savedState
-        });
-
-        if (event.data.state !== savedState) {
-          debugLog("Error: Invalid state parameter");
-          return;
+      // If auth window is marked as open but we can't find it, clean up
+      if (isAuthWindowOpen && (!authWindow || authWindow.closed)) {
+        debugLog("Found stale auth window state, cleaning up");
+        await cleanupAuth();
+      } else if (isAuthWindowOpen) {
+        debugLog("Authentication window is already open, focusing it");
+        if (authWindow) {
+          authWindow.focus();
         }
-
-        debugLog("Removing event listener and cleaning up auth state");
-        window.removeEventListener("message", authCallback);
-        await cleanupAuth();
-
-        debugLog("Saving access token and proceeding");
-        accessToken = event.data.token;
-        await GM.setValue("github_token", accessToken);
-        await createOrFindGist();
+        return;
       }
-    };
 
-    debugLog("Adding message event listener");
-    window.addEventListener("message", authCallback);
+      await cleanupAuth();
 
-    // Check periodically if the window was closed manually
-    debugLog("Setting up window close checker");
-    const checkWindow = setInterval(async () => {
-      if (authWindow && authWindow.closed) {
-        debugLog("Auth window was closed manually");
-        clearInterval(checkWindow);
-        await cleanupAuth();
+      // Clear any existing auth tokens if they're invalid
+      try {
+        if (accessToken) {
+          await makeGitHubRequest("GET", "user");
+        }
+      } catch (error) {
+        if (error.response && error.response.status === 401) {
+          debugLog("Existing token is invalid, clearing it");
+          accessToken = null;
+          gistId = null;
+          await GM.setValue("github_token", null);
+          await GM.setValue("notes_gist_id", null);
+        }
       }
-    }, 1000);
+
+      // Generate a random state value for security
+      const state = Math.random().toString(36).substring(7);
+      debugLog("Generated auth state:", state);
+      await GM.setValue(AUTH_STATE_KEY, state);
+      await GM.setValue(AUTH_WINDOW_KEY, true);
+
+      const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=gist&state=${state}`;
+      debugLog("Opening auth window with URL:", authUrl);
+      authWindow = window.open(authUrl, "_blank", "width=600,height=600");
+
+      if (!authWindow) {
+        debugLog("Error: Popup was blocked");
+        await cleanupAuth();
+        return;
+      }
+
+      // Set up auth timeout with automatic cleanup
+      debugLog("Setting up auth timeout");
+      authTimeoutId = setTimeout(async () => {
+        debugLog("Auth timeout reached");
+        await cleanupAuth();
+        // Retry authentication after timeout
+        setTimeout(() => {
+          if (!isInitialized) {
+            debugLog("Retrying authentication after timeout");
+            authenticateGitHub();
+          }
+        }, 1000);
+      }, AUTH_TIMEOUT);
+
+      // Enhanced auth callback with better error handling
+      const authCallback = async function (event) {
+        debugLog("Received postMessage event:", { origin: event.origin });
+        if (event.origin !== "https://github.com") return;
+
+        if (event.data.type === "oauth-token") {
+          debugLog("Received oauth-token message");
+
+          try {
+            // Verify state to prevent CSRF
+            const savedState = await GM.getValue(AUTH_STATE_KEY, "");
+            debugLog("State verification:", {
+              received: event.data.state,
+              saved: savedState,
+              matches: event.data.state === savedState
+            });
+
+            if (event.data.state !== savedState) {
+              throw new Error("Invalid state parameter");
+            }
+
+            debugLog("Removing event listener and cleaning up auth state");
+            window.removeEventListener("message", authCallback);
+            await cleanupAuth();
+
+            debugLog("Saving access token and proceeding");
+            accessToken = event.data.token;
+            await GM.setValue("github_token", accessToken);
+
+            // Verify the token works
+            await makeGitHubRequest("GET", "user");
+            await createOrFindGist();
+          } catch (error) {
+            debugLog("Auth callback error", { error: error.message }, "error");
+            // Clear invalid token and retry
+            accessToken = null;
+            await GM.setValue("github_token", null);
+            setTimeout(authenticateGitHub, 1000);
+          }
+        }
+      };
+
+      debugLog("Adding message event listener");
+      window.addEventListener("message", authCallback);
+
+      // Enhanced window close checker
+      debugLog("Setting up window close checker");
+      const checkWindow = setInterval(async () => {
+        if (authWindow && authWindow.closed) {
+          debugLog("Auth window was closed manually");
+          clearInterval(checkWindow);
+          await cleanupAuth();
+          // Retry auth if we don't have a valid token
+          if (!accessToken) {
+            setTimeout(authenticateGitHub, 1000);
+          }
+        }
+      }, 1000);
+    } catch (error) {
+      debugLog("Authentication error", { error: error.message }, "error");
+      await cleanupAuth();
+      // Retry after error
+      setTimeout(authenticateGitHub, 2000);
+    }
   }
 
   async function createOrFindGist() {
@@ -582,8 +634,56 @@
     }
   }
 
+  async function resetAuthState() {
+    debugLog("Performing complete auth state reset");
+    try {
+      // Clear all stored auth data
+      await GM.setValue("github_token", null);
+      await GM.setValue("notes_gist_id", null);
+      await GM.setValue(AUTH_STATE_KEY, "");
+      await GM.setValue(AUTH_WINDOW_KEY, false);
+
+      // Reset runtime variables
+      accessToken = null;
+      gistId = null;
+
+      // Clean up any existing auth window
+      if (authWindow && !authWindow.closed) {
+        authWindow.close();
+      }
+      authWindow = null;
+
+      if (authTimeoutId) {
+        clearTimeout(authTimeoutId);
+        authTimeoutId = null;
+      }
+
+      debugLog("Auth state reset complete");
+
+      // Re-initialize after small delay
+      setTimeout(initializeGist, 1000);
+    } catch (error) {
+      debugLog(
+        "Error during auth reset",
+        {
+          error: error.message
+        },
+        "error"
+      );
+    }
+  }
+
   async function makeGitHubRequest(method, endpoint, data = null) {
     debugLog(`Making GitHub API request: ${method} ${endpoint}`);
+
+    if (!accessToken) {
+      debugLog("No access token available, initiating authentication");
+      await authenticateGitHub();
+      if (!accessToken) {
+        throw new Error("Failed to obtain access token");
+      }
+    }
+
     return new Promise((resolve, reject) => {
       GM.xmlHttpRequest({
         method: method,
@@ -591,14 +691,46 @@
         headers: {
           Authorization: `Bearer ${accessToken}`,
           Accept: "application/vnd.github.v3+json",
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "User-Agent": "GitHub-Notes-UserScript"
         },
         data: data ? JSON.stringify(data) : null,
-        onload: (response) => {
+        onload: async (response) => {
+          if (response.status === 401) {
+            debugLog("Auth error detected, performing full reset");
+            await resetAuthState();
+            reject(new Error("Authentication failed, please try again"));
+            return;
+          }
           debugLog(`GitHub API response received for ${endpoint}`, {
             status: response.status,
             headers: response.headers
           });
+
+          // Handle token expiration or invalidation
+          if (response.status === 401) {
+            debugLog("Token is invalid or expired, re-authenticating");
+            accessToken = null;
+            await GM.setValue("github_token", null);
+            await authenticateGitHub();
+
+            // Retry the request once with new token
+            if (accessToken) {
+              debugLog("Retrying request with new token");
+              try {
+                const retryResponse = await makeGitHubRequest(
+                  method,
+                  endpoint,
+                  data
+                );
+                resolve(retryResponse);
+                return;
+              } catch (retryError) {
+                reject(retryError);
+                return;
+              }
+            }
+          }
 
           if (response.status >= 200 && response.status < 300) {
             const responseData = JSON.parse(response.responseText);
@@ -909,6 +1041,7 @@
   // Add debounce function
   function debounce(func, wait) {
     let timeout;
+
     return function executedFunction(...args) {
       const later = () => {
         clearTimeout(timeout);
