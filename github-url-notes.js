@@ -68,148 +68,79 @@
     }
   }
 
-  // Enhanced safe storage access wrapper with detailed error tracking
-  async function safeStorageAccess(key, action) {
+  // Enhanced header detection
+  const HEADER_SELECTORS = [
+    ".Header",
+    'header[role="banner"]',
+    "#repository-container-header",
+    ".gh-header-actions"
+  ];
+  const MAX_HEADER_RETRIES = 10;
+  const HEADER_RETRY_DELAY = 500;
+
+  // Enhanced safe storage access wrapper with retry logic
+  async function safeStorageAccess(key, action, maxRetries = 3) {
     debugLog(`🔄 Storage operation starting for: ${key}`, null, "storage");
-    try {
-      if (!GM) {
-        throw new Error("GM object not available");
-      }
-      debugLog(`⏳ Executing storage action for: ${key}`, null, "storage");
-      const result = await action();
-      debugLog(
-        `✅ Storage operation successful for: ${key}`,
-        { result },
-        "storage"
-      );
-      return result;
-    } catch (error) {
-      debugLog(
-        `❌ Storage operation failed for: ${key}`,
-        {
-          error: error.message,
-          stack: error.stack,
-          gmAvailable: typeof GM !== "undefined",
-          gmValueAvailable: typeof GM?.getValue !== "undefined"
-        },
-        "error"
-      );
-      return null;
-    }
-  }
+    let lastError = null;
 
-  async function checkConfiguration() {
-    debugLog("Starting configuration check");
-    try {
-      clientId = await safeStorageAccess("github_client_id", () =>
-        GM.getValue("github_client_id", null)
-      );
-      debugLog("Configuration state:", {
-        hasClientId: !!clientId,
-        documentState: document.readyState,
-        currentUrl: window.location.href
-      });
-
-      if (!clientId) {
-        const input = prompt(
-          "Please enter your GitHub OAuth App Client ID.\n" +
-            "To create one:\n" +
-            "1. Go to GitHub Settings > Developer settings > OAuth Apps\n" +
-            '2. Click "New OAuth App"\n' +
-            "3. Fill in:\n" +
-            "   - Application name: GitHub URL Notes\n" +
-            "   - Homepage URL: https://github.com\n" +
-            "   - Authorization callback URL: https://github.com\n" +
-            "4. Copy the Client ID and paste it here:"
-        );
-
-        if (input) {
-          clientId = input.trim();
-          await safeStorageAccess(() =>
-            GM.setValue("github_client_id", clientId)
-          );
-          return true;
-        } else {
-          console.error("GitHub Client ID is required for the script to work");
-          return false;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        if (!GM) {
+          throw new Error("GM object not available");
         }
-      }
-      return true;
-    } catch (error) {
-      debugLog("Configuration check failed", { error: error.message }, "error");
-      return false;
-    }
-  }
-
-  // Enhanced initialization queue with state tracking
-  const initQueue = [];
-  let isProcessingQueue = false;
-  let queueProcessingAttempts = 0;
-  const MAX_QUEUE_PROCESSING_ATTEMPTS = 3;
-
-  async function processInitQueue() {
-    if (isProcessingQueue) {
-      debugLog("Queue processing already in progress", null, "init");
-      return;
-    }
-
-    debugLog(
-      "Starting queue processing",
-      {
-        queueLength: initQueue.length,
-        attempt: queueProcessingAttempts + 1
-      },
-      "init"
-    );
-
-    isProcessingQueue = true;
-    queueProcessingAttempts++;
-
-    try {
-      while (initQueue.length > 0) {
-        const task = initQueue.shift();
         debugLog(
-          "Processing queue task",
+          `⏳ Executing storage action for: ${key} (attempt ${attempt})`,
+          null,
+          "storage"
+        );
+        const result = await action();
+        debugLog(
+          `✅ Storage operation successful for: ${key}`,
+          { ...result },
+          "storage"
+        );
+        return result;
+      } catch (error) {
+        lastError = error;
+        debugLog(
+          `❌ Storage attempt ${attempt} failed for: ${key}`,
           {
-            remainingTasks: initQueue.length
+            error: error.message,
+            stack: error.stack
           },
-          "init"
+          "error"
         );
 
-        try {
-          await task();
-        } catch (error) {
-          debugLog(
-            "Task execution failed",
-            {
-              error: error.message,
-              stack: error.stack
-            },
-            "error"
-          );
+        if (attempt < maxRetries) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
-    } finally {
-      isProcessingQueue = false;
-      debugLog(
-        "Queue processing completed",
-        {
-          remainingTasks: initQueue.length,
-          attempts: queueProcessingAttempts
-        },
-        "init"
-      );
     }
+
+    throw lastError;
   }
 
-  async function queueInitTask(task) {
-    initQueue.push(task);
-    if (!isProcessingQueue) {
-      await processInitQueue();
+  // Enhanced header detection with retry logic
+  async function findHeader() {
+    debugLog("Starting header detection");
+
+    for (let attempt = 1; attempt <= MAX_HEADER_RETRIES; attempt++) {
+      for (const selector of HEADER_SELECTORS) {
+        const header = document.querySelector(selector);
+        if (header) {
+          debugLog(`Header found using selector: ${selector}`);
+          return header;
+        }
+      }
+
+      debugLog(`Header detection attempt ${attempt} failed, waiting...`);
+      await new Promise((resolve) => setTimeout(resolve, HEADER_RETRY_DELAY));
     }
+
+    throw new Error("Header container not found after all retries");
   }
 
-  // Enhanced initialization function with state validation
+  // Enhanced initialization function
   async function initializeGist() {
     debugLog(
       "🔍 Checking initialization prerequisites",
@@ -217,7 +148,7 @@
         isInitializing,
         isInitialized,
         hasGM: typeof GM !== "undefined",
-        hasStorage: typeof GM?.getValue !== "undefined"
+        documentState: document.readyState
       },
       "init"
     );
@@ -233,20 +164,27 @@
     }
 
     isInitializing = true;
-    debugLog(
-      "🚀 Starting initialization sequence",
-      {
-        documentState: document.readyState,
-        url: window.location.href,
-        hasParams: window.location.search.length > 0
-      },
-      "init"
-    );
 
     try {
+      // Wait for document to be interactive at minimum
+      if (document.readyState === "loading") {
+        debugLog("Waiting for document to be ready");
+        await new Promise((resolve) => {
+          document.addEventListener("DOMContentLoaded", resolve, {
+            once: true
+          });
+        });
+      }
+
       // Verify script environment
       if (typeof GM === "undefined") {
         throw new Error("GM APIs not available");
+      }
+
+      // Find header with retry logic
+      const header = await findHeader();
+      if (!header) {
+        throw new Error("Could not find header container");
       }
 
       // Test storage access
@@ -313,21 +251,24 @@
       debugLog("Initialization completed successfully");
     } catch (error) {
       debugLog(
-        "💥 Critical initialization error",
+        "💥 Initialization error",
         {
           error: error.message,
-          stack: error.stack,
-          gmState: {
-            defined: typeof GM !== "undefined",
-            getValue: typeof GM?.getValue !== "undefined",
-            setValue: typeof GM?.setValue !== "undefined"
-          }
+          stack: error.stack
         },
         "error"
       );
-    } finally {
-      isInitializing = false;
+      // Schedule a retry if it was a temporary failure
+      setTimeout(() => {
+        if (!isInitialized) {
+          debugLog("Retrying initialization");
+          initializeGist();
+        }
+      }, 2000);
+      return;
     }
+
+    isInitializing = false;
   }
 
   async function cleanupAuth() {
@@ -564,7 +505,7 @@
     if (!container || container.querySelector(".notes-button")) return;
 
     const buttonContainer = document.createElement("div");
-    buttonContainer.style = "display: flex; gap: 5px; margin-left: 10px;";
+    buttonContainer.style = "display: flex; gap: 5px;margin-left: 10px;";
 
     const notesButton = document.createElement("button");
     notesButton.className = "btn btn-sm notes-button";
@@ -596,24 +537,24 @@
     const dialog = document.createElement("div");
     dialog.className = "notes-dialog";
     dialog.style = `
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            z-index: 1000;
-        `;
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%,-50%);
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                z-index: 1000;
+            `;
 
     const textarea = document.createElement("textarea");
     textarea.value = note.text;
-    textarea.style = "width: 400px; height: 200px; margin-bottom: 10px;";
+    textarea.style = "width: 400px;height: 200px;margin-bottom: 10px;";
 
     const buttonContainer = document.createElement("div");
     buttonContainer.style =
-      "display: flex; gap: 10px; justify-content: flex-end;";
+      "display: flex;gap: 10px;justify-content: flex-end;";
 
     const saveButton = document.createElement("button");
     saveButton.className = "btn btn-primary";
@@ -700,6 +641,21 @@
     };
   }
 
+  // Setup observer function
+  function setupObserver(headerContainer) {
+    debugLog("Setting up mutation observer");
+    const observer = new MutationObserver((mutations) => {
+      debouncedAddNotesButton();
+    });
+
+    observer.observe(headerContainer, {
+      childList: true,
+      subtree: true
+    });
+
+    return observer;
+  }
+
   // Initialize
   debugLog(
     "🏁 Script loading started",
@@ -716,18 +672,8 @@
   GM.registerMenuCommand("Import Notes", importNotes);
   GM.registerMenuCommand("Reconfigure GitHub Client ID", reconfigureClientId);
 
-  // Add early initialization check
-  debugLog(
-    "🏁 Script loading started",
-    {
-      timing: performance.now(),
-      gmAvailable: typeof GM !== "undefined"
-    },
-    "init"
-  );
-
   // Document ready handler with enhanced logging
-  const documentReady = () => {
+  const documentReady = async () => {
     debugLog(
       "📄 Document ready event triggered",
       {
@@ -737,30 +683,28 @@
       "init"
     );
 
-    queueInitTask(async () => {
-      const headerContainer = document.querySelector(".Header");
-      debugLog(
-        "🔍 Searching for header container",
-        {
-          found: !!headerContainer
-        },
-        "init"
-      );
-
+    try {
+      const headerContainer = await findHeader();
       if (headerContainer) {
-        debugLog("🎯 Setting up observer", null, "init");
-        observer.observe(headerContainer, {
-          childList: true,
-          subtree: true
-        });
+        debugLog("🎯 Setting up observer");
+        const observer = setupObserver(headerContainer);
         await initializeGist();
-      } else {
-        debugLog("⚠️ Header container not found", null, "error");
+
+        // Cleanup on page unload
+        window.addEventListener(
+          "unload",
+          () => {
+            observer.disconnect();
+          },
+          { once: true }
+        );
       }
-    });
+    } catch (error) {
+      debugLog("⚠️ Setup failed", { error: error.message }, "error");
+    }
   };
 
-  // Enhanced event listeners with logging
+  // Update initialization timing
   if (document.readyState === "loading") {
     debugLog("⏳ Document still loading, adding ready listener", null, "init");
     document.addEventListener("DOMContentLoaded", documentReady);
@@ -772,9 +716,4 @@
     );
     documentReady();
   }
-
-  // Cleanup observer when page is unloaded
-  window.addEventListener("unload", () => {
-    observer.disconnect();
-  });
 })();
