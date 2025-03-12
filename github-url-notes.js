@@ -57,13 +57,20 @@
     }
     
     .gh-note-button {
-      padding: 5px 16px;
-      margin: 0 8px;
+      padding: 3px 8px;
+      margin: 0 4px;
       border-radius: 6px;
+      font-size: 12px;
       border: 1px solid var(--color-border-default, #d0d7de);
       background-color: var(--color-canvas-default, #fff);
       color: var(--color-fg-default, #24292f);
       cursor: pointer;
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+    
+    .gh-note-button:hover {
+      opacity: 1;
     }
     
     .gh-note-button-primary {
@@ -73,12 +80,10 @@
     }
     
     .gh-note-button-container {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      display: flex;
-      gap: 10px;
-      z-index: 9999;
+      display: inline-flex;
+      gap: 4px;
+      margin-left: 8px;
+      align-items: center;
     }
   `;
 
@@ -122,7 +127,7 @@
   }
 
   // Create modal for editing notes
-  function createNoteModal() {
+  function createNoteModal(mainButton) {
     const modal = document.createElement("div");
     modal.className = "gh-note-modal";
     modal.innerHTML = `
@@ -147,6 +152,8 @@
     saveBtn.onclick = async () => {
       await saveNote(textarea.value);
       modal.style.display = "none";
+      // Update button text after saving
+      mainButton.textContent = textarea.value ? "Edit Note" : "Save Note";
     };
 
     // Close modal when clicking outside
@@ -200,38 +207,54 @@
   }
 
   // Create button container and buttons
-  function createButtons() {
-    const container = document.createElement("div");
-    container.className = "gh-note-button-container";
+  async function createButtons() {
+    // Wait for the header to be loaded
+    const headerInterval = setInterval(async () => {
+      const header =
+        document.querySelector(".AppHeader-globalBar") ||
+        document.querySelector(".Header") ||
+        document.querySelector(".js-header-wrapper");
 
-    const editButton = document.createElement("button");
-    editButton.className = "gh-note-button gh-note-button-primary";
-    editButton.textContent = "Edit Note";
+      if (header) {
+        clearInterval(headerInterval);
 
-    const exportButton = document.createElement("button");
-    exportButton.className = "gh-note-button";
-    exportButton.textContent = "Export Notes";
+        const container = document.createElement("div");
+        container.className = "gh-note-button-container";
 
-    const importButton = document.createElement("button");
-    importButton.className = "gh-note-button";
-    importButton.textContent = "Import Notes";
+        const mainButton = document.createElement("button");
+        mainButton.className = "gh-note-button gh-note-button-primary";
 
-    container.appendChild(editButton);
-    container.appendChild(exportButton);
-    container.appendChild(importButton);
+        // Set initial button text based on whether there's an existing note
+        const existingNote = await getNote();
+        mainButton.textContent = existingNote ? "Edit Note" : "Save Note";
 
-    document.body.appendChild(container);
+        const exportButton = document.createElement("button");
+        exportButton.className = "gh-note-button";
+        exportButton.textContent = "Export";
 
-    const modal = createNoteModal();
+        const importButton = document.createElement("button");
+        importButton.className = "gh-note-button";
+        importButton.textContent = "Import";
 
-    editButton.onclick = async () => {
-      const note = await getNote();
-      modal.querySelector(".gh-note-textarea").value = note;
-      modal.style.display = "block";
-    };
+        container.appendChild(mainButton);
+        container.appendChild(exportButton);
+        container.appendChild(importButton);
 
-    exportButton.onclick = exportNotes;
-    importButton.onclick = importNotes;
+        // Insert after the header
+        header.parentNode.insertBefore(container, header.nextSibling);
+
+        const modal = createNoteModal(mainButton);
+
+        mainButton.onclick = async () => {
+          const note = await getNote();
+          modal.querySelector(".gh-note-textarea").value = note || "";
+          modal.style.display = "block";
+        };
+
+        exportButton.onclick = exportNotes;
+        importButton.onclick = importNotes;
+      }
+    }, 500);
   }
 
   // Initialize
