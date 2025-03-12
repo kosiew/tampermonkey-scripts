@@ -152,13 +152,15 @@
       clientId = await safeStorageAccess("github_client_id", () =>
         GM.getValue("github_client_id", null)
       );
-      debugLog("Configuration state:", {
+      debugLog("Retrieved client ID from storage:", {
         hasClientId: !!clientId,
+        clientIdLength: clientId ? clientId.length : 0,
         documentState: document.readyState,
         currentUrl: window.location.href
       });
 
       if (!clientId) {
+        debugLog("No client ID found, prompting user");
         const input = prompt(
           "Please enter your GitHub OAuth App Client ID.\n" +
             "To create one:\n" +
@@ -173,17 +175,50 @@
 
         if (input) {
           clientId = input.trim();
+          debugLog("Saving new client ID", {
+            clientIdLength: clientId.length,
+            firstFourChars: clientId.substring(0, 4)
+          });
           await safeStorageAccess("github_client_id", () =>
             GM.setValue("github_client_id", clientId)
           );
+          debugLog("Successfully saved client ID to storage");
           return true;
         }
-        debugLog("No client ID provided", null, "error");
+        debugLog("No client ID provided by user", null, "error");
         return false;
       }
+
+      // Verify client ID format
+      if (!/^[a-f0-9]{20}$/.test(clientId)) {
+        debugLog(
+          "Invalid client ID format",
+          {
+            length: clientId.length,
+            matches: /^[a-f0-9]{20}$/.test(clientId)
+          },
+          "error"
+        );
+        // Clear invalid client ID
+        await GM.setValue("github_client_id", null);
+        clientId = null;
+        return false;
+      }
+
+      debugLog("Client ID verification successful", {
+        length: clientId.length,
+        firstFourChars: clientId.substring(0, 4)
+      });
       return true;
     } catch (error) {
-      debugLog("Configuration check failed", { error: error.message }, "error");
+      debugLog(
+        "Configuration check failed",
+        {
+          error: error.message,
+          stack: error.stack
+        },
+        "error"
+      );
       return false;
     }
   }
@@ -234,12 +269,15 @@
         return testValue;
       });
 
-      // Check if we're on the OAuth callback page
+      // If we're in the OAuth callback URL, handle it
       const params = new URLSearchParams(window.location.search);
-      if (params.has("code") && params.has("state")) {
-        debugLog("OAuth callback detected");
-        await handleOAuthCallback(params);
-        isInitializing = false;
+      const isOAuthCallback =
+        params.has("code") && params.has("state") && window.opener;
+      if (isOAuthCallback) {
+        handleOAuthCallback(params).catch((error) => {
+          debugLog("OAuth callback failed", { error: error.message }, "error");
+          window.close();
+        });
         return;
       }
 
@@ -312,8 +350,13 @@
   }
 
   async function exchangeCodeForToken(code) {
-    debugLog("Exchanging code for access token");
+    debugLog("Starting code exchange for access token");
     return new Promise((resolve, reject) => {
+      debugLog("Preparing token exchange request", {
+        code: code.substring(0, 4) + "...",
+        clientIdPresent: !!clientId
+      });
+
       GM.xmlHttpRequest({
         method: "POST",
         url: "https://github.com/login/oauth/access_token",
@@ -329,27 +372,63 @@
         onload: (response) => {
           debugLog("Token exchange response received", {
             status: response.status,
-            headers: response.headers
+            headers: response.headers,
+            responseLength: response.responseText.length
           });
-          if (response.status >= 200 && response.status < 300) {
+
+          try {
             const data = JSON.parse(response.responseText);
-            if (data.access_token) {
-              debugLog("Successfully obtained access token");
+            debugLog("Parsed token exchange response", {
+              hasAccessToken: !!data.access_token,
+              hasError: !!data.error,
+              error: data.error,
+              errorDescription: data.error_description
+            });
+
+            if (
+              response.status >= 200 &&
+              response.status < 300 &&
+              data.access_token
+            ) {
+              debugLog("Successfully obtained access token", {
+                tokenLength: data.access_token.length,
+                tokenPrefix: data.access_token.substring(0, 4) + "..."
+              });
               resolve(data.access_token);
             } else {
-              debugLog("No access token in response", { data });
-              reject(new Error("No access token in response"));
+              const errorMsg =
+                data.error_description || "No access token in response";
+              debugLog(
+                "Token exchange failed",
+                {
+                  status: response.status,
+                  error: data.error,
+                  description: errorMsg
+                },
+                "error"
+              );
+              reject(new Error(errorMsg));
             }
-          } else {
-            debugLog("Token exchange failed", {
-              status: response.status,
-              response: response.responseText
-            });
-            reject(new Error(`Token exchange failed: ${response.status}`));
+          } catch (error) {
+            debugLog(
+              "Failed to parse token exchange response",
+              {
+                error: error.message,
+                responseText: response.responseText.substring(0, 100) + "..."
+              },
+              "error"
+            );
+            reject(error);
           }
         },
         onerror: (error) => {
-          debugLog("Token exchange network error", { error });
+          debugLog(
+            "Network error during token exchange",
+            {
+              error: error.toString()
+            },
+            "error"
+          );
           reject(error);
         }
       });
@@ -357,26 +436,38 @@
   }
 
   async function handleOAuthCallback(params) {
-    debugLog("Handling OAuth callback");
+    debugLog("Handling OAuth callback", {
+      hasCode: !!params.get("code"),
+      hasState: !!params.get("state"),
+      url: window.location.href
+    });
+
     const code = params.get("code");
     const state = params.get("state");
     const savedState = await safeStorageAccess("auth_state", () =>
       GM.getValue(AUTH_STATE_KEY, "")
     );
 
+    // If we're in the main window (not the popup), ignore the callback
+    if (!window.opener) {
+      debugLog("OAuth callback received in main window, ignoring");
+      return;
+    }
+
     if (state === savedState) {
       debugLog("State matches, proceeding with callback");
-      if (window.opener) {
-        try {
-          const token = await exchangeCodeForToken(code);
-          window.opener.postMessage(
-            { type: "oauth-token", token: token, state: state },
-            "https://github.com"
-          );
-          window.close();
-        } catch (error) {
-          debugLog("Token exchange failed", { error: error.message }, "error");
-        }
+      try {
+        const token = await exchangeCodeForToken(code);
+        window.opener.postMessage(
+          { type: "oauth-token", token: token, state: state },
+          "https://github.com"
+        );
+        // Close the popup window after sending the message
+        window.close();
+      } catch (error) {
+        debugLog("Token exchange failed", { error: error.message }, "error");
+        alert("Authentication failed. Please try again.");
+        window.close();
       }
     } else {
       debugLog(
@@ -387,6 +478,7 @@
         },
         "error"
       );
+      window.close();
     }
   }
 
@@ -399,16 +491,13 @@
       await safeStorageAccess("auth_window_clear", () =>
         GM.setValue(AUTH_WINDOW_KEY, false)
       );
+
       if (authTimeoutId) {
         debugLog("Clearing auth timeout");
         clearTimeout(authTimeoutId);
         authTimeoutId = null;
       }
-      if (authWindow && !authWindow.closed) {
-        debugLog("Closing auth window");
-        authWindow.close();
-        authWindow = null;
-      }
+
       debugLog("Auth cleanup completed");
     } catch (error) {
       debugLog("Auth cleanup failed", { error: error.message }, "error");
@@ -418,7 +507,14 @@
   async function authenticateGitHub() {
     debugLog("Starting GitHub authentication");
     try {
-      // First clean up any stale auth state
+      // First check if we're in a callback URL
+      const params = new URLSearchParams(window.location.search);
+      if (params.has("code") && params.has("state")) {
+        debugLog("We're in the callback URL, not starting new auth");
+        return;
+      }
+
+      // Clean up any stale auth state
       const isAuthWindowOpen = await safeStorageAccess("auth_window", () =>
         GM.getValue(AUTH_WINDOW_KEY, false)
       );
@@ -427,15 +523,7 @@
       if (isAuthWindowOpen && (!authWindow || authWindow.closed)) {
         debugLog("Found stale auth window state, cleaning up");
         await cleanupAuth();
-      } else if (isAuthWindowOpen) {
-        debugLog("Authentication window is already open, focusing it");
-        if (authWindow) {
-          authWindow.focus();
-        }
-        return;
       }
-
-      await cleanupAuth();
 
       // Clear any existing auth tokens if they're invalid
       try {
@@ -460,54 +548,59 @@
 
       const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=gist&state=${state}`;
       debugLog("Opening auth window with URL:", authUrl);
-      authWindow = window.open(authUrl, "_blank", "width=600,height=600");
+
+      // Open the popup with specific dimensions and position it in the center
+      const width = 600;
+      const height = 600;
+      const left = (window.screen.width - width) / 2;
+      const top = (window.screen.height - height) / 2;
+
+      authWindow = window.open(
+        authUrl,
+        "githubAuth",
+        `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`
+      );
 
       if (!authWindow) {
         debugLog("Error: Popup was blocked");
+        alert("Please allow popups for GitHub authentication");
         await cleanupAuth();
         return;
       }
 
-      // Set up auth timeout with automatic cleanup
+      // Set up auth timeout
       debugLog("Setting up auth timeout");
       authTimeoutId = setTimeout(async () => {
         debugLog("Auth timeout reached");
+        if (authWindow && !authWindow.closed) {
+          authWindow.close();
+        }
         await cleanupAuth();
-        // Retry authentication after timeout
-        setTimeout(() => {
-          if (!isInitialized) {
-            debugLog("Retrying authentication after timeout");
-            authenticateGitHub();
-          }
-        }, 1000);
       }, AUTH_TIMEOUT);
 
       // Enhanced auth callback with better error handling
       const authCallback = async function (event) {
-        debugLog("Received postMessage event:", { origin: event.origin });
+        debugLog("Received postMessage event:", {
+          origin: event.origin,
+          type: event.data?.type,
+          hasState: !!event.data?.state
+        });
+
         if (event.origin !== "https://github.com") return;
 
         if (event.data.type === "oauth-token") {
           debugLog("Received oauth-token message");
-
           try {
             // Verify state to prevent CSRF
             const savedState = await GM.getValue(AUTH_STATE_KEY, "");
-            debugLog("State verification:", {
-              received: event.data.state,
-              saved: savedState,
-              matches: event.data.state === savedState
-            });
-
             if (event.data.state !== savedState) {
               throw new Error("Invalid state parameter");
             }
 
-            debugLog("Removing event listener and cleaning up auth state");
             window.removeEventListener("message", authCallback);
             await cleanupAuth();
 
-            debugLog("Saving access token and proceeding");
+            debugLog("Saving access token");
             accessToken = event.data.token;
             await GM.setValue("github_token", accessToken);
 
@@ -516,10 +609,11 @@
             await createOrFindGist();
           } catch (error) {
             debugLog("Auth callback error", { error: error.message }, "error");
-            // Clear invalid token and retry
             accessToken = null;
             await GM.setValue("github_token", null);
-            setTimeout(authenticateGitHub, 1000);
+            if (authWindow && !authWindow.closed) {
+              authWindow.close();
+            }
           }
         }
       };
@@ -527,24 +621,20 @@
       debugLog("Adding message event listener");
       window.addEventListener("message", authCallback);
 
-      // Enhanced window close checker
-      debugLog("Setting up window close checker");
+      // Check if window was closed
       const checkWindow = setInterval(async () => {
         if (authWindow && authWindow.closed) {
           debugLog("Auth window was closed manually");
           clearInterval(checkWindow);
           await cleanupAuth();
-          // Retry auth if we don't have a valid token
-          if (!accessToken) {
-            setTimeout(authenticateGitHub, 1000);
-          }
         }
       }, 1000);
     } catch (error) {
       debugLog("Authentication error", { error: error.message }, "error");
+      if (authWindow && !authWindow.closed) {
+        authWindow.close();
+      }
       await cleanupAuth();
-      // Retry after error
-      setTimeout(authenticateGitHub, 2000);
     }
   }
 
