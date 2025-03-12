@@ -69,8 +69,31 @@
     return true;
   }
 
+  // Add debounce function
+  function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
+
+  // Add initialization guard
+  let isInitialized = false;
+
   async function initializeGist() {
     debugLog("Initializing gist");
+
+    // Prevent multiple initializations
+    if (isInitialized) {
+      debugLog("Already initialized, skipping");
+      return;
+    }
+
     if (!(await checkConfiguration())) return;
 
     accessToken = await GM.getValue("github_token", null);
@@ -96,6 +119,8 @@
       debugLog("Access token exists, loading notes");
       await loadNotes();
     }
+
+    isInitialized = true;
   }
 
   async function cleanupAuth() {
@@ -438,9 +463,18 @@
     }
   }
 
+  // Debounce the addNotesButton function
+  const debouncedAddNotesButton = debounce(() => {
+    if (!isInitialized) {
+      debugLog("Script not yet initialized, skipping button check");
+      return;
+    }
+    debugLog("Debounced check for notes button");
+    addNotesButton();
+  }, 250); // 250ms debounce time
+
   // Initialize
   debugLog("Script initialization started");
-  initializeGist();
 
   // Add menu commands
   GM.registerMenuCommand("Cleanup Old Notes", cleanupOldNotes);
@@ -448,19 +482,30 @@
   GM.registerMenuCommand("Import Notes", importNotes);
   GM.registerMenuCommand("Reconfigure GitHub Client ID", reconfigureClientId);
 
-  // Observer for dynamic page updates
+  // Observer for dynamic page updates with debouncing
   const observer = new MutationObserver(() => {
-    debugLog(
-      "DOM mutation observed, checking if notes button needs to be added"
-    );
-    addNotesButton();
+    debouncedAddNotesButton();
   });
 
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true
+  // Wait for DOMContentLoaded to start observing
+  document.addEventListener("DOMContentLoaded", () => {
+    // Only observe the header container for changes
+    const headerContainer = document.querySelector(".Header");
+    if (headerContainer) {
+      observer.observe(headerContainer, {
+        childList: true,
+        subtree: true
+      });
+      // Initial check for notes button
+      debouncedAddNotesButton();
+    }
+
+    // Start initialization
+    initializeGist();
   });
 
-  // Run on page load
-  window.addEventListener("load", addNotesButton);
+  // Cleanup observer when page is unloaded
+  window.addEventListener("unload", () => {
+    observer.disconnect();
+  });
 })();
