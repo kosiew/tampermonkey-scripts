@@ -232,7 +232,6 @@
         return testValue;
       });
 
-      // Rest of initialization
       // Check if we're on the OAuth callback page
       const params = new URLSearchParams(window.location.search);
       if (params.has("code") && params.has("state")) {
@@ -248,7 +247,7 @@
         return;
       }
 
-      // Safely retrieve stored values
+      // Safely retrieve stored values with detailed logging
       accessToken = await safeStorageAccess("github_token", () =>
         GM.getValue("github_token", null)
       );
@@ -258,25 +257,28 @@
 
       debugLog("Retrieved stored values", {
         hasToken: !!accessToken,
+        tokenLength: accessToken ? accessToken.length : 0,
         hasGistId: !!gistId,
+        gistId: gistId,
         documentState: document.readyState
       });
-
-      // Check for stale auth window
-      const isAuthWindowOpen = await safeStorageAccess("auth_window_open", () =>
-        GM.getValue(AUTH_WINDOW_KEY, false)
-      );
-      if (isAuthWindowOpen) {
-        debugLog("Found stale auth window state, cleaning up");
-        await cleanupAuth();
-      }
 
       if (!accessToken) {
         debugLog("No access token found, initiating authentication");
         await authenticateGitHub();
       } else {
         debugLog("Access token exists, proceeding to load notes");
-        await loadNotes();
+        try {
+          await loadNotes();
+          debugLog("Notes loaded successfully", {
+            noteCount: Object.keys(notes).length
+          });
+        } catch (error) {
+          debugLog("Failed to load notes, re-authenticating", {
+            error: error.message
+          });
+          await authenticateGitHub();
+        }
       }
 
       isInitialized = true;
@@ -495,17 +497,22 @@
   }
 
   async function createOrFindGist() {
+    debugLog("Starting createOrFindGist operation");
     try {
       // First try to find existing gist
+      debugLog("Fetching user's gists");
       const gists = await makeGitHubRequest("GET", "gists");
+      debugLog("Gists fetched successfully", { count: gists.length });
+
       const existingGist = gists.find(
         (g) => g.description === GIST_DESCRIPTION
       );
 
       if (existingGist) {
+        debugLog("Found existing notes gist", { id: existingGist.id });
         gistId = existingGist.id;
       } else {
-        // Create new gist if none exists
+        debugLog("No existing gist found, creating new one");
         const response = await makeGitHubRequest("POST", "gists", {
           description: GIST_DESCRIPTION,
           public: false,
@@ -516,53 +523,128 @@
           }
         });
         gistId = response.id;
+        debugLog("Created new gist", { id: gistId });
       }
 
+      debugLog("Saving gist ID to storage", { id: gistId });
       await GM.setValue("notes_gist_id", gistId);
       await loadNotes();
     } catch (error) {
-      console.error("Error creating/finding gist:", error);
+      debugLog(
+        "Error in createOrFindGist",
+        {
+          error: error.message,
+          stack: error.stack
+        },
+        "error"
+      );
+      throw error; // Propagate error up
     }
   }
 
   async function makeGitHubRequest(method, endpoint, data = null) {
+    debugLog(`Making GitHub API request: ${method} ${endpoint}`);
     return new Promise((resolve, reject) => {
       GM.xmlHttpRequest({
         method: method,
         url: `https://api.github.com/${endpoint}`,
         headers: {
-          Authorization: `token ${accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           Accept: "application/vnd.github.v3+json",
           "Content-Type": "application/json"
         },
         data: data ? JSON.stringify(data) : null,
         onload: (response) => {
+          debugLog(`GitHub API response received for ${endpoint}`, {
+            status: response.status,
+            headers: response.headers
+          });
+
           if (response.status >= 200 && response.status < 300) {
-            resolve(JSON.parse(response.responseText));
+            const responseData = JSON.parse(response.responseText);
+            debugLog("API request successful", { endpoint, method });
+            resolve(responseData);
           } else {
-            reject(new Error(`Request failed: ${response.status}`));
+            const error = new Error(
+              `GitHub API request failed: ${response.status}`
+            );
+            error.response = response;
+            debugLog(
+              "API request failed",
+              {
+                status: response.status,
+                response: response.responseText,
+                endpoint,
+                method
+              },
+              "error"
+            );
+            reject(error);
           }
         },
-        onerror: reject
+        onerror: (error) => {
+          debugLog(
+            "Network error in GitHub API request",
+            {
+              error,
+              endpoint,
+              method
+            },
+            "error"
+          );
+          reject(error);
+        }
       });
     });
   }
 
   async function loadNotes() {
+    debugLog("Starting loadNotes operation");
     try {
-      if (!gistId) return;
+      if (!gistId) {
+        debugLog("No gist ID available, cannot load notes", null, "error");
+        return;
+      }
+
+      debugLog("Fetching gist content", { gistId });
       const gist = await makeGitHubRequest("GET", `gists/${gistId}`);
+
+      if (!gist.files || !gist.files[GIST_FILENAME]) {
+        throw new Error("Notes file not found in gist");
+      }
+
       const content = gist.files[GIST_FILENAME].content;
       notes = JSON.parse(content);
+      debugLog("Notes loaded successfully", {
+        noteCount: Object.keys(notes).length
+      });
     } catch (error) {
-      console.error("Error loading notes:", error);
+      debugLog(
+        "Error loading notes",
+        {
+          error: error.message,
+          stack: error.stack
+        },
+        "error"
+      );
       notes = {};
+      throw error; // Propagate error up
     }
   }
 
   async function saveNotes() {
+    debugLog("Starting saveNotes operation");
     try {
-      if (!gistId) return;
+      if (!gistId) {
+        debugLog("No gist ID available, cannot save notes", null, "error");
+        return;
+      }
+
+      debugLog("Saving notes to gist", {
+        gistId,
+        noteCount: Object.keys(notes).length
+      });
+
       await makeGitHubRequest("PATCH", `gists/${gistId}`, {
         files: {
           [GIST_FILENAME]: {
@@ -570,8 +652,19 @@
           }
         }
       });
+
+      debugLog("Notes saved successfully");
     } catch (error) {
-      console.error("Error saving notes:", error);
+      debugLog(
+        "Error saving notes",
+        {
+          error: error.message,
+          stack: error.stack,
+          gistId
+        },
+        "error"
+      );
+      throw error; // Propagate error up
     }
   }
 
