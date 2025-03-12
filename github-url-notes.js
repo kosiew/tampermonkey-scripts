@@ -20,11 +20,15 @@
   const CLEANUP_DAYS = 30; // Days after which unused notes can be removed
   const GIST_DESCRIPTION = "GitHub URL Notes";
   const GIST_FILENAME = "github-url-notes.json";
+  const AUTH_TIMEOUT = 60000; // 1 minute timeout between auth attempts
+  const AUTH_STATE_KEY = "auth_state";
 
   let notes = {};
   let accessToken = null;
   let gistId = null;
   let clientId = null;
+  let isAuthenticating = false;
+  let lastAuthAttempt = 0;
 
   async function checkConfiguration() {
     clientId = await GM.getValue("github_client_id", null);
@@ -65,17 +69,63 @@
     }
   }
 
-  function authenticateGitHub() {
-    const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=gist`;
+  async function authenticateGitHub() {
+    // Check if authentication is already in progress
+    if (isAuthenticating) {
+      console.log("Authentication already in progress");
+      return;
+    }
+
+    // Check for timeout between auth attempts
+    const now = Date.now();
+    if (now - lastAuthAttempt < AUTH_TIMEOUT) {
+      console.log("Please wait before trying to authenticate again");
+      return;
+    }
+
+    isAuthenticating = true;
+    lastAuthAttempt = now;
+
+    // Generate a random state value for security
+    const state = Math.random().toString(36).substring(7);
+    await GM.setValue(AUTH_STATE_KEY, state);
+
+    const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=gist&state=${state}`;
     const authWindow = window.open(authUrl, "_blank", "width=600,height=600");
 
+    // Clean up auth state after timeout
+    setTimeout(async () => {
+      if (isAuthenticating) {
+        isAuthenticating = false;
+        await GM.setValue(AUTH_STATE_KEY, "");
+        if (authWindow && !authWindow.closed) {
+          authWindow.close();
+        }
+      }
+    }, AUTH_TIMEOUT);
+
     // Listen for the OAuth callback
-    window.addEventListener("message", async function (event) {
+    window.addEventListener("message", async function authCallback(event) {
       if (event.origin !== "https://github.com") return;
+
       if (event.data.type === "oauth-token") {
+        // Verify state to prevent CSRF
+        const savedState = await GM.getValue(AUTH_STATE_KEY, "");
+        if (event.data.state !== savedState) {
+          console.error("Invalid state parameter");
+          return;
+        }
+
         accessToken = event.data.token;
         await GM.setValue("github_token", accessToken);
-        authWindow.close();
+        await GM.setValue(AUTH_STATE_KEY, ""); // Clear the state
+        isAuthenticating = false;
+
+        if (authWindow && !authWindow.closed) {
+          authWindow.close();
+        }
+
+        window.removeEventListener("message", authCallback);
         await createOrFindGist();
       }
     });
@@ -309,9 +359,12 @@
       "Are you sure you want to reconfigure the GitHub Client ID? This will require re-authentication."
     );
     if (confirmed) {
+      isAuthenticating = false; // Reset auth state
+      lastAuthAttempt = 0; // Reset auth timeout
       await GM.setValue("github_client_id", null);
       await GM.setValue("github_token", null);
       await GM.setValue("notes_gist_id", null);
+      await GM.setValue(AUTH_STATE_KEY, "");
       clientId = null;
       accessToken = null;
       gistId = null;
