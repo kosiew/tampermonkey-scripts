@@ -19,14 +19,42 @@
 
   const CLEANUP_DAYS = 30; // Days after which unused notes can be removed
   const GIST_DESCRIPTION = "GitHub URL Notes";
-  const CLIENT_ID = "YOUR_GITHUB_CLIENT_ID"; // You'll need to create this in GitHub Developer Settings
   const GIST_FILENAME = "github-url-notes.json";
 
   let notes = {};
   let accessToken = null;
   let gistId = null;
+  let clientId = null;
+
+  async function checkConfiguration() {
+    clientId = await GM.getValue("github_client_id", null);
+    if (!clientId) {
+      const input = prompt(
+        "Please enter your GitHub OAuth App Client ID.\n" +
+          "To create one:\n" +
+          "1. Go to GitHub Settings > Developer settings > OAuth Apps\n" +
+          '2. Click "New OAuth App"\n' +
+          "3. Fill in:\n" +
+          "   - Application name: GitHub URL Notes\n" +
+          "   - Homepage URL: https://github.com\n" +
+          "   - Authorization callback URL: https://github.com\n" +
+          "4. Copy the Client ID and paste it here:"
+      );
+
+      if (input) {
+        clientId = input.trim();
+        await GM.setValue("github_client_id", clientId);
+      } else {
+        console.error("GitHub Client ID is required for the script to work");
+        return false;
+      }
+    }
+    return true;
+  }
 
   async function initializeGist() {
+    if (!(await checkConfiguration())) return;
+
     accessToken = await GM.getValue("github_token", null);
     gistId = await GM.getValue("notes_gist_id", null);
 
@@ -38,7 +66,7 @@
   }
 
   function authenticateGitHub() {
-    const authUrl = `https://github.com/login/oauth/authorize?client_id=${CLIENT_ID}&scope=gist`;
+    const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=gist`;
     const authWindow = window.open(authUrl, "_blank", "width=600,height=600");
 
     // Listen for the OAuth callback
@@ -275,6 +303,22 @@
     }
   }
 
+  // Add menu command to reconfigure Client ID
+  async function reconfigureClientId() {
+    const confirmed = confirm(
+      "Are you sure you want to reconfigure the GitHub Client ID? This will require re-authentication."
+    );
+    if (confirmed) {
+      await GM.setValue("github_client_id", null);
+      await GM.setValue("github_token", null);
+      await GM.setValue("notes_gist_id", null);
+      clientId = null;
+      accessToken = null;
+      gistId = null;
+      await initializeGist();
+    }
+  }
+
   // Initialize
   initializeGist();
 
@@ -282,6 +326,7 @@
   GM.registerMenuCommand("Cleanup Old Notes", cleanupOldNotes);
   GM.registerMenuCommand("Export Notes", exportNotes);
   GM.registerMenuCommand("Import Notes", importNotes);
+  GM.registerMenuCommand("Reconfigure GitHub Client ID", reconfigureClientId);
 
   // Observer for dynamic page updates
   const observer = new MutationObserver(() => {
