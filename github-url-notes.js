@@ -206,6 +206,37 @@
     input.click();
   }
 
+  // Function to delete notes older than 180 days
+  async function deleteOldNotes() {
+    const notes = await initNotes();
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 180); // 180 days ago
+
+    let deletedCount = 0;
+    const updatedNotes = {};
+
+    for (const [url, noteData] of Object.entries(notes)) {
+      const noteDate = new Date(noteData.timestamp);
+      if (noteDate > cutoffDate) {
+        updatedNotes[url] = noteData;
+      } else {
+        deletedCount++;
+      }
+    }
+
+    await GM.setValue(NOTES_KEY, updatedNotes);
+
+    if (deletedCount > 0) {
+      alert(
+        `Deleted ${deletedCount} note${
+          deletedCount === 1 ? "" : "s"
+        } older than 180 days.`
+      );
+    } else {
+      alert("No notes found older than 180 days.");
+    }
+  }
+
   // Create button container and buttons
   async function createButtons() {
     // Wait for the header to be loaded
@@ -236,9 +267,15 @@
         importButton.className = "gh-note-button";
         importButton.textContent = "Import";
 
+        const deleteOldButton = document.createElement("button");
+        deleteOldButton.className = "gh-note-button";
+        deleteOldButton.textContent = "Delete Old";
+        deleteOldButton.title = "Delete notes older than 180 days";
+
         container.appendChild(mainButton);
         container.appendChild(exportButton);
         container.appendChild(importButton);
+        container.appendChild(deleteOldButton);
 
         // Insert after the header
         header.parentNode.insertBefore(container, header.nextSibling);
@@ -253,6 +290,15 @@
 
         exportButton.onclick = exportNotes;
         importButton.onclick = importNotes;
+        deleteOldButton.onclick = async () => {
+          if (
+            confirm(
+              "Are you sure you want to delete all notes older than 180 days?"
+            )
+          ) {
+            await deleteOldNotes();
+          }
+        };
       }
     }, 500);
   }
