@@ -14,6 +14,7 @@
 // @connect      api.github.com
 // @connect      github.com
 // @noframes
+// @run-at       document-start
 // ==/UserScript==
 
 (function () {
@@ -37,33 +38,77 @@
   let isInitialized = false;
   let isInitializing = false;
 
-  function debugLog(message, data = null) {
+  // Enhanced debug logging with context tracking
+  let logSequence = 0;
+  function debugLog(message, data = null, type = "info") {
+    logSequence++;
     const timestamp = new Date().toISOString();
-    const logMessage = `[GitHub Notes ${timestamp}] ${message}`;
+    const prefix =
+      type === "error"
+        ? "❌"
+        : type === "storage"
+        ? "💾"
+        : type === "init"
+        ? "🚀"
+        : type === "auth"
+        ? "🔑"
+        : "📝";
+    const context = {
+      seq: logSequence,
+      readyState: document.readyState,
+      url: window.location.href,
+      isFrame: window !== window.top
+    };
+    const logMessage = `[GitHub Notes ${timestamp}] ${prefix} (${logSequence}) ${message}`;
+
     if (data) {
-      console.log(logMessage, data);
+      console.log(logMessage, { ...context, ...data });
     } else {
-      console.log(logMessage);
+      console.log(logMessage, context);
     }
   }
 
-  // Safe storage access wrapper
-  async function safeStorageAccess(action) {
+  // Enhanced safe storage access wrapper with detailed error tracking
+  async function safeStorageAccess(key, action) {
+    debugLog(`🔄 Storage operation starting for: ${key}`, null, "storage");
     try {
-      return await action();
+      if (!GM) {
+        throw new Error("GM object not available");
+      }
+      debugLog(`⏳ Executing storage action for: ${key}`, null, "storage");
+      const result = await action();
+      debugLog(
+        `✅ Storage operation successful for: ${key}`,
+        { result },
+        "storage"
+      );
+      return result;
     } catch (error) {
-      debugLog("Storage access error:", error);
+      debugLog(
+        `❌ Storage operation failed for: ${key}`,
+        {
+          error: error.message,
+          stack: error.stack,
+          gmAvailable: typeof GM !== "undefined",
+          gmValueAvailable: typeof GM?.getValue !== "undefined"
+        },
+        "error"
+      );
       return null;
     }
   }
 
   async function checkConfiguration() {
-    debugLog("Checking configuration");
+    debugLog("Starting configuration check");
     try {
-      clientId = await safeStorageAccess(() =>
+      clientId = await safeStorageAccess("github_client_id", () =>
         GM.getValue("github_client_id", null)
       );
-      debugLog("Retrieved client ID:", clientId ? "exists" : "null");
+      debugLog("Configuration state:", {
+        hasClientId: !!clientId,
+        documentState: document.readyState,
+        currentUrl: window.location.href
+      });
 
       if (!clientId) {
         const input = prompt(
@@ -91,29 +136,70 @@
       }
       return true;
     } catch (error) {
-      debugLog("Configuration check error:", error);
+      debugLog("Configuration check failed", { error: error.message }, "error");
       return false;
     }
   }
 
-  // Add initialization queue
+  // Enhanced initialization queue with state tracking
   const initQueue = [];
   let isProcessingQueue = false;
+  let queueProcessingAttempts = 0;
+  const MAX_QUEUE_PROCESSING_ATTEMPTS = 3;
 
   async function processInitQueue() {
-    if (isProcessingQueue) return;
-    isProcessingQueue = true;
-
-    while (initQueue.length > 0) {
-      const task = initQueue.shift();
-      try {
-        await task();
-      } catch (error) {
-        debugLog("Error processing init task:", error);
-      }
+    if (isProcessingQueue) {
+      debugLog("Queue processing already in progress", null, "init");
+      return;
     }
 
-    isProcessingQueue = false;
+    debugLog(
+      "Starting queue processing",
+      {
+        queueLength: initQueue.length,
+        attempt: queueProcessingAttempts + 1
+      },
+      "init"
+    );
+
+    isProcessingQueue = true;
+    queueProcessingAttempts++;
+
+    try {
+      while (initQueue.length > 0) {
+        const task = initQueue.shift();
+        debugLog(
+          "Processing queue task",
+          {
+            remainingTasks: initQueue.length
+          },
+          "init"
+        );
+
+        try {
+          await task();
+        } catch (error) {
+          debugLog(
+            "Task execution failed",
+            {
+              error: error.message,
+              stack: error.stack
+            },
+            "error"
+          );
+        }
+      }
+    } finally {
+      isProcessingQueue = false;
+      debugLog(
+        "Queue processing completed",
+        {
+          remainingTasks: initQueue.length,
+          attempts: queueProcessingAttempts
+        },
+        "init"
+      );
+    }
   }
 
   async function queueInitTask(task) {
@@ -123,90 +209,150 @@
     }
   }
 
-  // Updated initialization function
+  // Enhanced initialization function with state validation
   async function initializeGist() {
+    debugLog(
+      "🔍 Checking initialization prerequisites",
+      {
+        isInitializing,
+        isInitialized,
+        hasGM: typeof GM !== "undefined",
+        hasStorage: typeof GM?.getValue !== "undefined"
+      },
+      "init"
+    );
+
     if (isInitializing) {
-      debugLog("Already initializing, skipping");
+      debugLog("⚠️ Initialization already in progress", null, "init");
       return;
     }
 
     if (isInitialized) {
-      debugLog("Already initialized, skipping");
+      debugLog("✅ Already initialized", null, "init");
       return;
     }
 
     isInitializing = true;
-    debugLog("Starting initialization");
+    debugLog(
+      "🚀 Starting initialization sequence",
+      {
+        documentState: document.readyState,
+        url: window.location.href,
+        hasParams: window.location.search.length > 0
+      },
+      "init"
+    );
 
     try {
+      // Verify script environment
+      if (typeof GM === "undefined") {
+        throw new Error("GM APIs not available");
+      }
+
+      // Test storage access
+      debugLog("Testing storage access...", null, "storage");
+      const testKey = "storage_test";
+      await safeStorageAccess(testKey, async () => {
+        await GM.setValue(testKey, "test");
+        const testValue = await GM.getValue(testKey);
+        debugLog("Storage test result", { testValue }, "storage");
+        return testValue;
+      });
+
+      // Continue with normal initialization
       // Check if we're on the OAuth callback page
       const params = new URLSearchParams(window.location.search);
       if (params.has("code") && params.has("state")) {
-        debugLog("On OAuth callback page, handling callback");
+        debugLog("OAuth callback detected", {
+          code: params.get("code")?.substring(0, 4) + "...",
+          state: params.get("state")
+        });
         await handleOAuthCallback(params);
         isInitializing = false;
         return;
       }
 
       if (!(await checkConfiguration())) {
+        debugLog("Configuration check failed, aborting initialization");
         isInitializing = false;
         return;
       }
 
       // Safely retrieve stored values
-      accessToken = await safeStorageAccess(() =>
+      accessToken = await safeStorageAccess("github_token", () =>
         GM.getValue("github_token", null)
       );
-      gistId = await safeStorageAccess(() =>
+      gistId = await safeStorageAccess("notes_gist_id", () =>
         GM.getValue("notes_gist_id", null)
       );
 
-      debugLog("Current state:", {
+      debugLog("Retrieved stored values", {
         hasToken: !!accessToken,
-        hasGistId: !!gistId
+        hasGistId: !!gistId,
+        documentState: document.readyState
       });
 
       // Check for stale auth window
-      const isAuthWindowOpen = await safeStorageAccess(() =>
+      const isAuthWindowOpen = await safeStorageAccess("auth_window_open", () =>
         GM.getValue(AUTH_WINDOW_KEY, false)
       );
       if (isAuthWindowOpen) {
-        debugLog("Cleaning up stale auth state");
+        debugLog("Found stale auth window state, cleaning up");
         await cleanupAuth();
       }
 
       if (!accessToken) {
-        debugLog("No access token found, starting authentication");
+        debugLog("No access token found, initiating authentication");
         await authenticateGitHub();
       } else {
-        debugLog("Access token exists, loading notes");
+        debugLog("Access token exists, proceeding to load notes");
         await loadNotes();
       }
 
       isInitialized = true;
+      debugLog("Initialization completed successfully");
     } catch (error) {
-      debugLog("Initialization error:", error);
+      debugLog(
+        "💥 Critical initialization error",
+        {
+          error: error.message,
+          stack: error.stack,
+          gmState: {
+            defined: typeof GM !== "undefined",
+            getValue: typeof GM?.getValue !== "undefined",
+            setValue: typeof GM?.setValue !== "undefined"
+          }
+        },
+        "error"
+      );
     } finally {
       isInitializing = false;
     }
   }
 
   async function cleanupAuth() {
-    debugLog("Cleaning up authentication state");
-    // Clear any existing auth state
-    await GM.setValue(AUTH_STATE_KEY, "");
-    await GM.setValue(AUTH_WINDOW_KEY, false);
-    if (authTimeoutId) {
-      debugLog("Clearing auth timeout");
-      clearTimeout(authTimeoutId);
-      authTimeoutId = null;
+    debugLog("Starting auth cleanup sequence", null, "auth");
+    try {
+      await safeStorageAccess("auth_state_clear", () =>
+        GM.setValue(AUTH_STATE_KEY, "")
+      );
+      await safeStorageAccess("auth_window_clear", () =>
+        GM.setValue(AUTH_WINDOW_KEY, false)
+      );
+      if (authTimeoutId) {
+        debugLog("Clearing auth timeout");
+        clearTimeout(authTimeoutId);
+        authTimeoutId = null;
+      }
+      if (authWindow && !authWindow.closed) {
+        debugLog("Closing auth window");
+        authWindow.close();
+        authWindow = null;
+      }
+      debugLog("Auth cleanup completed");
+    } catch (error) {
+      debugLog("Auth cleanup failed", { error: error.message }, "error");
     }
-    if (authWindow && !authWindow.closed) {
-      debugLog("Closing auth window");
-      authWindow.close();
-      authWindow = null;
-    }
-    debugLog("Auth cleanup complete");
   }
 
   async function authenticateGitHub() {
@@ -555,7 +701,14 @@
   }
 
   // Initialize
-  debugLog("Script initialization started");
+  debugLog(
+    "🏁 Script loading started",
+    {
+      timing: performance.now(),
+      gmAvailable: typeof GM !== "undefined"
+    },
+    "init"
+  );
 
   // Add menu commands
   GM.registerMenuCommand("Cleanup Old Notes", cleanupOldNotes);
@@ -563,24 +716,62 @@
   GM.registerMenuCommand("Import Notes", importNotes);
   GM.registerMenuCommand("Reconfigure GitHub Client ID", reconfigureClientId);
 
-  // Observer for dynamic page updates with debouncing
-  const observer = new MutationObserver(() => {
-    debouncedAddNotesButton();
-  });
+  // Add early initialization check
+  debugLog(
+    "🏁 Script loading started",
+    {
+      timing: performance.now(),
+      gmAvailable: typeof GM !== "undefined"
+    },
+    "init"
+  );
 
-  // Observer Callback
-  document.addEventListener("DOMContentLoaded", () => {
+  // Document ready handler with enhanced logging
+  const documentReady = () => {
+    debugLog(
+      "📄 Document ready event triggered",
+      {
+        readyState: document.readyState,
+        timing: performance.now()
+      },
+      "init"
+    );
+
     queueInitTask(async () => {
       const headerContainer = document.querySelector(".Header");
+      debugLog(
+        "🔍 Searching for header container",
+        {
+          found: !!headerContainer
+        },
+        "init"
+      );
+
       if (headerContainer) {
+        debugLog("🎯 Setting up observer", null, "init");
         observer.observe(headerContainer, {
           childList: true,
           subtree: true
         });
         await initializeGist();
+      } else {
+        debugLog("⚠️ Header container not found", null, "error");
       }
     });
-  });
+  };
+
+  // Enhanced event listeners with logging
+  if (document.readyState === "loading") {
+    debugLog("⏳ Document still loading, adding ready listener", null, "init");
+    document.addEventListener("DOMContentLoaded", documentReady);
+  } else {
+    debugLog(
+      "📄 Document already ready, executing initialization",
+      null,
+      "init"
+    );
+    documentReady();
+  }
 
   // Cleanup observer when page is unloaded
   window.addEventListener("unload", () => {
