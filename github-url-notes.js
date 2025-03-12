@@ -88,6 +88,38 @@
   async function initializeGist() {
     debugLog("Initializing gist");
 
+    // Add a function to check if we're on the OAuth callback page
+    function isOAuthCallback() {
+      const params = new URLSearchParams(window.location.search);
+      return params.has("code") && params.has("state");
+    }
+
+    // Handle OAuth callback
+    async function handleOAuthCallback() {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      const state = params.get("state");
+      const savedState = await GM.getValue(AUTH_STATE_KEY, "");
+
+      if (state === savedState) {
+        // Post message back to the opener window
+        if (window.opener) {
+          window.opener.postMessage(
+            { type: "oauth-token", token: code, state: state },
+            "https://github.com"
+          );
+          window.close();
+        }
+      }
+    }
+
+    // Check if we're on the OAuth callback page
+    if (isOAuthCallback()) {
+      debugLog("On OAuth callback page, handling callback");
+      await handleOAuthCallback();
+      return;
+    }
+
     // Prevent multiple initializations
     if (isInitialized) {
       debugLog("Already initialized, skipping");
