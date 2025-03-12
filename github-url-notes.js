@@ -238,11 +238,18 @@
 
   // Create button container and buttons
   async function createButtons() {
+    // Remove any existing buttons first
+    const existingButtons = document.querySelectorAll(
+      ".gh-note-button-container"
+    );
+    existingButtons.forEach((button) => button.remove());
+
     let buttonPlaced = false;
 
     async function placeButton() {
       if (buttonPlaced) return;
 
+      // Try to find the appropriate container
       const stickyContent =
         document.querySelector(".js-sticky-header-content") ||
         document.querySelector(".sticky-content");
@@ -254,12 +261,28 @@
         document.querySelector(".gh-header-meta") ||
         document.querySelector(".pagehead-actions");
 
-      if (stickyContent || discussionHeader || anyHeader) {
+      let targetContainer = null;
+      let insertMethod = "append";
+
+      if (stickyContent && stickyContent.offsetParent !== null) {
+        // Check if sticky content is visible
+        targetContainer = stickyContent;
+        insertMethod = "prepend";
+      } else if (discussionHeader) {
+        targetContainer = discussionHeader;
+      } else if (anyHeader) {
+        targetContainer = anyHeader;
+      }
+
+      if (
+        targetContainer &&
+        !targetContainer.querySelector(".gh-note-button-container")
+      ) {
         const container = document.createElement("div");
         container.className = "gh-note-button-container";
 
         // Update the container styles based on where it will be placed
-        if (stickyContent) {
+        if (insertMethod === "prepend") {
           container.style.position = "relative";
           container.style.display = "inline-flex";
           container.style.alignItems = "center";
@@ -280,12 +303,10 @@
         container.appendChild(mainButton);
 
         // Insert the button in the appropriate location
-        if (stickyContent) {
-          stickyContent.insertBefore(container, stickyContent.firstChild);
-        } else if (discussionHeader) {
-          discussionHeader.appendChild(container);
-        } else if (anyHeader) {
-          anyHeader.appendChild(container);
+        if (insertMethod === "prepend") {
+          targetContainer.insertBefore(container, targetContainer.firstChild);
+        } else {
+          targetContainer.appendChild(container);
         }
 
         const modal = createNoteModal(mainButton);
@@ -303,10 +324,18 @@
     // Try to place the button immediately
     await placeButton();
 
+    // Clean up any existing observers
+    if (window.ghNotesObserver) {
+      window.ghNotesObserver.disconnect();
+    }
+
     // Set up a MutationObserver to watch for dynamic changes
     const observer = new MutationObserver(async (mutations) => {
       await placeButton();
     });
+
+    // Save the observer reference
+    window.ghNotesObserver = observer;
 
     // Start observing the document with the configured parameters
     observer.observe(document.body, {
@@ -316,10 +345,21 @@
 
     // Cleanup after 10 seconds if button is placed
     setTimeout(() => {
-      if (buttonPlaced) {
-        observer.disconnect();
+      if (buttonPlaced && window.ghNotesObserver) {
+        window.ghNotesObserver.disconnect();
       }
     }, 10000);
+  }
+
+  // Clean up function to remove buttons and disconnect observer
+  function cleanup() {
+    const existingButtons = document.querySelectorAll(
+      ".gh-note-button-container"
+    );
+    existingButtons.forEach((button) => button.remove());
+    if (window.ghNotesObserver) {
+      window.ghNotesObserver.disconnect();
+    }
   }
 
   // Register Tampermonkey menu commands
@@ -341,8 +381,14 @@
   }
 
   // Handle GitHub's Turbo navigation
-  document.addEventListener("turbo:load", createButtons);
-  document.addEventListener("turbo:render", createButtons);
+  document.addEventListener("turbo:load", () => {
+    cleanup();
+    createButtons();
+  });
+  document.addEventListener("turbo:render", () => {
+    cleanup();
+    createButtons();
+  });
 
   // Also try again when the window loads (backup)
   window.addEventListener("load", createButtons);
