@@ -137,7 +137,6 @@
         <h3>Note for this page</h3>
         <textarea class="gh-note-textarea"></textarea>
         <button class="gh-note-button gh-note-button-primary gh-note-save">Save</button>
-        <button class="gh-note-button gh-note-cancel">Cancel</button>
       </div>
     `;
 
@@ -146,10 +145,8 @@
     const textarea = modal.querySelector(".gh-note-textarea");
     const closeBtn = modal.querySelector(".gh-note-close");
     const saveBtn = modal.querySelector(".gh-note-save");
-    const cancelBtn = modal.querySelector(".gh-note-cancel");
 
     closeBtn.onclick = () => (modal.style.display = "none");
-    cancelBtn.onclick = () => (modal.style.display = "none");
     saveBtn.onclick = async () => {
       await saveNote(textarea.value);
       modal.style.display = "none";
@@ -260,12 +257,7 @@
         const existingNote = await getNote();
         mainButton.textContent = existingNote ? "Edit Note" : "Save Note";
 
-        const cancelButton = document.createElement("button");
-        cancelButton.className = "gh-note-button";
-        cancelButton.textContent = "Cancel";
-
         container.appendChild(mainButton);
-        container.appendChild(cancelButton);
 
         // Insert after the header
         header.parentNode.insertBefore(container, header.nextSibling);
