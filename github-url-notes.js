@@ -10,6 +10,7 @@
 // @grant        GM.setValue
 // @grant        GM.deleteValue
 // @grant        GM.registerMenuCommand
+// @grant        GM.openInTab
 // @run-at       document-start
 // ==/UserScript==
 
@@ -229,6 +230,27 @@
     }
   }
 
+  // Function to open all URLs with notes in new tabs
+  async function openAllNoteUrls() {
+    const notes = await initNotes();
+    const urls = Object.keys(notes);
+
+    if (urls.length === 0) {
+      alert("No saved notes found.");
+      return;
+    }
+
+    const confirmMessage = `Open ${urls.length} URLs with notes in new tabs?`;
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    // Open URLs in new tabs
+    urls.forEach((url) => {
+      window.open(url, "_blank");
+    });
+  }
+
   async function createButtons() {
     if (document.querySelector(".gh-note-button-container")) return;
 
@@ -278,4 +300,5 @@
       await deleteOldNotes();
     }
   });
+  GM.registerMenuCommand("Open All Note URLs", openAllNoteUrls);
 })();
