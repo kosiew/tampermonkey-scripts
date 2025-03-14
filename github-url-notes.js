@@ -316,6 +316,11 @@
       }
 
       modal.style.display = "block";
+
+      // Autofocus the textarea after the modal is visible
+      setTimeout(() => {
+        textarea.focus();
+      }, 10);
     };
   }
 
