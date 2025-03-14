@@ -122,6 +122,16 @@
     return notes[url]?.note || "";
   }
 
+  // Delete note for current URL
+  async function deleteNote() {
+    const notes = await initNotes();
+    const url = normalizeUrl(window.location.href);
+    if (notes[url]) {
+      delete notes[url];
+      await GM.setValue(NOTES_KEY, notes);
+    }
+  }
+
   // Create modal for editing notes
   function createNoteModal(mainButton) {
     const modal = document.createElement("div");
@@ -131,7 +141,10 @@
         <span class="gh-note-close">&times;</span>
         <h3>Note for this page</h3>
         <textarea class="gh-note-textarea"></textarea>
-        <button class="gh-note-button gh-note-save">Save</button>
+        <div style="display: flex; gap: 10px;">
+          <button class="gh-note-button gh-note-save">Save</button>
+          <button class="gh-note-button gh-note-delete" style="background-color: #d73a49; display: none;">Delete Note</button>
+        </div>
       </div>
     `;
 
@@ -140,6 +153,7 @@
     const textarea = modal.querySelector(".gh-note-textarea");
     const closeBtn = modal.querySelector(".gh-note-close");
     const saveBtn = modal.querySelector(".gh-note-save");
+    const deleteBtn = modal.querySelector(".gh-note-delete");
 
     closeBtn.onclick = () => (modal.style.display = "none");
     saveBtn.onclick = async () => {
@@ -147,6 +161,24 @@
       modal.style.display = "none";
       // Update button text after saving
       mainButton.textContent = textarea.value ? "Edit Note" : "Save Note";
+    };
+
+    deleteBtn.onclick = async () => {
+      // Copy text to clipboard before deletion
+      if (textarea.value) {
+        try {
+          await navigator.clipboard.writeText(textarea.value);
+          console.log("Note copied to clipboard");
+        } catch (err) {
+          console.error("Failed to copy note to clipboard:", err);
+        }
+      }
+
+      await deleteNote();
+      modal.style.display = "none";
+      // Update button text after deletion
+      mainButton.textContent = "Save Note";
+      alert("Note deleted and content copied to clipboard");
     };
 
     // Close modal when clicking outside
@@ -271,7 +303,18 @@
 
     mainButton.onclick = async () => {
       const note = await getNote();
-      modal.querySelector(".gh-note-textarea").value = note || "";
+      const textarea = modal.querySelector(".gh-note-textarea");
+      const deleteBtn = modal.querySelector(".gh-note-delete");
+
+      textarea.value = note || "";
+
+      // Show or hide delete button based on note existence
+      if (note) {
+        deleteBtn.style.display = "inline-block";
+      } else {
+        deleteBtn.style.display = "none";
+      }
+
       modal.style.display = "block";
     };
   }
