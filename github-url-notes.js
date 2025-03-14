@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         GitHub URL Notes Manager
 // @namespace    http://tampermonkey.net/
-// @version      1.2
-// @description  Adds buttons to manage notes for GitHub URLs with local storage
+// @version      1.3
+// @description  Adds buttons to manage notes for GitHub URLs with local storage and Gist backup
 // @author       Siew Kam Onn
 // @match        https://github.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
@@ -11,6 +11,7 @@
 // @grant        GM.deleteValue
 // @grant        GM.registerMenuCommand
 // @grant        GM.openInTab
+// @grant        GM_xmlhttpRequest
 // @run-at       document-start
 // ==/UserScript==
 
@@ -18,6 +19,16 @@
   "use strict";
 
   const NOTES_KEY = "github_url_notes";
+  const GIST_ID_KEY = "github_gist_id";
+  const GITHUB_TOKEN_KEY = "github_token";
+  const FILE_NAME = "ghnotes.json"; // Name of the file in the Gist
+  const USE_GIST_STORAGE_KEY = "use_gist_storage";
+
+  // Get useGistStorage at the top level to avoid repeated async calls
+  let useGistStorage = false;
+  GM.getValue(USE_GIST_STORAGE_KEY, false).then((value) => {
+    useGistStorage = value;
+  });
 
   // Styles for the modal and floating button
   const styles = `
@@ -100,7 +111,32 @@
 
   // Initialize notes storage
   async function initNotes() {
-    const notes = await GM.getValue(NOTES_KEY, {});
+    let notes = await GM.getValue(NOTES_KEY, {});
+
+    // Refresh the useGistStorage value
+    useGistStorage = await GM.getValue(USE_GIST_STORAGE_KEY, false);
+
+    if (useGistStorage) {
+      try {
+        const gistNotes = await fetchNotesFromGist();
+        if (gistNotes) {
+          // Merge with local notes, preferring the more recent version for each URL
+          for (const [url, gistNoteData] of Object.entries(gistNotes)) {
+            if (
+              !notes[url] ||
+              new Date(notes[url].timestamp) < new Date(gistNoteData.timestamp)
+            ) {
+              notes[url] = gistNoteData;
+            }
+          }
+          // Save merged notes back to local storage
+          await GM.setValue(NOTES_KEY, notes);
+        }
+      } catch (error) {
+        console.error("Failed to fetch notes from Gist:", error);
+      }
+    }
+
     return notes;
   }
 
@@ -113,6 +149,15 @@
       timestamp: new Date().toISOString()
     };
     await GM.setValue(NOTES_KEY, notes);
+
+    // useGistStorage is refreshed in initNotes()
+    if (useGistStorage) {
+      try {
+        await saveNotesToGist(notes);
+      } catch (error) {
+        console.error("Failed to save notes to Gist:", error);
+      }
+    }
   }
 
   // Get note for current URL
@@ -129,6 +174,188 @@
     if (notes[url]) {
       delete notes[url];
       await GM.setValue(NOTES_KEY, notes);
+
+      // useGistStorage is refreshed in initNotes()
+      if (useGistStorage) {
+        try {
+          await saveNotesToGist(notes);
+        } catch (error) {
+          console.error("Failed to update Gist after deletion:", error);
+        }
+      }
+    }
+  }
+
+  // Fetch notes from Gist
+  async function fetchNotesFromGist() {
+    const gistId = await GM.getValue(GIST_ID_KEY, "");
+    const githubToken = await GM.getValue(GITHUB_TOKEN_KEY, "");
+
+    if (!gistId || !githubToken) {
+      console.error("Gist ID or GitHub token not set");
+      return null;
+    }
+
+    return new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method: "GET",
+        url: `https://api.github.com/gists/${gistId}`,
+        headers: {
+          Authorization: `token ${githubToken}`,
+          Accept: "application/vnd.github.v3+json"
+        },
+        onload: function (response) {
+          if (response.status === 200) {
+            const gistData = JSON.parse(response.responseText);
+            if (gistData.files && gistData.files[FILE_NAME]) {
+              try {
+                const content = gistData.files[FILE_NAME].content;
+                resolve(JSON.parse(content));
+              } catch (e) {
+                console.error("Error parsing Gist content:", e);
+                resolve({});
+              }
+            } else {
+              console.log("No notes file found in Gist, starting fresh");
+              resolve({});
+            }
+          } else {
+            reject(new Error(`Failed to fetch Gist: ${response.status}`));
+          }
+        },
+        onerror: function (error) {
+          reject(new Error(`Network error fetching Gist: ${error}`));
+        }
+      });
+    });
+  }
+
+  // Save notes to Gist
+  async function saveNotesToGist(notes) {
+    const gistId = await GM.getValue(GIST_ID_KEY, "");
+    const githubToken = await GM.getValue(GITHUB_TOKEN_KEY, "");
+
+    if (!gistId || !githubToken) {
+      throw new Error("Gist ID or GitHub token not set");
+    }
+
+    return new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method: "PATCH",
+        url: `https://api.github.com/gists/${gistId}`,
+        headers: {
+          Authorization: `token ${githubToken}`,
+          Accept: "application/vnd.github.v3+json",
+          "Content-Type": "application/json"
+        },
+        data: JSON.stringify({
+          files: {
+            [FILE_NAME]: { content: JSON.stringify(notes, null, 2) }
+          }
+        }),
+        onload: function (response) {
+          if (response.status === 200) {
+            console.log("✅ Gist updated successfully");
+            resolve(JSON.parse(response.responseText));
+          } else {
+            console.error("❌ Error updating Gist:", response);
+            reject(new Error(`Failed to update Gist: ${response.status}`));
+          }
+        },
+        onerror: function (error) {
+          console.error("❌ Network error:", error);
+          reject(new Error(`Network error updating Gist: ${error}`));
+        }
+      });
+    });
+  }
+
+  // Force sync between local storage and Gist
+  async function syncWithGist() {
+    // Refresh the useGistStorage value
+    useGistStorage = await GM.getValue(USE_GIST_STORAGE_KEY, false);
+
+    if (!useGistStorage) {
+      const enableGist = confirm(
+        "Gist synchronization is currently disabled. Would you like to enable it?"
+      );
+      if (enableGist) {
+        await configureGistSettings();
+      } else {
+        return;
+      }
+    }
+
+    try {
+      const localNotes = await GM.getValue(NOTES_KEY, {});
+      const gistNotes = await fetchNotesFromGist();
+
+      if (!gistNotes) {
+        alert(
+          "Failed to fetch notes from Gist. Please check your Gist ID and GitHub token."
+        );
+        return;
+      }
+
+      // Merge notes, preferring more recent versions
+      const mergedNotes = { ...gistNotes };
+
+      for (const [url, localNoteData] of Object.entries(localNotes)) {
+        if (
+          !mergedNotes[url] ||
+          new Date(mergedNotes[url].timestamp) <
+            new Date(localNoteData.timestamp)
+        ) {
+          mergedNotes[url] = localNoteData;
+        }
+      }
+
+      // Save merged notes to both local storage and Gist
+      await GM.setValue(NOTES_KEY, mergedNotes);
+      await saveNotesToGist(mergedNotes);
+
+      alert(
+        `Successfully synced notes. Total notes: ${
+          Object.keys(mergedNotes).length
+        }`
+      );
+    } catch (error) {
+      console.error("Sync failed:", error);
+      alert(`Failed to sync with Gist: ${error.message}`);
+    }
+  }
+
+  // Configure Gist settings
+  async function configureGistSettings() {
+    const currentGistId = await GM.getValue(GIST_ID_KEY, "");
+    const currentToken = await GM.getValue(GITHUB_TOKEN_KEY, "");
+
+    const gistId = prompt("Enter your Gist ID:", currentGistId);
+    if (gistId === null) return; // User cancelled
+
+    const token = prompt(
+      "Enter your GitHub token (with gist scope):",
+      currentToken
+    );
+    if (token === null) return; // User cancelled
+
+    await GM.setValue(GIST_ID_KEY, gistId);
+    await GM.setValue(GITHUB_TOKEN_KEY, token);
+
+    const enableGist = confirm("Do you want to enable Gist synchronization?");
+    await GM.setValue(USE_GIST_STORAGE_KEY, enableGist);
+
+    // Update our cached value
+    useGistStorage = enableGist;
+
+    if (enableGist) {
+      alert(
+        "Gist synchronization is now enabled. Your notes will be synced to your Gist."
+      );
+    } else {
+      alert(
+        "Gist synchronization is disabled. Your notes will only be stored locally."
+      );
     }
   }
 
@@ -220,7 +447,22 @@
           try {
             const notes = JSON.parse(event.target.result);
             await GM.setValue(NOTES_KEY, notes);
-            alert("Notes imported successfully!");
+
+            // Refresh useGistStorage to get the latest value
+            useGistStorage = await GM.getValue(USE_GIST_STORAGE_KEY, false);
+
+            if (useGistStorage) {
+              try {
+                await saveNotesToGist(notes);
+                alert("Notes imported successfully to local storage and Gist!");
+              } catch (error) {
+                alert(
+                  "Notes imported to local storage but failed to update Gist"
+                );
+              }
+            } else {
+              alert("Notes imported successfully!");
+            }
           } catch (error) {
             alert("Error importing notes: Invalid file format");
           }
@@ -250,6 +492,11 @@
     }
 
     await GM.setValue(NOTES_KEY, updatedNotes);
+
+    // useGistStorage is refreshed in initNotes()
+    if (useGistStorage) {
+      await saveNotesToGist(updatedNotes);
+    }
 
     if (deletedCount > 0) {
       alert(
@@ -341,6 +588,8 @@
   // Register Tampermonkey menu commands
   GM.registerMenuCommand("Export GitHub Notes", exportNotes);
   GM.registerMenuCommand("Import GitHub Notes", importNotes);
+  GM.registerMenuCommand("Configure Gist Settings", configureGistSettings);
+  GM.registerMenuCommand("Sync with Gist", syncWithGist);
   GM.registerMenuCommand("Delete Notes (Older than 180 days)", async () => {
     if (
       confirm("Are you sure you want to delete all notes older than 180 days?")
