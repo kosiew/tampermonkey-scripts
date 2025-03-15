@@ -16,10 +16,18 @@
 // ==/UserScript==
 
 (function () {
-  "use strict";
+  ("use strict");
 
   const NOTES_KEY = "github_url_notes";
   const GIST_ID_KEY = "github_gist_id";
+  // To get a Personal Access Token (classic) for Gists:
+  // 1. Go to GitHub.com → Settings → Developer settings → Personal access tokens → Tokens (classic)
+  // 2. Generate new token (classic)
+  // 3. Add a note (e.g., "GitHub URL Notes Gist Access")
+  // 4. Select only the "gist" scope
+  // 5. Click "Generate token"
+  // 6. Copy the token immediately (you won't see it again)
+  // Important: Keep this token secret and never commit it to version control
   const GITHUB_TOKEN_KEY = "github_token";
   const FILE_NAME = "ghnotes.json"; // Name of the file in the Gist
   const USE_GIST_STORAGE_KEY = "use_gist_storage";
