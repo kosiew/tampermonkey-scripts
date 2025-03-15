@@ -248,9 +248,24 @@
       throw new Error("Gist ID or GitHub token not set");
     }
 
+    // Create a clean copy with only note entries, filtering out any non-URL keys
+    const cleanNotes = {};
+    for (const [key, value] of Object.entries(notes)) {
+      // Only include entries that look like URLs and have proper note format
+      if (
+        key.startsWith("http") &&
+        value &&
+        typeof value === "object" &&
+        value.note !== undefined &&
+        value.timestamp !== undefined
+      ) {
+        cleanNotes[key] = value;
+      }
+    }
+
     // Create the nested structure with github_url_notes property
     const nestedNotes = {
-      github_url_notes: notes
+      github_url_notes: cleanNotes
     };
 
     return new Promise((resolve, reject) => {
