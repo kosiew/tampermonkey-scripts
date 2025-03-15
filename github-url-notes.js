@@ -210,7 +210,16 @@
             if (gistData.files && gistData.files[FILE_NAME]) {
               try {
                 const content = gistData.files[FILE_NAME].content;
-                resolve(JSON.parse(content));
+                const parsedContent = JSON.parse(content);
+
+                // Extract notes from the nested structure
+                if (parsedContent && parsedContent.github_url_notes) {
+                  resolve(parsedContent.github_url_notes);
+                } else {
+                  // Handle legacy format (direct notes object)
+                  console.log("Converting legacy format to nested structure");
+                  resolve(parsedContent);
+                }
               } catch (e) {
                 console.error("Error parsing Gist content:", e);
                 resolve({});
@@ -239,6 +248,11 @@
       throw new Error("Gist ID or GitHub token not set");
     }
 
+    // Create the nested structure with github_url_notes property
+    const nestedNotes = {
+      github_url_notes: notes
+    };
+
     return new Promise((resolve, reject) => {
       GM_xmlhttpRequest({
         method: "PATCH",
@@ -250,7 +264,7 @@
         },
         data: JSON.stringify({
           files: {
-            [FILE_NAME]: { content: JSON.stringify(notes, null, 2) }
+            [FILE_NAME]: { content: JSON.stringify(nestedNotes, null, 2) }
           }
         }),
         onload: function (response) {
