@@ -424,7 +424,7 @@
       await saveNote(textarea.value);
       modal.style.display = "none";
       // Update button text after saving
-      mainButton.textContent = textarea.value ? "Edit Note" : "Save Note";
+      mainButton.textContent = textarea.value ? "Edit Note" : "Add Note";
     };
 
     deleteBtn.onclick = async () => {
@@ -441,7 +441,7 @@
       await deleteNote();
       modal.style.display = "none";
       // Update button text after deletion
-      mainButton.textContent = "Save Note";
+      mainButton.textContent = "Add Note";
       alert("Note deleted and content copied to clipboard");
     };
 
@@ -578,7 +578,7 @@
 
     // Set initial button text based on whether there's an existing note
     const existingNote = await getNote();
-    mainButton.textContent = existingNote ? "Edit Note" : "Save Note";
+    mainButton.textContent = existingNote ? "Edit Note" : "Add Note";
 
     container.appendChild(mainButton);
     document.body.appendChild(container);
