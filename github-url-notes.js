@@ -12,6 +12,7 @@
 // @grant        GM.registerMenuCommand
 // @grant        GM.openInTab
 // @grant        GM_xmlhttpRequest
+// @grant        GM.notification
 // @run-at       document-start
 // ==/UserScript==
 
@@ -349,6 +350,11 @@
         console.error("Failed to save notes to Gist:", error);
       }
     }
+    GM.notification({
+      title: "GitHub Notes",
+      text: "Note saved successfully!",
+      timeout: 2000
+    });
   }
 
   // Get note for current URL
