@@ -32,6 +32,178 @@
   const FILE_NAME = "ghnotes.json"; // Name of the file in the Gist
   const USE_GIST_STORAGE_KEY = "use_gist_storage";
 
+  /**
+   * GistManager - A reusable class for managing Gist-based storage in Tampermonkey scripts
+   */
+  class GistManager {
+    constructor(
+      gistIdKey,
+      githubTokenKey,
+      useGistStorageKey,
+      defaultFileName = "data.json"
+    ) {
+      this.gistIdKey = gistIdKey;
+      this.githubTokenKey = githubTokenKey;
+      this.useGistStorageKey = useGistStorageKey;
+      this.fileName = defaultFileName;
+      this.useGistStorage = false;
+
+      // Initialize the useGistStorage value
+      this._initUseGistStorage();
+    }
+
+    async _initUseGistStorage() {
+      this.useGistStorage = await GM.getValue(this.useGistStorageKey, false);
+    }
+
+    async refreshSettings() {
+      await this._initUseGistStorage();
+    }
+
+    async isEnabled() {
+      await this.refreshSettings();
+      return this.useGistStorage;
+    }
+
+    /**
+     * Fetch data from a Gist
+     * @returns {Promise<Object|null>} The data from the Gist, or null if not available
+     */
+    async fetchFromGist() {
+      const gistId = await GM.getValue(this.gistIdKey, "");
+      const githubToken = await GM.getValue(this.githubTokenKey, "");
+
+      if (!gistId || !githubToken) {
+        console.error("Gist ID or GitHub token not set");
+        return null;
+      }
+
+      return new Promise((resolve, reject) => {
+        GM_xmlhttpRequest({
+          method: "GET",
+          url: `https://api.github.com/gists/${gistId}`,
+          headers: {
+            Authorization: `token ${githubToken}`,
+            Accept: "application/vnd.github.v3+json"
+          },
+          onload: function (response) {
+            if (response.status === 200) {
+              const gistData = JSON.parse(response.responseText);
+              if (gistData.files && gistData.files[this.fileName]) {
+                try {
+                  const content = gistData.files[this.fileName].content;
+                  resolve(JSON.parse(content));
+                } catch (e) {
+                  console.error("Error parsing Gist content:", e);
+                  resolve({});
+                }
+              } else {
+                console.log("No file found in Gist, starting fresh");
+                resolve({});
+              }
+            } else {
+              reject(new Error(`Failed to fetch Gist: ${response.status}`));
+            }
+          }.bind(this),
+          onerror: function (error) {
+            reject(new Error(`Network error fetching Gist: ${error}`));
+          }
+        });
+      });
+    }
+
+    /**
+     * Save data to a Gist
+     * @param {Object} data - The data to save
+     * @returns {Promise<Object>} - The response from the Gist API
+     */
+    async saveToGist(data) {
+      const gistId = await GM.getValue(this.gistIdKey, "");
+      const githubToken = await GM.getValue(this.githubTokenKey, "");
+
+      if (!gistId || !githubToken) {
+        throw new Error("Gist ID or GitHub token not set");
+      }
+
+      return new Promise((resolve, reject) => {
+        GM_xmlhttpRequest({
+          method: "PATCH",
+          url: `https://api.github.com/gists/${gistId}`,
+          headers: {
+            Authorization: `token ${githubToken}`,
+            Accept: "application/vnd.github.v3+json",
+            "Content-Type": "application/json"
+          },
+          data: JSON.stringify({
+            files: {
+              [this.fileName]: { content: JSON.stringify(data, null, 2) }
+            }
+          }),
+          onload: function (response) {
+            if (response.status === 200) {
+              console.log("✅ Gist updated successfully");
+              resolve(JSON.parse(response.responseText));
+            } else {
+              console.error("❌ Error updating Gist:", response);
+              reject(new Error(`Failed to update Gist: ${response.status}`));
+            }
+          },
+          onerror: function (error) {
+            console.error("❌ Network error:", error);
+            reject(new Error(`Network error updating Gist: ${error}`));
+          }
+        });
+      });
+    }
+
+    /**
+     * Configure Gist settings interactively
+     * @returns {Promise<boolean>} True if configuration was completed, false if canceled
+     */
+    async configureSettings() {
+      const currentGistId = await GM.getValue(this.gistIdKey, "");
+      const currentToken = await GM.getValue(this.githubTokenKey, "");
+
+      const gistId = prompt("Enter your Gist ID:", currentGistId);
+      if (gistId === null) return false; // User cancelled
+
+      const token = prompt(
+        "Enter your GitHub token (with gist scope):",
+        currentToken
+      );
+      if (token === null) return false; // User cancelled
+
+      await GM.setValue(this.gistIdKey, gistId);
+      await GM.setValue(this.githubTokenKey, token);
+
+      const enableGist = confirm("Do you want to enable Gist synchronization?");
+      await GM.setValue(this.useGistStorageKey, enableGist);
+
+      // Update our cached value
+      this.useGistStorage = enableGist;
+
+      if (enableGist) {
+        alert(
+          "Gist synchronization is now enabled. Your data will be synced to your Gist."
+        );
+      } else {
+        alert(
+          "Gist synchronization is disabled. Your data will only be stored locally."
+        );
+      }
+
+      return true;
+    }
+  }
+
+  // Create a GistManager instance for this script
+  const gistManager = new GistManager(
+    GIST_ID_KEY,
+    GITHUB_TOKEN_KEY,
+    USE_GIST_STORAGE_KEY,
+    FILE_NAME
+  );
+
   // Get useGistStorage at the top level to avoid repeated async calls
   let useGistStorage = false;
   GM.getValue(USE_GIST_STORAGE_KEY, false).then((value) => {
@@ -121,12 +293,17 @@
   async function initNotes() {
     let notes = await GM.getValue(NOTES_KEY, {});
 
-    // Refresh the useGistStorage value
-    useGistStorage = await GM.getValue(USE_GIST_STORAGE_KEY, false);
+    // Refresh the useGistStorage value using the GistManager
+    useGistStorage = await gistManager.isEnabled();
 
     if (useGistStorage) {
       try {
-        const gistNotes = await fetchNotesFromGist();
+        // Use the GistManager to fetch notes
+        const gistData = await gistManager.fetchFromGist();
+
+        // Extract notes from the nested structure if using the specific format
+        const gistNotes = gistData?.github_url_notes || gistData;
+
         if (gistNotes) {
           // Merge with local notes, preferring the more recent version for each URL
           for (const [url, gistNoteData] of Object.entries(gistNotes)) {
@@ -161,7 +338,13 @@
     // useGistStorage is refreshed in initNotes()
     if (useGistStorage) {
       try {
-        await saveNotesToGist(notes);
+        // Create the nested structure with github_url_notes property
+        const nestedNotes = {
+          github_url_notes: notes
+        };
+
+        // Use the GistManager to save notes
+        await gistManager.saveToGist(nestedNotes);
       } catch (error) {
         console.error("Failed to save notes to Gist:", error);
       }
@@ -186,7 +369,13 @@
       // useGistStorage is refreshed in initNotes()
       if (useGistStorage) {
         try {
-          await saveNotesToGist(notes);
+          // Create the nested structure with github_url_notes property
+          const nestedNotes = {
+            github_url_notes: notes
+          };
+
+          // Use the GistManager to save notes
+          await gistManager.saveToGist(nestedNotes);
         } catch (error) {
           console.error("Failed to update Gist after deletion:", error);
         }
@@ -194,130 +383,17 @@
     }
   }
 
-  // Fetch notes from Gist
-  async function fetchNotesFromGist() {
-    const gistId = await GM.getValue(GIST_ID_KEY, "");
-    const githubToken = await GM.getValue(GITHUB_TOKEN_KEY, "");
-
-    if (!gistId || !githubToken) {
-      console.error("Gist ID or GitHub token not set");
-      return null;
-    }
-
-    return new Promise((resolve, reject) => {
-      GM_xmlhttpRequest({
-        method: "GET",
-        url: `https://api.github.com/gists/${gistId}`,
-        headers: {
-          Authorization: `token ${githubToken}`,
-          Accept: "application/vnd.github.v3+json"
-        },
-        onload: function (response) {
-          if (response.status === 200) {
-            const gistData = JSON.parse(response.responseText);
-            if (gistData.files && gistData.files[FILE_NAME]) {
-              try {
-                const content = gistData.files[FILE_NAME].content;
-                const parsedContent = JSON.parse(content);
-
-                // Extract notes from the nested structure
-                if (parsedContent && parsedContent.github_url_notes) {
-                  resolve(parsedContent.github_url_notes);
-                } else {
-                  // Handle legacy format (direct notes object)
-                  console.log("Converting legacy format to nested structure");
-                  resolve(parsedContent);
-                }
-              } catch (e) {
-                console.error("Error parsing Gist content:", e);
-                resolve({});
-              }
-            } else {
-              console.log("No notes file found in Gist, starting fresh");
-              resolve({});
-            }
-          } else {
-            reject(new Error(`Failed to fetch Gist: ${response.status}`));
-          }
-        },
-        onerror: function (error) {
-          reject(new Error(`Network error fetching Gist: ${error}`));
-        }
-      });
-    });
-  }
-
-  // Save notes to Gist
-  async function saveNotesToGist(notes) {
-    const gistId = await GM.getValue(GIST_ID_KEY, "");
-    const githubToken = await GM.getValue(GITHUB_TOKEN_KEY, "");
-
-    if (!gistId || !githubToken) {
-      throw new Error("Gist ID or GitHub token not set");
-    }
-
-    // Create a clean copy with only note entries, filtering out any non-URL keys
-    const cleanNotes = {};
-    for (const [key, value] of Object.entries(notes)) {
-      // Only include entries that look like URLs and have proper note format
-      if (
-        key.startsWith("http") &&
-        value &&
-        typeof value === "object" &&
-        value.note !== undefined &&
-        value.timestamp !== undefined
-      ) {
-        cleanNotes[key] = value;
-      }
-    }
-
-    // Create the nested structure with github_url_notes property
-    const nestedNotes = {
-      github_url_notes: cleanNotes
-    };
-
-    return new Promise((resolve, reject) => {
-      GM_xmlhttpRequest({
-        method: "PATCH",
-        url: `https://api.github.com/gists/${gistId}`,
-        headers: {
-          Authorization: `token ${githubToken}`,
-          Accept: "application/vnd.github.v3+json",
-          "Content-Type": "application/json"
-        },
-        data: JSON.stringify({
-          files: {
-            [FILE_NAME]: { content: JSON.stringify(nestedNotes, null, 2) }
-          }
-        }),
-        onload: function (response) {
-          if (response.status === 200) {
-            console.log("✅ Gist updated successfully");
-            resolve(JSON.parse(response.responseText));
-          } else {
-            console.error("❌ Error updating Gist:", response);
-            reject(new Error(`Failed to update Gist: ${response.status}`));
-          }
-        },
-        onerror: function (error) {
-          console.error("❌ Network error:", error);
-          reject(new Error(`Network error updating Gist: ${error}`));
-        }
-      });
-    });
-  }
-
   // Force sync between local storage and Gist
   async function syncWithGist() {
     // Refresh the useGistStorage value
-    useGistStorage = await GM.getValue(USE_GIST_STORAGE_KEY, false);
+    useGistStorage = await gistManager.isEnabled();
 
     if (!useGistStorage) {
       const enableGist = confirm(
         "Gist synchronization is currently disabled. Would you like to enable it?"
       );
       if (enableGist) {
-        await configureGistSettings();
+        await gistManager.configureSettings();
       } else {
         return;
       }
@@ -325,7 +401,12 @@
 
     try {
       const localNotes = await GM.getValue(NOTES_KEY, {});
-      const gistNotes = await fetchNotesFromGist();
+
+      // Use the GistManager to fetch notes
+      const gistData = await gistManager.fetchFromGist();
+
+      // Extract notes from the nested structure if using the specific format
+      const gistNotes = gistData?.github_url_notes || gistData;
 
       if (!gistNotes) {
         alert(
@@ -349,7 +430,14 @@
 
       // Save merged notes to both local storage and Gist
       await GM.setValue(NOTES_KEY, mergedNotes);
-      await saveNotesToGist(mergedNotes);
+
+      // Create the nested structure with github_url_notes property
+      const nestedNotes = {
+        github_url_notes: mergedNotes
+      };
+
+      // Use the GistManager to save notes
+      await gistManager.saveToGist(nestedNotes);
 
       alert(
         `Successfully synced notes. Total notes: ${
@@ -362,38 +450,11 @@
     }
   }
 
-  // Configure Gist settings
+  // Configure Gist settings using the GistManager
   async function configureGistSettings() {
-    const currentGistId = await GM.getValue(GIST_ID_KEY, "");
-    const currentToken = await GM.getValue(GITHUB_TOKEN_KEY, "");
-
-    const gistId = prompt("Enter your Gist ID:", currentGistId);
-    if (gistId === null) return; // User cancelled
-
-    const token = prompt(
-      "Enter your GitHub token (with gist scope):",
-      currentToken
-    );
-    if (token === null) return; // User cancelled
-
-    await GM.setValue(GIST_ID_KEY, gistId);
-    await GM.setValue(GITHUB_TOKEN_KEY, token);
-
-    const enableGist = confirm("Do you want to enable Gist synchronization?");
-    await GM.setValue(USE_GIST_STORAGE_KEY, enableGist);
-
+    await gistManager.configureSettings();
     // Update our cached value
-    useGistStorage = enableGist;
-
-    if (enableGist) {
-      alert(
-        "Gist synchronization is now enabled. Your notes will be synced to your Gist."
-      );
-    } else {
-      alert(
-        "Gist synchronization is disabled. Your notes will only be stored locally."
-      );
-    }
+    useGistStorage = await gistManager.isEnabled();
   }
 
   // Create modal for editing notes
@@ -532,7 +593,13 @@
 
     // useGistStorage is refreshed in initNotes()
     if (useGistStorage) {
-      await saveNotesToGist(updatedNotes);
+      // Create the nested structure with github_url_notes property
+      const nestedNotes = {
+        github_url_notes: updatedNotes
+      };
+
+      // Use the GistManager to save notes
+      await gistManager.saveToGist(nestedNotes);
     }
 
     if (deletedCount > 0) {
