@@ -67,7 +67,7 @@
     const headerElement = document.querySelector(
       "#js-issues-toolbar .table-list-header-toggle"
     );
-    headerElement.appendChild(button);
+    headerElement && headerElement.appendChild(button);
   }
 
   createCopyButton();
