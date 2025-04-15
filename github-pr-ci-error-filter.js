@@ -26,31 +26,66 @@
   };
 
   /**
-   * Waits for the UI library to be available and initializes the script
-   * @param {Function} initFn - The initialization function to call when UI is ready
-   * @param {Object} uiOptions - Options for the UI constructor
+   * Class for managing the TampermonkeyUI instance
    */
-  function waitForUILibrary(initFn, uiOptions = {}) {
-    if (window.TampermonkeyUI) {
-      // Create UI instance from the shared library
-      const ui = new window.TampermonkeyUI({
+  class UIManager {
+    constructor(options = {}) {
+      this.ui = null;
+      this.options = {
         containerClass: "tm-scripts-container",
         containerParent: ".Header",
-        ...uiOptions
-      });
+        ...options
+      };
+    }
 
-      initFn(ui);
-    } else {
-      // Retry after a short delay
-      setTimeout(() => waitForUILibrary(initFn, uiOptions), 50);
+    /**
+     * Initializes the UI manager by waiting for UI library to be available
+     * @param {Function} initFn - The initialization function to call when UI is ready
+     */
+    waitForUILibrary(initFn) {
+      if (window.TampermonkeyUI) {
+        // Create UI instance from the shared library
+        this.ui = new window.TampermonkeyUI(this.options);
+        initFn();
+      } else {
+        // Retry after a short delay
+        setTimeout(() => this.waitForUILibrary(initFn), 50);
+      }
+    }
+
+    /**
+     * Gets the UI instance
+     * @returns {TampermonkeyUI|null} The UI instance
+     */
+    getUI() {
+      return this.ui;
+    }
+
+    /**
+     * Adds a button using the UI instance
+     * @param {Object} options - Button configuration options
+     * @returns {HTMLElement} The created button
+     */
+    addButton(options) {
+      return this.ui.addButton(options);
+    }
+
+    /**
+     * Shows feedback using the UI instance
+     * @param {string} message - The message to display
+     */
+    showFeedback(message) {
+      this.ui.showFeedback(message);
     }
   }
 
+  // Create a global instance of the UI manager
+  const uiManager = new UIManager();
+
   /**
-   * Initializes the script with the UI instance
-   * @param {TampermonkeyUI} ui - The UI instance
+   * Initializes the script
    */
-  function initializeScript(ui) {
+  function initializeScript() {
     // Add styles for the hidden class
     const hiddenStyles = document.createElement("style");
     hiddenStyles.textContent = `.${CONFIG.hiddenClass} { display: none !important; }`;
@@ -60,11 +95,11 @@
     const shouldHide = localStorage.getItem(CONFIG.storageKey) === "true";
 
     // Add button
-    const button = ui.addButton({
+    const button = uiManager.addButton({
       id: CONFIG.buttonId,
       text: shouldHide ? "Show CI Errors" : "Hide CI Errors",
       title: "Toggle visibility of PRs with CI errors",
-      onClick: () => toggleErrorPRs(ui),
+      onClick: toggleErrorPRs,
       active: shouldHide
     });
 
@@ -119,10 +154,9 @@
 
   /**
    * Toggles the visibility of PRs with CI errors
-   * @param {TampermonkeyUI} [ui] - The UI instance if available
    * @returns {void}
    */
-  function toggleErrorPRs(ui) {
+  function toggleErrorPRs() {
     try {
       const button = document.getElementById(CONFIG.buttonId);
       const isHiding = !button.classList.contains("active");
@@ -153,15 +187,7 @@
           hiddenCount !== 1 ? "s" : ""
         } with CI errors hidden`;
 
-        // Use provided UI instance or create a new one
-        const feedbackUI =
-          ui ||
-          new window.TampermonkeyUI({
-            containerClass: "tm-scripts-container",
-            containerParent: ".Header"
-          });
-
-        feedbackUI.showFeedback(message);
+        uiManager.showFeedback(message);
       }
     } catch (error) {
       console.error("Error toggling PR visibility:", error);
@@ -171,9 +197,9 @@
   // Start initialization by waiting for the UI library
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () =>
-      waitForUILibrary(initializeScript)
+      uiManager.waitForUILibrary(initializeScript)
     );
   } else {
-    waitForUILibrary(initializeScript);
+    uiManager.waitForUILibrary(initializeScript);
   }
 })();
