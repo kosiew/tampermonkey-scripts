@@ -25,50 +25,57 @@
     }
   };
 
-  // Wait for the UI library to be available
-  function waitForUILibrary() {
+  /**
+   * Waits for the UI library to be available and initializes the script
+   * @param {Function} initFn - The initialization function to call when UI is ready
+   * @param {Object} config - Configuration object to pass to the initialization function
+   * @param {Object} uiOptions - Options for the UI constructor
+   */
+  function waitForUILibrary(initFn, config, uiOptions = {}) {
     if (window.TampermonkeyUI) {
       // Create UI instance from the shared library
       const ui = new window.TampermonkeyUI({
         containerClass: "tm-scripts-container",
-        containerParent: ".Header"
+        containerParent: ".Header",
+        ...uiOptions
       });
 
-      initializeScript(ui);
+      initFn(ui, config);
     } else {
       // Retry after a short delay
-      setTimeout(waitForUILibrary, 50);
+      setTimeout(() => waitForUILibrary(initFn, config, uiOptions), 50);
     }
   }
 
   /**
    * Initializes the script with the UI instance
    * @param {TampermonkeyUI} ui - The UI instance
+   * @param {Object} config - Configuration options for the script
    */
-  function initializeScript(ui) {
+  function initializeScript(ui, config) {
     // Add styles for the hidden class
     const hiddenStyles = document.createElement("style");
-    hiddenStyles.textContent = `.${CONFIG.hiddenClass} { display: none !important; }`;
+    hiddenStyles.textContent = `.${config.hiddenClass} { display: none !important; }`;
     document.head.appendChild(hiddenStyles);
 
     // Check saved preference
-    const shouldHide = localStorage.getItem(CONFIG.storageKey) === "true";
+    const shouldHide = localStorage.getItem(config.storageKey) === "true";
 
     // Add button
     const button = ui.addButton({
-      id: CONFIG.buttonId,
+      id: config.buttonId,
       text: shouldHide ? "Show CI Errors" : "Hide CI Errors",
       title: "Toggle visibility of PRs with CI errors",
-      onClick: toggleErrorPRs,
+      onClick: () => toggleErrorPRs(config, ui),
       active: shouldHide
     });
 
     // Apply hiding if needed
     if (shouldHide) {
-      const allPRs = document.querySelectorAll(CONFIG.selectors.prList);
+      const allPRs = document.querySelectorAll(config.selectors.prList);
       allPRs.forEach((pr) => {
-        if (hasCIErrors(pr)) {
-          pr.classList.add(CONFIG.hiddenClass);
+        if (hasCIErrors(pr, config)) {
+          pr.classList.add(config.hiddenClass);
         }
       });
     }
@@ -82,10 +89,10 @@
             mutation.addedNodes.forEach((node) => {
               if (
                 node.nodeType === 1 &&
-                node.matches(CONFIG.selectors.prList)
+                node.matches(config.selectors.prList)
               ) {
-                if (hasCIErrors(node)) {
-                  node.classList.add(CONFIG.hiddenClass);
+                if (hasCIErrors(node, config)) {
+                  node.classList.add(config.hiddenClass);
                 }
               }
             });
@@ -106,19 +113,22 @@
   /**
    * Checks if a PR has CI errors
    * @param {HTMLElement} prElement - The PR element to check
+   * @param {Object} config - Configuration options
    * @returns {boolean} True if the PR has CI errors
    */
-  function hasCIErrors(prElement) {
-    return prElement.querySelector(CONFIG.selectors.errorIndicator) !== null;
+  function hasCIErrors(prElement, config) {
+    return prElement.querySelector(config.selectors.errorIndicator) !== null;
   }
 
   /**
    * Toggles the visibility of PRs with CI errors
+   * @param {Object} config - Configuration options
+   * @param {TampermonkeyUI} [ui] - The UI instance if available
    * @returns {void}
    */
-  function toggleErrorPRs() {
+  function toggleErrorPRs(config, ui) {
     try {
-      const button = document.getElementById(CONFIG.buttonId);
+      const button = document.getElementById(config.buttonId);
       const isHiding = !button.classList.contains("active");
 
       // Update button state
@@ -126,31 +136,36 @@
       button.textContent = isHiding ? "Show CI Errors" : "Hide CI Errors";
 
       // Find all PRs
-      const allPRs = document.querySelectorAll(CONFIG.selectors.prList);
+      const allPRs = document.querySelectorAll(config.selectors.prList);
 
       let hiddenCount = 0;
 
       // Toggle visibility for PRs with errors
       allPRs.forEach((pr) => {
-        if (hasCIErrors(pr)) {
-          pr.classList.toggle(CONFIG.hiddenClass, isHiding);
+        if (hasCIErrors(pr, config)) {
+          pr.classList.toggle(config.hiddenClass, isHiding);
           if (isHiding) hiddenCount++;
         }
       });
 
       // Save preference
-      localStorage.setItem(CONFIG.storageKey, isHiding.toString());
+      localStorage.setItem(config.storageKey, isHiding.toString());
 
       // Show feedback
       if (isHiding) {
         const message = `${hiddenCount} PR${
           hiddenCount !== 1 ? "s" : ""
         } with CI errors hidden`;
-        const ui = new window.TampermonkeyUI({
-          containerClass: "tm-scripts-container",
-          containerParent: ".Header"
-        });
-        ui.showFeedback(message);
+
+        // Use provided UI instance or create a new one
+        const feedbackUI =
+          ui ||
+          new window.TampermonkeyUI({
+            containerClass: "tm-scripts-container",
+            containerParent: ".Header"
+          });
+
+        feedbackUI.showFeedback(message);
       }
     } catch (error) {
       console.error("Error toggling PR visibility:", error);
@@ -159,8 +174,10 @@
 
   // Start initialization by waiting for the UI library
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", waitForUILibrary);
+    document.addEventListener("DOMContentLoaded", () =>
+      waitForUILibrary(initializeScript, CONFIG)
+    );
   } else {
-    waitForUILibrary();
+    waitForUILibrary(initializeScript, CONFIG);
   }
 })();
