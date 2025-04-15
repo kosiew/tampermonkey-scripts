@@ -737,24 +737,12 @@
     };
   }
 
-  // Initialize
-  /**
-   * Wrapper function for initializeScript that properly awaits its completion
-   */
-  async function initializeScriptWrapper() {
-    try {
-      await initializeScript();
-    } catch (error) {
-      console.error("Error initializing GitHub URL Notes:", error);
-    }
-  }
-
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () =>
-      uiManager.waitForUILibrary(initializeScriptWrapper)
+      uiManager.waitForUILibrary(initializeScript)
     );
   } else {
-    uiManager.waitForUILibrary(initializeScriptWrapper);
+    uiManager.waitForUILibrary(initializeScript);
   }
 
   // Handle GitHub's Turbo navigation
