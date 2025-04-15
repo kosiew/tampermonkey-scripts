@@ -19,6 +19,8 @@
 (function () {
   ("use strict");
 
+  console.log(" ==> GitHub URL Notes Manager script started");
+
   const NOTES_KEY = "github_url_notes";
   const GIST_ID_KEY = "github_gist_id";
   // To get a Personal Access Token (classic) for Gists:
@@ -42,6 +44,7 @@
    */
   class UIManager {
     constructor(options = {}) {
+      console.log(" ==> UIManager constructor called");
       this.ui = null;
       this.options = {
         containerClass: "tm-scripts-container",
@@ -55,11 +58,16 @@
      * @param {Function} initFn - The initialization function to call when UI is ready
      */
     waitForUILibrary(initFn) {
+      console.log(
+        " ==> waitForUILibrary called, checking for window.TampermonkeyUI"
+      );
       if (window.TampermonkeyUI) {
+        console.log(" ==> TampermonkeyUI found, creating UI instance");
         // Create UI instance from the shared library
         this.ui = new window.TampermonkeyUI(this.options);
         initFn();
       } else {
+        console.log(" ==> TampermonkeyUI not found, retrying in 50ms");
         // Retry after a short delay
         setTimeout(() => this.waitForUILibrary(initFn), 50);
       }
@@ -79,7 +87,10 @@
      * @returns {HTMLElement} The created button
      */
     addButton(options) {
-      return this.ui.addButton(options);
+      console.log(" ==> Attempting to add button with options:", options);
+      const button = this.ui.addButton(options);
+      console.log(" ==> Button created:", button);
+      return button;
     }
 
     /**
@@ -699,10 +710,16 @@
   }
 
   async function initializeScript() {
-    if (document.getElementById(CONFIG.buttonId)) return;
+    console.log(" ==> initializeScript function called");
+    if (document.getElementById(CONFIG.buttonId)) {
+      console.log(" ==> Button already exists, skipping creation");
+      return;
+    }
 
     const existingNote = await getNote();
     const buttonText = existingNote ? "Edit Note" : "Add Note";
+    console.log(" ==> Creating button with text:", buttonText);
+
     // Add button
     const mainButton = uiManager.addButton({
       id: CONFIG.buttonId,
@@ -711,6 +728,13 @@
       onClick: async () => {},
       active: true
     });
+
+    console.log(
+      " ==> Button created with ID:",
+      CONFIG.buttonId,
+      "Element:",
+      mainButton
+    );
 
     const modal = createNoteModal(mainButton);
 
@@ -738,10 +762,12 @@
   }
 
   if (document.readyState === "loading") {
+    console.log(" ==> Document still loading, waiting for DOMContentLoaded");
     document.addEventListener("DOMContentLoaded", () =>
       uiManager.waitForUILibrary(initializeScript)
     );
   } else {
+    console.log(" ==> Document already loaded, waiting for UI library");
     uiManager.waitForUILibrary(initializeScript);
   }
 
