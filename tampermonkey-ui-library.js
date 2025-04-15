@@ -39,12 +39,15 @@
       styles.textContent = `
                 .${this.containerClass} {
                     position: fixed;
-                    top: 10px;
+                    top: 60px; /* Increased from 10px to avoid overlapping with GitHub's header UI */
                     right: 20px;
                     display: flex;
                     gap: 10px;
                     z-index: 100;
                     align-items: center;
+                    background-color: rgba(255, 255, 255, 0.8);
+                    padding: 5px;
+                    border-radius: 6px;
                 }
                 
                 .${this.containerClass} button {
@@ -174,7 +177,44 @@
         }, 300);
       }, duration);
     }
+
+    /**
+     * Updates the container position based on page layout
+     * Can be called when page content changes significantly
+     * @returns {void}
+     */
+    updateContainerPosition() {
+      const container = this.getContainer();
+      if (!container) return;
+
+      // Position the container below the GitHub header
+      const header = document.querySelector(this.containerParent);
+      if (header) {
+        const headerRect = header.getBoundingClientRect();
+        container.style.top = `${headerRect.bottom + 10}px`;
+      }
+    }
   }
+
+  // Initialize container position when page is ready
+  document.addEventListener("DOMContentLoaded", () => {
+    // Wait for GitHub UI to fully render before positioning
+    setTimeout(() => {
+      if (window.TampermonkeyUI) {
+        // Create a temporary instance just to update any existing containers
+        const tempUI = new TampermonkeyUI();
+        tempUI.updateContainerPosition();
+      }
+    }, 500);
+  });
+
+  // Handle window resize events to reposition the container
+  window.addEventListener("resize", () => {
+    if (window.TampermonkeyUI) {
+      const tempUI = new TampermonkeyUI();
+      tempUI.updateContainerPosition();
+    }
+  });
 
   // Expose the class to global window object for other scripts to access
   window.TampermonkeyUI = TampermonkeyUI;
