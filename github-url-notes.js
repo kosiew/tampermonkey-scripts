@@ -725,12 +725,7 @@
       id: CONFIG.buttonId,
       text: buttonText,
       title: "Add or edit a note for this GitHub url",
-      onClick: async () => {},
-      active: true,
-      style: {
-        backgroundColor: "var(--color-success-fg, #2ea44f)",
-        color: "var(--color-fg-on-emphasis, #fff)"
-      }
+      onClick: async () => {}
     });
 
     console.log(
