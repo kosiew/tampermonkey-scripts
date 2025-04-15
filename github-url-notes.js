@@ -17,7 +17,7 @@
 // ==/UserScript==
 
 (function () {
-  "use strict";
+  ("use strict");
 
   const NOTES_KEY = "github_url_notes";
   const GIST_ID_KEY = "github_gist_id";
@@ -33,27 +33,66 @@
   const FILE_NAME = "ghnotes.json"; // Name of the file in the Gist
   const USE_GIST_STORAGE_KEY = "use_gist_storage";
 
-  /**
-   * Checks if TampermonkeyUI library is available
-   * @returns {boolean} True if the library is available
-   */
-  function isTampermonkeyUIAvailable() {
-    return typeof window.TampermonkeyUI === "function";
-  }
+  const CONFIG = {
+    buttonId: "gh-note-button"
+  };
 
   /**
-   * Creates a UI instance using TampermonkeyUI or returns null if unavailable
-   * @returns {Object|null} TampermonkeyUI instance or null
+   * Class for managing the TampermonkeyUI instance
    */
-  function getUIInstance() {
-    if (isTampermonkeyUIAvailable()) {
-      return new window.TampermonkeyUI({
+  class UIManager {
+    constructor(options = {}) {
+      this.ui = null;
+      this.options = {
         containerClass: "tm-scripts-container",
-        containerParent: ".Header"
-      });
+        containerParent: ".Header",
+        ...options
+      };
     }
-    return null;
+
+    /**
+     * Initializes the UI manager by waiting for UI library to be available
+     * @param {Function} initFn - The initialization function to call when UI is ready
+     */
+    waitForUILibrary(initFn) {
+      if (window.TampermonkeyUI) {
+        // Create UI instance from the shared library
+        this.ui = new window.TampermonkeyUI(this.options);
+        initFn();
+      } else {
+        // Retry after a short delay
+        setTimeout(() => this.waitForUILibrary(initFn), 50);
+      }
+    }
+
+    /**
+     * Gets the UI instance
+     * @returns {TampermonkeyUI|null} The UI instance
+     */
+    getUI() {
+      return this.ui;
+    }
+
+    /**
+     * Adds a button using the UI instance
+     * @param {Object} options - Button configuration options
+     * @returns {HTMLElement} The created button
+     */
+    addButton(options) {
+      return this.ui.addButton(options);
+    }
+
+    /**
+     * Shows feedback using the UI instance
+     * @param {string} message - The message to display
+     */
+    showFeedback(message) {
+      this.ui.showFeedback(message);
+    }
   }
+
+  // Create a global instance of the UI manager
+  const uiManager = new UIManager();
 
   /**
    * GistManager - A reusable class for managing Gist-based storage in Tampermonkey scripts
@@ -659,35 +698,19 @@
     });
   }
 
-  async function createButtons() {
-    if (document.getElementById("gh-note-button")) return;
+  async function initializeScript() {
+    if (document.getElementById(CONFIG.buttonId)) return;
 
     const existingNote = await getNote();
     const buttonText = existingNote ? "Edit Note" : "Add Note";
-
-    let mainButton;
-
-    const ui = getUIInstance();
-
-    if (ui) {
-      mainButton = ui.addButton({
-        id: "gh-note-button",
-        text: buttonText,
-        title: "Add or edit a note for this GitHub page",
-        onClick: async () => {}
-      });
-    } else {
-      const container = document.createElement("div");
-      container.className = "gh-note-button-container";
-
-      mainButton = document.createElement("button");
-      mainButton.id = "gh-note-button";
-      mainButton.className = "gh-note-button";
-      mainButton.textContent = buttonText;
-
-      container.appendChild(mainButton);
-      document.body.appendChild(container);
-    }
+    // Add button
+    const mainButton = uiManager.addButton({
+      id: CONFIG.buttonId,
+      text: buttonText,
+      title: "Add or edit a note for this GitHub url",
+      onClick: async () => {},
+      active: true
+    });
 
     const modal = createNoteModal(mainButton);
 
@@ -715,18 +738,31 @@
   }
 
   // Initialize
+  /**
+   * Wrapper function for initializeScript that properly awaits its completion
+   */
+  async function initializeScriptWrapper() {
+    try {
+      await initializeScript();
+    } catch (error) {
+      console.error("Error initializing GitHub URL Notes:", error);
+    }
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", createButtons);
+    document.addEventListener("DOMContentLoaded", () =>
+      uiManager.waitForUILibrary(initializeScriptWrapper)
+    );
   } else {
-    createButtons();
+    uiManager.waitForUILibrary(initializeScriptWrapper);
   }
 
   // Handle GitHub's Turbo navigation
-  document.addEventListener("turbo:load", createButtons);
-  document.addEventListener("turbo:render", createButtons);
+  // document.addEventListener("turbo:load", createButtons);
+  // document.addEventListener("turbo:render", createButtons);
 
-  // Also handle regular page loads
-  window.addEventListener("load", createButtons);
+  // // Also handle regular page loads
+  // window.addEventListener("load", createButtons);
 
   // Register Tampermonkey menu commands
   GM.registerMenuCommand("Export GitHub Notes", exportNotes);
