@@ -17,7 +17,7 @@
 // ==/UserScript==
 
 (function () {
-  ("use strict");
+  "use strict";
 
   const NOTES_KEY = "github_url_notes";
   const GIST_ID_KEY = "github_gist_id";
@@ -32,6 +32,28 @@
   const GITHUB_TOKEN_KEY = "github_token";
   const FILE_NAME = "ghnotes.json"; // Name of the file in the Gist
   const USE_GIST_STORAGE_KEY = "use_gist_storage";
+
+  /**
+   * Checks if TampermonkeyUI library is available
+   * @returns {boolean} True if the library is available
+   */
+  function isTampermonkeyUIAvailable() {
+    return typeof window.TampermonkeyUI === "function";
+  }
+
+  /**
+   * Creates a UI instance using TampermonkeyUI or returns null if unavailable
+   * @returns {Object|null} TampermonkeyUI instance or null
+   */
+  function getUIInstance() {
+    if (isTampermonkeyUIAvailable()) {
+      return new window.TampermonkeyUI({
+        containerClass: "tm-scripts-container",
+        containerParent: ".Header"
+      });
+    }
+    return null;
+  }
 
   /**
    * GistManager - A reusable class for managing Gist-based storage in Tampermonkey scripts
@@ -197,7 +219,6 @@
     }
   }
 
-  // Create a GistManager instance for this script
   const gistManager = new GistManager(
     GIST_ID_KEY,
     GITHUB_TOKEN_KEY,
@@ -290,7 +311,6 @@
     return urlObj.toString();
   }
 
-  // Initialize notes storage
   async function initNotes() {
     let notes = await GM.getValue(NOTES_KEY, {});
 
@@ -364,7 +384,6 @@
     return notes[url]?.note || "";
   }
 
-  // Delete note for current URL
   async function deleteNote() {
     const notes = await initNotes();
     const url = normalizeUrl(window.location.href);
@@ -641,20 +660,34 @@
   }
 
   async function createButtons() {
-    if (document.querySelector(".gh-note-button-container")) return;
+    if (document.getElementById("gh-note-button")) return;
 
-    const container = document.createElement("div");
-    container.className = "gh-note-button-container";
-
-    const mainButton = document.createElement("button");
-    mainButton.className = "gh-note-button";
-
-    // Set initial button text based on whether there's an existing note
     const existingNote = await getNote();
-    mainButton.textContent = existingNote ? "Edit Note" : "Add Note";
+    const buttonText = existingNote ? "Edit Note" : "Add Note";
 
-    container.appendChild(mainButton);
-    document.body.appendChild(container);
+    let mainButton;
+
+    const ui = getUIInstance();
+
+    if (ui) {
+      mainButton = ui.addButton({
+        id: "gh-note-button",
+        text: buttonText,
+        title: "Add or edit a note for this GitHub page",
+        onClick: async () => {}
+      });
+    } else {
+      const container = document.createElement("div");
+      container.className = "gh-note-button-container";
+
+      mainButton = document.createElement("button");
+      mainButton.id = "gh-note-button";
+      mainButton.className = "gh-note-button";
+      mainButton.textContent = buttonText;
+
+      container.appendChild(mainButton);
+      document.body.appendChild(container);
+    }
 
     const modal = createNoteModal(mainButton);
 
