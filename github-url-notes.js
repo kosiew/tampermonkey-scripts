@@ -6,6 +6,7 @@
 // @author       Siew Kam Onn
 // @match        https://github.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
+// @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js
 // @grant        GM.getValue
 // @grant        GM.setValue
 // @grant        GM.deleteValue
@@ -13,7 +14,6 @@
 // @grant        GM.openInTab
 // @grant        GM_xmlhttpRequest
 // @grant        GM.notification
-// @run-at       document-start
 // ==/UserScript==
 
 (function () {
@@ -720,13 +720,17 @@
     const buttonText = existingNote ? "Edit Note" : "Add Note";
     console.log(" ==> Creating button with text:", buttonText);
 
-    // Add button
+    // Add button with custom styling
     const mainButton = uiManager.addButton({
       id: CONFIG.buttonId,
       text: buttonText,
       title: "Add or edit a note for this GitHub url",
       onClick: async () => {},
-      active: true
+      active: true,
+      style: {
+        backgroundColor: "var(--color-success-fg, #2ea44f)",
+        color: "var(--color-fg-on-emphasis, #fff)"
+      }
     });
 
     console.log(
