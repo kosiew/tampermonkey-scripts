@@ -2,9 +2,9 @@
 // @name         GitHub Markdown Copy
 // @namespace    http://tampermonkey.net/
 // @version      1.0
-// @description  Adds a button to copy markdown content from GitHub pages
+// @description  Adds a button to copy markdown content from GitHub issue pages
 // @author       Siew Kam Onn
-// @match        https://github.com/*
+// @match        https://github.com/*/issues/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
 // @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js
 // @grant        GM.notification
