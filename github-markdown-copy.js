@@ -110,12 +110,12 @@
   document.head.appendChild(styleSheet);
 
   /**
-   * Extracts markdown content from elements with data-testid="issue-body"
+   * Extracts markdown content from elements with data-testid="markdown-body"
    * @returns {string} The extracted content with spacing preserved
    */
-  function extractIssueContent() {
+  function extractMarkdownContent() {
     const markdownElements = document.querySelectorAll(
-      '[data-testid="issue-body"]'
+      '[data-testid="markdown-body"]'
     );
     if (markdownElements.length === 0) {
       return null;
@@ -207,7 +207,7 @@
       title: "Copy markdown content to clipboard",
       className: "gh-markdown-copy-button",
       onClick: async () => {
-        const markdownContent = extractIssueContent();
+        const markdownContent = extractMarkdownContent();
 
         if (!markdownContent) {
           GM.notification({
