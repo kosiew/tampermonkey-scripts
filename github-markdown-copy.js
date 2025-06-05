@@ -110,7 +110,7 @@
   document.head.appendChild(styleSheet);
 
   /**
-   * Extracts markdown content from elements with data-testid="issue-body"
+   * Extracts markdown content from elements with data-testid="markdown-body"
    * @returns {string} The extracted content with spacing preserved
    */
   function extractIssueContent() {
@@ -136,6 +136,10 @@
         Array.from(clone.querySelectorAll("pre, code")).forEach((block) => {
           // Ensure code blocks maintain their whitespace
           block.style.whiteSpace = "pre";
+
+          // Clean up internal blank lines in code blocks
+          const content = block.textContent;
+          block.textContent = content.replace(/\n\s*\n\s*\n+/g, "\n\n");
         });
 
         // Ensure paragraphs have line breaks between them
@@ -152,10 +156,20 @@
       })
       .join("\n\n");
 
-    // Normalize line breaks and remove excessive whitespace
-    return contents
-      .replace(/\n{3,}/g, "\n\n") // Replace 3+ consecutive line breaks with 2
+    // Aggressively normalize line breaks and clean up excessive whitespace
+    let cleanedText = contents
+      // First pass: Replace any 2+ consecutive blank lines with a single blank line
+      .replace(/\n\s*\n\s*\n+/g, "\n\n")
+      // Remove multiple spaces (except for indentation at start of lines)
+      .replace(/(?<!^) {2,}/gm, " ")
+      // Final trim to remove leading/trailing whitespace
       .trim();
+
+    // Second pass: Do another check for any remaining excessive blank lines
+    // This catches cases that might be missed in the first pass
+    cleanedText = cleanedText.replace(/\n{3,}/g, "\n\n");
+
+    return cleanedText;
   }
 
   /**
@@ -203,7 +217,7 @@
     // Create copy button
     const copyButton = uiManager.addButton({
       id: CONFIG.buttonId,
-      text: "Copy Isue",
+      text: "Copy Issue",
       title: "Copy issue content to clipboard",
       className: "gh-markdown-copy-button",
       onClick: async () => {
