@@ -111,50 +111,48 @@
 
   /**
    * Extracts markdown content from elements with data-testid="markdown-body"
-   * @returns {string} The extracted content with spacing preserved
+   * @returns {string} The extracted content with spacing preserved from the first matching element
    */
   function extractIssueContent() {
-    const markdownElements = document.querySelectorAll(
+    // Get only the first element with data-testid="markdown-body"
+    const markdownElement = document.querySelector(
       '[data-testid="markdown-body"]'
     );
-    if (markdownElements.length === 0) {
+    if (!markdownElement) {
       return null;
     }
 
-    // Extract text from all markdown elements while preserving whitespace
-    const contents = Array.from(markdownElements)
-      .map((element) => {
-        // Clone the element to avoid modifying the page
-        const clone = element.cloneNode(true);
+    // Process only the first markdown element
+    // Clone the element to avoid modifying the page
+    const clone = markdownElement.cloneNode(true);
 
-        // Convert <br> tags to newlines
-        Array.from(clone.querySelectorAll("br")).forEach((br) => {
-          br.replaceWith("\n");
-        });
+    // Convert <br> tags to newlines
+    Array.from(clone.querySelectorAll("br")).forEach((br) => {
+      br.replaceWith("\n");
+    });
 
-        // Handle pre and code blocks to preserve formatting
-        Array.from(clone.querySelectorAll("pre, code")).forEach((block) => {
-          // Ensure code blocks maintain their whitespace
-          block.style.whiteSpace = "pre";
+    // Handle pre and code blocks to preserve formatting
+    Array.from(clone.querySelectorAll("pre, code")).forEach((block) => {
+      // Ensure code blocks maintain their whitespace
+      block.style.whiteSpace = "pre";
 
-          // Clean up internal blank lines in code blocks
-          const content = block.textContent;
-          block.textContent = content.replace(/\n\s*\n\s*\n+/g, "\n\n");
-        });
+      // Clean up internal blank lines in code blocks
+      const content = block.textContent;
+      block.textContent = content.replace(/\n\s*\n\s*\n+/g, "\n\n");
+    });
 
-        // Ensure paragraphs have line breaks between them
-        Array.from(clone.querySelectorAll("p")).forEach((p) => {
-          p.appendChild(document.createTextNode("\n\n"));
-        });
+    // Ensure paragraphs have line breaks between them
+    Array.from(clone.querySelectorAll("p")).forEach((p) => {
+      p.appendChild(document.createTextNode("\n\n"));
+    });
 
-        // Handle lists
-        Array.from(clone.querySelectorAll("li")).forEach((li) => {
-          li.appendChild(document.createTextNode("\n"));
-        });
+    // Handle lists
+    Array.from(clone.querySelectorAll("li")).forEach((li) => {
+      li.appendChild(document.createTextNode("\n"));
+    });
 
-        return clone.textContent;
-      })
-      .join("\n\n");
+    // Get the processed text content
+    const contents = clone.textContent;
 
     // Aggressively normalize line breaks and clean up excessive whitespace
     let cleanedText = contents
@@ -218,7 +216,7 @@
     const copyButton = uiManager.addButton({
       id: CONFIG.buttonId,
       text: "Copy Issue",
-      title: "Copy issue content to clipboard",
+      title: "Copy primary issue content to clipboard",
       className: "gh-markdown-copy-button",
       onClick: async () => {
         const markdownContent = extractIssueContent();
