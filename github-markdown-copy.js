@@ -2,7 +2,7 @@
 // @name         GitHub Markdown Copy
 // @namespace    http://tampermonkey.net/
 // @version      1.0
-// @description  Adds a button to copy markdown content from GitHub issue pages
+// @description  Adds a button to copy issue content from GitHub issue pages
 // @author       Siew Kam Onn
 // @match        https://github.com/*/issues/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
@@ -110,10 +110,10 @@
   document.head.appendChild(styleSheet);
 
   /**
-   * Extracts markdown content from elements with data-testid="markdown-body"
+   * Extracts markdown content from elements with data-testid="issue-body"
    * @returns {string} The extracted content with spacing preserved
    */
-  function extractMarkdownContent() {
+  function extractIssueContent() {
     const markdownElements = document.querySelectorAll(
       '[data-testid="markdown-body"]'
     );
@@ -203,11 +203,11 @@
     // Create copy button
     const copyButton = uiManager.addButton({
       id: CONFIG.buttonId,
-      text: "Copy Markdown",
-      title: "Copy markdown content to clipboard",
+      text: "Copy Isue",
+      title: "Copy issue content to clipboard",
       className: "gh-markdown-copy-button",
       onClick: async () => {
-        const markdownContent = extractMarkdownContent();
+        const markdownContent = extractIssueContent();
 
         if (!markdownContent) {
           GM.notification({
@@ -230,7 +230,7 @@
           // Visual feedback on button
           copyButton.textContent = "Copied!";
           setTimeout(() => {
-            copyButton.textContent = "Copy Markdown";
+            copyButton.textContent = "Copy Issue";
           }, 2000);
         } else {
           GM.notification({
