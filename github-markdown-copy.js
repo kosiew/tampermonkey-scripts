@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         GitHub Markdown Copy
+// @name         GitHub Issue Copy
 // @namespace    http://tampermonkey.net/
 // @version      1.0
 // @description  Adds a button to copy issue content from GitHub issue pages
@@ -233,12 +233,6 @@
         const success = await copyToClipboard(markdownContent);
 
         if (success) {
-          GM.notification({
-            title: "GitHub Markdown Copy",
-            text: "Markdown content copied to clipboard!",
-            timeout: 2000
-          });
-
           // Visual feedback on button
           copyButton.textContent = "Copied!";
           setTimeout(() => {
