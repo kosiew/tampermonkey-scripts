@@ -111,7 +111,7 @@
 
   /**
    * Extracts markdown content from elements with data-testid="markdown-body"
-   * @returns {string} The extracted content with spacing preserved from the first matching element
+   * @returns {string} The extracted content with spacing and links preserved from the first matching element
    */
   function extractIssueContent() {
     // Get only the first element with data-testid="markdown-body"
@@ -125,6 +125,22 @@
     // Process only the first markdown element
     // Clone the element to avoid modifying the page
     const clone = markdownElement.cloneNode(true);
+
+    // Convert links to markdown format before processing text content
+    Array.from(clone.querySelectorAll("a")).forEach((link) => {
+      const href = link.href;
+      const text = link.textContent.trim();
+
+      // Skip if it's an empty link or the text is the same as href
+      if (!href || !text) {
+        return;
+      }
+
+      // Create markdown link format [text](url)
+      // If the link text is the same as the URL, just use the URL
+      const markdownLink = text === href ? href : `[${text}](${href})`;
+      link.replaceWith(document.createTextNode(markdownLink));
+    });
 
     // Convert <br> tags to newlines
     Array.from(clone.querySelectorAll("br")).forEach((br) => {
