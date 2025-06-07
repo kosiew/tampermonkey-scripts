@@ -147,15 +147,27 @@
       br.replaceWith("\n");
     });
 
-    // Handle pre and code blocks to preserve formatting
-    Array.from(clone.querySelectorAll("pre, code")).forEach((block) => {
-      // Ensure code blocks maintain their whitespace
-      block.style.whiteSpace = "pre";
-
-      // Clean up internal blank lines in code blocks
-      const content = block.textContent;
-      block.textContent = content.replace(/\n\s*\n\s*\n+/g, "\n\n");
+    // Handle pre.translate elements to wrap with markdown code blocks
+    Array.from(clone.querySelectorAll("pre.notranslate")).forEach((pre) => {
+      const content = pre.textContent.trim();
+      if (content) {
+        pre.replaceWith(
+          document.createTextNode(`\n\`\`\`\n${content}\n\`\`\`\n`)
+        );
+      }
     });
+
+    // Handle other pre and code blocks to preserve formatting
+    Array.from(clone.querySelectorAll("pre:not(.translate), code")).forEach(
+      (block) => {
+        // Ensure code blocks maintain their whitespace
+        block.style.whiteSpace = "pre";
+
+        // Clean up internal blank lines in code blocks
+        const content = block.textContent;
+        block.textContent = content.replace(/\n\s*\n\s*\n+/g, "\n\n");
+      }
+    );
 
     // Ensure paragraphs have line breaks between them
     Array.from(clone.querySelectorAll("p")).forEach((p) => {
