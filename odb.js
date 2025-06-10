@@ -47,8 +47,53 @@
     });
   }
 
+  /**
+   * Waits for the read-today element to have a proper href (not just "/")
+   * @param {number} timeout - Maximum time to wait in milliseconds
+   * @returns {Promise<Element|null>} - Resolves with the element when href is loaded
+   */
+  function waitForReadTodayWithHref(timeout = 15000) {
+    return new Promise((resolve) => {
+      const checkElement = () => {
+        const element = document.querySelector("a.read-today");
+        if (element) {
+          const href = element.getAttribute("href");
+          // Check if href is not just "/" and contains a date pattern
+          if (href && href !== "/" && href.includes("/")) {
+            console.log("ODB Plus: Found element with proper href:", href);
+            resolve(element);
+            return true;
+          }
+        }
+        return false;
+      };
+
+      // Check immediately
+      if (checkElement()) return;
+
+      const observer = new MutationObserver((mutations, obs) => {
+        if (checkElement()) {
+          obs.disconnect();
+        }
+      });
+
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["href"]
+      });
+
+      // Timeout fallback
+      setTimeout(() => {
+        observer.disconnect();
+        resolve(null);
+      }, timeout);
+    });
+  }
+
   // Flag to prevent multiple executions
-  const SESSION_KEY = 'odb-plus-executed';
+  const SESSION_KEY = "odb-plus-executed";
 
   /**
    * Opens the "Read Today" link in a new tab automatically
@@ -56,29 +101,35 @@
   async function openReadTodayInNewTab() {
     // Prevent multiple executions using sessionStorage
     if (sessionStorage.getItem(SESSION_KEY)) {
-      console.log("ODB Plus: Script already executed in this session, skipping");
+      console.log(
+        "ODB Plus: Script already executed in this session, skipping"
+      );
       return;
     }
 
     try {
-      console.log("ODB Plus: Looking for read-today element...");
+      console.log(
+        "ODB Plus: Looking for read-today element with proper href..."
+      );
 
-      const readTodayElement = await waitForElement("a.read-today");
+      const readTodayElement = await waitForReadTodayWithHref();
 
       if (readTodayElement) {
         // Mark as executed in sessionStorage
-        sessionStorage.setItem(SESSION_KEY, 'true');
+        sessionStorage.setItem(SESSION_KEY, "true");
 
         // Get the raw href attribute (relative path)
-        const rawHref = readTodayElement.getAttribute('href');
+        const rawHref = readTodayElement.getAttribute("href");
         // Construct full URL
-        const fullUrl = rawHref.startsWith('http') ? rawHref : `https://www.odb.org${rawHref}`;
-        
+        const fullUrl = rawHref.startsWith("http")
+          ? rawHref
+          : `https://www.odb.org${rawHref}`;
+
         console.log("ODB Plus: Found read-today element:", readTodayElement);
         console.log("ODB Plus: Raw href attribute:", rawHref);
         console.log("ODB Plus: Full URL to open:", fullUrl);
 
-        if (rawHref) {
+        if (rawHref && rawHref !== "/") {
           // Open the link in a new tab
           const newWindow = window.open(fullUrl, "_blank");
 
