@@ -48,15 +48,15 @@
   }
 
   // Flag to prevent multiple executions
-  let hasRun = false;
+  const SESSION_KEY = 'odb-plus-executed';
 
   /**
    * Opens the "Read Today" link in a new tab automatically
    */
   async function openReadTodayInNewTab() {
-    // Prevent multiple executions
-    if (hasRun) {
-      console.log("ODB Plus: Script already executed, skipping");
+    // Prevent multiple executions using sessionStorage
+    if (sessionStorage.getItem(SESSION_KEY)) {
+      console.log("ODB Plus: Script already executed in this session, skipping");
       return;
     }
 
@@ -66,15 +66,21 @@
       const readTodayElement = await waitForElement("a.read-today");
 
       if (readTodayElement) {
-        hasRun = true; // Mark as executed
+        // Mark as executed in sessionStorage
+        sessionStorage.setItem(SESSION_KEY, 'true');
 
-        const href = readTodayElement.href;
+        // Get the raw href attribute (relative path)
+        const rawHref = readTodayElement.getAttribute('href');
+        // Construct full URL
+        const fullUrl = rawHref.startsWith('http') ? rawHref : `https://www.odb.org${rawHref}`;
+        
         console.log("ODB Plus: Found read-today element:", readTodayElement);
-        console.log("ODB Plus: Opening link in new tab:", href);
+        console.log("ODB Plus: Raw href attribute:", rawHref);
+        console.log("ODB Plus: Full URL to open:", fullUrl);
 
-        if (href) {
+        if (rawHref) {
           // Open the link in a new tab
-          const newWindow = window.open(href, "_blank");
+          const newWindow = window.open(fullUrl, "_blank");
 
           if (newWindow) {
             console.log("ODB Plus: Successfully opened new tab");
