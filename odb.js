@@ -47,32 +47,34 @@
     });
   }
 
+  // Flag to prevent multiple executions
+  let hasRun = false;
+
   /**
-   * Opens the "Read Today" link in a new tab
+   * Opens the "Read Today" link in a new tab automatically
    */
   async function openReadTodayInNewTab() {
+    // Prevent multiple executions
+    if (hasRun) {
+      console.log("ODB Plus: Script already executed, skipping");
+      return;
+    }
+
     try {
       console.log("ODB Plus: Looking for read-today element...");
 
       const readTodayElement = await waitForElement("a.read-today");
 
       if (readTodayElement) {
-        // Get both raw href attribute and computed href property
-        const rawHref = readTodayElement.getAttribute("href");
-        const computedHref = readTodayElement.href;
+        hasRun = true; // Mark as executed
 
+        const href = readTodayElement.href;
         console.log("ODB Plus: Found read-today element:", readTodayElement);
-        console.log("ODB Plus: Raw href attribute:", rawHref);
-        console.log("ODB Plus: Computed href property:", computedHref);
+        console.log("ODB Plus: Opening link in new tab:", href);
 
-        if (computedHref) {
-          console.log(
-            "ODB Plus: Opening read-today link in new tab:",
-            computedHref
-          );
-
-          // Try to open the link and check if it worked
-          const newWindow = window.open(computedHref, "_blank");
+        if (href) {
+          // Open the link in a new tab
+          const newWindow = window.open(href, "_blank");
 
           if (newWindow) {
             console.log("ODB Plus: Successfully opened new tab");
@@ -96,11 +98,6 @@
           }
         } else {
           console.warn("ODB Plus: read-today element found but no href");
-          console.log("ODB Plus: Element details:", {
-            tagName: readTodayElement.tagName,
-            className: readTodayElement.className,
-            outerHTML: readTodayElement.outerHTML
-          });
         }
       } else {
         console.warn("ODB Plus: Could not find a.read-today element");
