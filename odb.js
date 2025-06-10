@@ -57,27 +57,66 @@
       const readTodayElement = await waitForElement("a.read-today");
 
       if (readTodayElement) {
-        const href = readTodayElement.href;
-        if (href) {
-          console.log("ODB Plus: Opening read-today link in new tab:", href);
-          window.open(href, "_blank");
+        // Get both raw href attribute and computed href property
+        const rawHref = readTodayElement.getAttribute("href");
+        const computedHref = readTodayElement.href;
 
-          // Visual feedback
-          const originalText = readTodayElement.textContent;
-          readTodayElement.textContent = "Opened in new tab!";
-          readTodayElement.style.color = "#28a745";
+        console.log("ODB Plus: Found read-today element:", readTodayElement);
+        console.log("ODB Plus: Raw href attribute:", rawHref);
+        console.log("ODB Plus: Computed href property:", computedHref);
 
-          setTimeout(() => {
-            readTodayElement.textContent = originalText;
-            readTodayElement.style.color = "";
-          }, 2000);
-        } else {
-          console.warn(
-            "ODB Plus: read-today element found but no href attribute"
+        if (computedHref) {
+          console.log(
+            "ODB Plus: Opening read-today link in new tab:",
+            computedHref
           );
+
+          // Try to open the link and check if it worked
+          const newWindow = window.open(computedHref, "_blank");
+
+          if (newWindow) {
+            console.log("ODB Plus: Successfully opened new tab");
+
+            // Visual feedback
+            const originalText = readTodayElement.textContent;
+            readTodayElement.textContent = "✓ Opened in new tab!";
+            readTodayElement.style.color = "#28a745";
+            readTodayElement.style.fontWeight = "bold";
+
+            setTimeout(() => {
+              readTodayElement.textContent = originalText;
+              readTodayElement.style.color = "";
+              readTodayElement.style.fontWeight = "";
+            }, 3000);
+          } else {
+            console.error("ODB Plus: Failed to open new tab (popup blocked?)");
+            alert(
+              "ODB Plus: Unable to open new tab. Please check popup blocker settings."
+            );
+          }
+        } else {
+          console.warn("ODB Plus: read-today element found but no href");
+          console.log("ODB Plus: Element details:", {
+            tagName: readTodayElement.tagName,
+            className: readTodayElement.className,
+            outerHTML: readTodayElement.outerHTML
+          });
         }
       } else {
         console.warn("ODB Plus: Could not find a.read-today element");
+        // Let's also check what elements we do have
+        const allReadToday = document.querySelectorAll(".read-today");
+        const allAnchors = document.querySelectorAll("a");
+        console.log(
+          "ODB Plus: Found",
+          allReadToday.length,
+          "elements with .read-today class"
+        );
+        console.log(
+          "ODB Plus: Found",
+          allAnchors.length,
+          "anchor elements total"
+        );
       }
     } catch (error) {
       console.error("ODB Plus: Error opening read-today link:", error);
