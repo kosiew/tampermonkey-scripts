@@ -144,53 +144,95 @@
   function clickDoneForFailedCI() {
     console.log("==> clickDoneForFailedCI function called");
 
-    // Select all notification rows
-    const rows = document.querySelectorAll(
+    // Try multiple selectors for notification rows
+    const checkSuiteRows = document.querySelectorAll(
       'div[data-hydro-click*="CheckSuite"]'
     );
-    console.log("==> Found", rows.length, "CheckSuite rows");
-
-    // Also try alternative selectors
     const allNotificationRows = document.querySelectorAll(
       '[data-testid="notification-list-item"]'
     );
     const listItems = document.querySelectorAll(".notifications-list-item");
-    console.log("==> Alternative selectors found:", {
+    const notificationRows = document.querySelectorAll(
+      "[data-notification-id]"
+    );
+
+    console.log("==> Row selector results:", {
+      checkSuiteRows: checkSuiteRows.length,
       testidRows: allNotificationRows.length,
-      listItems: listItems.length
+      listItems: listItems.length,
+      notificationRows: notificationRows.length
     });
+
+    // Use the selector that finds the most rows (likely the correct one)
+    let rows = listItems;
+    if (allNotificationRows.length > rows.length) rows = allNotificationRows;
+    if (notificationRows.length > rows.length) rows = notificationRows;
+    if (checkSuiteRows.length > rows.length) rows = checkSuiteRows;
+
+    console.log("==> Using selector with", rows.length, "rows");
 
     let processedCount = 0;
 
     rows.forEach((row, index) => {
       console.log(`==> Processing row ${index + 1}:`, row);
+      console.log(`==> Row ${index + 1} classes:`, row.className);
+      console.log(
+        `==> Row ${index + 1} data attributes:`,
+        Array.from(row.attributes).filter((attr) =>
+          attr.name.startsWith("data-")
+        )
+      );
 
       // Check if the red "X" (octicon-x) exists inside the row (failed CI)
       const failedIcon = row.querySelector("svg.octicon-x.color-fg-danger");
       const failedIconAlt = row.querySelector("svg.octicon-x");
       const anyFailedIcon = row.querySelector("svg[class*='octicon-x']");
+      const xIcon = row.querySelector("svg.octicon-x-circle-fill");
+      const redIcon = row.querySelector("svg.color-fg-danger");
 
       console.log(`==> Row ${index + 1} failed icon checks:`, {
         primarySelector: !!failedIcon,
         altSelector: !!failedIconAlt,
-        anyOcticonX: !!anyFailedIcon
+        anyOcticonX: !!anyFailedIcon,
+        xCircleFill: !!xIcon,
+        redIcon: !!redIcon
       });
 
+      // Check for CI activity indicators
       const label = row.querySelector(".px-2");
       const labelText = label?.textContent?.trim();
-      console.log(`==> Row ${index + 1} label:`, labelText);
+      const ciText = row.textContent.toLowerCase().includes("ci activity");
+      const checkSuiteText = row.textContent
+        .toLowerCase()
+        .includes("checksuite");
+      const workflowText = row.textContent.toLowerCase().includes("workflow");
+
+      console.log(`==> Row ${index + 1} CI indicators:`, {
+        labelText: labelText,
+        hasCiActivityText: ciText,
+        hasCheckSuiteText: checkSuiteText,
+        hasWorkflowText: workflowText
+      });
 
       // Check all possible text content in the row
       const rowText = row.textContent.toLowerCase();
       console.log(
         `==> Row ${index + 1} full text preview:`,
-        rowText.substring(0, 100)
+        rowText.substring(0, 150)
       );
 
-      if (
-        (failedIcon || failedIconAlt || anyFailedIcon) &&
-        labelText === "ci activity"
-      ) {
+      // More flexible matching criteria
+      const hasFailureIcon = !!(
+        failedIcon ||
+        failedIconAlt ||
+        anyFailedIcon ||
+        xIcon ||
+        redIcon
+      );
+      const isCIActivity =
+        labelText === "ci activity" || ciText || checkSuiteText || workflowText;
+
+      if (hasFailureIcon && isCIActivity) {
         console.log(
           `==> Row ${index + 1} matches criteria, looking for done button`
         );
@@ -201,12 +243,20 @@
         );
         const doneButtonAlt = row.querySelector("button[title*='Done']");
         const doneButtonAlt2 = row.querySelector("button[aria-label*='Done']");
+        const doneButtonAlt3 = row.querySelector(
+          "button[aria-label*='Mark as done']"
+        );
+        const doneButtonAlt4 = row.querySelector(
+          "button[title*='Mark as done']"
+        );
         const anyButton = row.querySelectorAll("button");
 
         console.log(`==> Row ${index + 1} button search:`, {
           primarySelector: !!doneButton,
           titleSelector: !!doneButtonAlt,
           ariaSelector: !!doneButtonAlt2,
+          markAsDoneAria: !!doneButtonAlt3,
+          markAsDoneTitle: !!doneButtonAlt4,
           totalButtons: anyButton.length
         });
 
@@ -217,12 +267,18 @@
               classes: btn.className,
               title: btn.title,
               ariaLabel: btn.getAttribute("aria-label"),
-              textContent: btn.textContent.trim()
+              textContent: btn.textContent.trim(),
+              outerHTML: btn.outerHTML.substring(0, 100)
             }))
           );
         }
 
-        const targetButton = doneButton || doneButtonAlt || doneButtonAlt2;
+        const targetButton =
+          doneButton ||
+          doneButtonAlt ||
+          doneButtonAlt2 ||
+          doneButtonAlt3 ||
+          doneButtonAlt4;
         if (targetButton) {
           console.log(
             `==> Clicking done button for row ${index + 1}:`,
@@ -235,9 +291,10 @@
         }
       } else {
         console.log(`==> Row ${index + 1} does not match criteria:`, {
-          hasFailedIcon: !!(failedIcon || failedIconAlt || anyFailedIcon),
-          labelMatches: labelText === "ci activity",
-          actualLabel: labelText
+          hasFailedIcon: hasFailureIcon,
+          isCIActivity: isCIActivity,
+          actualLabel: labelText,
+          rowTextPreview: rowText.substring(0, 50)
         });
       }
     });
