@@ -38,14 +38,30 @@
      * @param {Function} initFn - The initialization function to call when UI is ready
      */
     waitForUILibrary(initFn) {
-      console.log("==> waitForUILibrary called, checking for window.TampermonkeyUI");
+      console.log(
+        "==> waitForUILibrary called, checking for window.TampermonkeyUI"
+      );
+      console.log("==> Current URL:", window.location.href);
+      console.log("==> Document readyState:", document.readyState);
+
       if (window.TampermonkeyUI) {
         console.log("==> TampermonkeyUI found, creating UI instance");
-        // Create UI instance from the shared library
-        this.ui = new window.TampermonkeyUI(this.options);
-        initFn();
+        console.log("==> TampermonkeyUI constructor:", window.TampermonkeyUI);
+
+        try {
+          // Create UI instance from the shared library
+          this.ui = new window.TampermonkeyUI(this.options);
+          console.log("==> UI instance created successfully:", this.ui);
+          initFn();
+        } catch (error) {
+          console.error("==> Error creating UI instance:", error);
+        }
       } else {
         console.log("==> TampermonkeyUI not found, retrying in 50ms");
+        console.log(
+          "==> Available window properties:",
+          Object.keys(window).filter((key) => key.includes("Tamper"))
+        );
         // Retry after a short delay
         setTimeout(() => this.waitForUILibrary(initFn), 50);
       }
@@ -66,9 +82,22 @@
      */
     addButton(options) {
       console.log("==> Attempting to add button with options:", options);
-      const button = this.ui.addButton(options);
-      console.log("==> Button created:", button);
-      return button;
+      console.log("==> UI instance available:", !!this.ui);
+
+      if (!this.ui) {
+        console.error("==> No UI instance available for button creation");
+        return null;
+      }
+
+      try {
+        const button = this.ui.addButton(options);
+        console.log("==> Button created successfully:", button);
+        console.log("==> Button parent element:", button?.parentElement);
+        return button;
+      } catch (error) {
+        console.error("==> Error creating button:", error);
+        return null;
+      }
     }
 
     /**
@@ -113,11 +142,6 @@
    * @returns {number} Number of failed CI notifications processed
    */
   function clickDoneForFailedCI() {
-  /**
-   * Auto-click "Done" for CI activity rows that show a failed status
-   * @returns {number} Number of failed CI notifications processed
-   */
-  function clickDoneForFailedCI() {
     // Select all notification rows
     const rows = document.querySelectorAll(
       'div[data-hydro-click*="CheckSuite"]'
@@ -151,77 +175,152 @@
    */
   async function initializeScript() {
     console.log("==> initializeScript function called");
+    console.log("==> Current page URL:", window.location.href);
+    console.log(
+      "==> Is on notifications page:",
+      window.location.href.includes("/notifications")
+    );
 
-    // Check if button already exists
-    if (document.getElementById(CONFIG.buttonId)) {
-      console.log("==> Button already exists, skipping creation");
+    // Check if we're on the right page
+    if (!window.location.href.includes("/notifications")) {
+      console.log("==> Not on notifications page, skipping button creation");
       return;
     }
 
-    // Create auto-done button
-    const autoDoneButton = uiManager.addButton({
-      id: CONFIG.buttonId,
-      text: "Auto-Done CI Failures",
-      title: "Mark all failed CI activity notifications as done",
-      className: "gh-ci-autodone-button",
-      onClick: async () => {
-        const processedCount = clickDoneForFailedCI();
+    // Check if button already exists
+    const existingButton = document.getElementById(CONFIG.buttonId);
+    if (existingButton) {
+      console.log(
+        "==> Button already exists, skipping creation. Existing button:",
+        existingButton
+      );
+      return;
+    }
 
-        if (processedCount > 0) {
-          // Visual feedback on button
-          autoDoneButton.textContent = `Processed ${processedCount}!`;
-          setTimeout(() => {
-            autoDoneButton.textContent = "Auto-Done CI Failures";
-          }, 3000);
+    // Check if header exists
+    const header = document.querySelector(".Header");
+    console.log("==> Header element found:", !!header);
+    if (header) {
+      console.log(
+        "==> Header innerHTML preview:",
+        header.innerHTML.substring(0, 200) + "..."
+      );
+    }
 
-          GM.notification({
-            title: "GitHub CI Auto-Done",
-            text: `Marked ${processedCount} failed CI notification(s) as done.`,
-            timeout: 3000
-          });
-        } else {
-          // Visual feedback for no items
-          autoDoneButton.textContent = "No failures found";
-          setTimeout(() => {
-            autoDoneButton.textContent = "Auto-Done CI Failures";
-          }, 2000);
-
-          GM.notification({
-            title: "GitHub CI Auto-Done",
-            text: "No failed CI activity notifications found.",
-            timeout: 3000
-          });
-        }
-      }
+    // Check UI manager state
+    console.log("==> UI Manager state:", {
+      hasUI: !!uiManager.getUI(),
+      uiInstance: uiManager.getUI()
     });
 
-    console.log(
-      "==> Button created with ID:",
-      CONFIG.buttonId,
-      "Element:",
-      autoDoneButton
-    );
+    if (!uiManager.getUI()) {
+      console.error("==> No UI instance available, cannot create button");
+      return;
+    }
+
+    try {
+      // Create auto-done button
+      console.log("==> About to create button...");
+      const autoDoneButton = uiManager.addButton({
+        id: CONFIG.buttonId,
+        text: "Auto-Done CI Failures",
+        title: "Mark all failed CI activity notifications as done",
+        className: "gh-ci-autodone-button",
+        onClick: async () => {
+          console.log("==> Button clicked!");
+          const processedCount = clickDoneForFailedCI();
+
+          if (processedCount > 0) {
+            // Visual feedback on button
+            autoDoneButton.textContent = `Processed ${processedCount}!`;
+            setTimeout(() => {
+              autoDoneButton.textContent = "Auto-Done CI Failures";
+            }, 3000);
+
+            GM.notification({
+              title: "GitHub CI Auto-Done",
+              text: `Marked ${processedCount} failed CI notification(s) as done.`,
+              timeout: 3000
+            });
+          } else {
+            // Visual feedback for no items
+            autoDoneButton.textContent = "No failures found";
+            setTimeout(() => {
+              autoDoneButton.textContent = "Auto-Done CI Failures";
+            }, 2000);
+
+            GM.notification({
+              title: "GitHub CI Auto-Done",
+              text: "No failed CI activity notifications found.",
+              timeout: 3000
+            });
+          }
+        }
+      });
+
+      if (autoDoneButton) {
+        console.log(
+          "==> Button created successfully with ID:",
+          CONFIG.buttonId
+        );
+        console.log("==> Button element:", autoDoneButton);
+        console.log("==> Button is in DOM:", document.contains(autoDoneButton));
+        console.log(
+          "==> Button visibility:",
+          window.getComputedStyle(autoDoneButton).display
+        );
+      } else {
+        console.error("==> Button creation returned null/undefined");
+      }
+    } catch (error) {
+      console.error("==> Error in button creation process:", error);
+      console.error("==> Error stack:", error.stack);
+    }
   }
 
   // Initialize the script when the document is ready
   if (document.readyState === "loading") {
     console.log("==> Document still loading, waiting for DOMContentLoaded");
-    document.addEventListener("DOMContentLoaded", () =>
-      uiManager.waitForUILibrary(initializeScript)
-    );
+    document.addEventListener("DOMContentLoaded", () => {
+      console.log("==> DOMContentLoaded fired, waiting for UI library");
+      uiManager.waitForUILibrary(initializeScript);
+    });
   } else {
     console.log("==> Document already loaded, waiting for UI library");
     uiManager.waitForUILibrary(initializeScript);
   }
 
   // Handle GitHub's Turbo navigation for single-page application behavior
-  document.addEventListener("turbo:load", () =>
-    uiManager.waitForUILibrary(initializeScript)
-  );
-  document.addEventListener("turbo:render", () =>
-    uiManager.waitForUILibrary(initializeScript)
-  );
+  document.addEventListener("turbo:load", () => {
+    console.log("==> Turbo:load event fired");
+    uiManager.waitForUILibrary(initializeScript);
+  });
+  document.addEventListener("turbo:render", () => {
+    console.log("==> Turbo:render event fired");
+    uiManager.waitForUILibrary(initializeScript);
+  });
+
+  // Additional debugging for GitHub events
+  document.addEventListener("pjax:end", () => {
+    console.log("==> pjax:end event fired");
+    uiManager.waitForUILibrary(initializeScript);
+  });
+
+  // Fallback timer to ensure button creation is attempted
+  setTimeout(() => {
+    console.log("==> Fallback timer fired, attempting button creation");
+    if (!document.getElementById(CONFIG.buttonId)) {
+      console.log("==> Button not found after timeout, trying again");
+      uiManager.waitForUILibrary(initializeScript);
+    } else {
+      console.log("==> Button already exists in fallback check");
+    }
+  }, 5000);
 
   // Run on load and after small delay in case GitHub is still rendering (original functionality)
-  setTimeout(clickDoneForFailedCI, 2000);
+  setTimeout(() => {
+    console.log("==> Running original auto-click functionality");
+    const count = clickDoneForFailedCI();
+    console.log("==> Original auto-click processed", count, "notifications");
+  }, 2000);
 })();
