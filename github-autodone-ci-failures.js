@@ -143,7 +143,7 @@
    */
   function clickDoneForFailedCI() {
     console.log("==> clickDoneForFailedCI function called");
-    
+
     // Select all notification rows
     const rows = document.querySelectorAll(
       'div[data-hydro-click*="CheckSuite"]'
@@ -151,8 +151,10 @@
     console.log("==> Found", rows.length, "CheckSuite rows");
 
     // Also try alternative selectors
-    const allNotificationRows = document.querySelectorAll('[data-testid="notification-list-item"]');
-    const listItems = document.querySelectorAll('.notifications-list-item');
+    const allNotificationRows = document.querySelectorAll(
+      '[data-testid="notification-list-item"]'
+    );
+    const listItems = document.querySelectorAll(".notifications-list-item");
     console.log("==> Alternative selectors found:", {
       testidRows: allNotificationRows.length,
       listItems: listItems.length
@@ -162,12 +164,12 @@
 
     rows.forEach((row, index) => {
       console.log(`==> Processing row ${index + 1}:`, row);
-      
+
       // Check if the red "X" (octicon-x) exists inside the row (failed CI)
       const failedIcon = row.querySelector("svg.octicon-x.color-fg-danger");
       const failedIconAlt = row.querySelector("svg.octicon-x");
       const anyFailedIcon = row.querySelector("svg[class*='octicon-x']");
-      
+
       console.log(`==> Row ${index + 1} failed icon checks:`, {
         primarySelector: !!failedIcon,
         altSelector: !!failedIconAlt,
@@ -180,17 +182,27 @@
 
       // Check all possible text content in the row
       const rowText = row.textContent.toLowerCase();
-      console.log(`==> Row ${index + 1} full text preview:`, rowText.substring(0, 100));
+      console.log(
+        `==> Row ${index + 1} full text preview:`,
+        rowText.substring(0, 100)
+      );
 
-      if ((failedIcon || failedIconAlt || anyFailedIcon) && labelText === "ci activity") {
-        console.log(`==> Row ${index + 1} matches criteria, looking for done button`);
-        
+      if (
+        (failedIcon || failedIconAlt || anyFailedIcon) &&
+        labelText === "ci activity"
+      ) {
+        console.log(
+          `==> Row ${index + 1} matches criteria, looking for done button`
+        );
+
         // Find and click the "Done" (✓) button - try multiple selectors
-        const doneButton = row.querySelector("button.js-mark-notification-as-read");
+        const doneButton = row.querySelector(
+          "button.js-mark-notification-as-read"
+        );
         const doneButtonAlt = row.querySelector("button[title*='Done']");
         const doneButtonAlt2 = row.querySelector("button[aria-label*='Done']");
         const anyButton = row.querySelectorAll("button");
-        
+
         console.log(`==> Row ${index + 1} button search:`, {
           primarySelector: !!doneButton,
           titleSelector: !!doneButtonAlt,
@@ -199,17 +211,23 @@
         });
 
         if (anyButton.length > 0) {
-          console.log(`==> Row ${index + 1} all buttons:`, Array.from(anyButton).map(btn => ({
-            classes: btn.className,
-            title: btn.title,
-            ariaLabel: btn.getAttribute('aria-label'),
-            textContent: btn.textContent.trim()
-          })));
+          console.log(
+            `==> Row ${index + 1} all buttons:`,
+            Array.from(anyButton).map((btn) => ({
+              classes: btn.className,
+              title: btn.title,
+              ariaLabel: btn.getAttribute("aria-label"),
+              textContent: btn.textContent.trim()
+            }))
+          );
         }
 
         const targetButton = doneButton || doneButtonAlt || doneButtonAlt2;
         if (targetButton) {
-          console.log(`==> Clicking done button for row ${index + 1}:`, targetButton);
+          console.log(
+            `==> Clicking done button for row ${index + 1}:`,
+            targetButton
+          );
           targetButton.click();
           processedCount++;
         } else {
@@ -363,15 +381,4 @@
     console.log("==> pjax:end event fired");
     uiManager.waitForUILibrary(initializeScript);
   });
-
-  // Fallback timer to ensure button creation is attempted
-  setTimeout(() => {
-    console.log("==> Fallback timer fired, attempting button creation");
-    if (!document.getElementById(CONFIG.buttonId)) {
-      console.log("==> Button not found after timeout, trying again");
-      uiManager.waitForUILibrary(initializeScript);
-    } else {
-      console.log("==> Button already exists in fallback check");
-    }
-  }, 5000);
 })();
