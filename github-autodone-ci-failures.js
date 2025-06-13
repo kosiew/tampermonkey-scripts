@@ -316,11 +316,4 @@
       console.log("==> Button already exists in fallback check");
     }
   }, 5000);
-
-  // Run on load and after small delay in case GitHub is still rendering (original functionality)
-  setTimeout(() => {
-    console.log("==> Running original auto-click functionality");
-    const count = clickDoneForFailedCI();
-    console.log("==> Original auto-click processed", count, "notifications");
-  }, 2000);
 })();
