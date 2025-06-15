@@ -5,12 +5,21 @@
 // @description  Our Daily Bread Plus
 // @author       You
 // @match        https://www.odb.org/
+// @match        https://odb.org/
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=odb.org
 // @grant        none
 // ==/UserScript==
 
 (function () {
   "use strict";
+
+  console.log("==> ODB Plus script loaded and starting...");
+  console.log("==> Current URL:", window.location.href);
+  console.log("==> Document ready state:", document.readyState);
+
+  // Debug mode - set to true to bypass session storage check
+  const DEBUG_MODE = true;
+  console.log("==> Debug mode:", DEBUG_MODE);
 
   /**
    * Waits for an element to appear in the DOM
@@ -54,25 +63,64 @@
    */
   function waitForReadTodayWithHref(timeout = 15000) {
     return new Promise((resolve) => {
+      console.log("==> Starting waitForReadTodayWithHref function");
+
       const checkElement = () => {
+        console.log("==> Checking for a.read-today element...");
         const element = document.querySelector("a.read-today");
+        console.log("==> Element found:", element);
+
         if (element) {
           const href = element.getAttribute("href");
+          console.log("==> Element href attribute:", href);
+          console.log("==> Element full href property:", element.href);
+          console.log("==> Element text content:", element.textContent);
+          console.log("==> Element classes:", element.className);
+
           // Check if href is not just "/" and contains a date pattern
           if (href && href !== "/" && href.includes("/")) {
-            console.log("ODB Plus: Found element with proper href:", href);
+            console.log("==> Found element with proper href:", href);
             resolve(element);
             return true;
+          } else {
+            console.log("==> Element found but href is invalid:", href);
           }
+        } else {
+          console.log("==> No a.read-today element found");
+          // Let's check what read-today elements we do have
+          const readTodayElements = document.querySelectorAll(".read-today");
+          console.log(
+            "==> Found",
+            readTodayElements.length,
+            "elements with .read-today class:"
+          );
+          readTodayElements.forEach((el, index) => {
+            console.log(
+              `==> Element ${index}:`,
+              el.tagName,
+              el.className,
+              el.textContent
+            );
+          });
         }
         return false;
       };
 
       // Check immediately
+      console.log("==> Performing initial check...");
       if (checkElement()) return;
 
+      console.log("==> Setting up MutationObserver...");
       const observer = new MutationObserver((mutations, obs) => {
+        console.log(
+          "==> MutationObserver triggered with",
+          mutations.length,
+          "mutations"
+        );
         if (checkElement()) {
+          console.log(
+            "==> Element found via MutationObserver, disconnecting..."
+          );
           obs.disconnect();
         }
       });
@@ -86,6 +134,7 @@
 
       // Timeout fallback
       setTimeout(() => {
+        console.log("==> Timeout reached, disconnecting observer");
         observer.disconnect();
         resolve(null);
       }, timeout);
@@ -97,15 +146,27 @@
 
   /**
    * Opens the "Read Today" link in a new tab automatically
-   */
-  async function openReadTodayInNewTab() {
-    // Prevent multiple executions using sessionStorage
-    if (sessionStorage.getItem(SESSION_KEY)) {
+   */  async function openReadTodayInNewTab() {
+    console.log("==> openReadTodayInNewTab function called");
+    
+    // Check session storage value
+    const sessionValue = sessionStorage.getItem(SESSION_KEY);
+    console.log("==> Session storage value for", SESSION_KEY, ":", sessionValue);
+    
+    // Prevent multiple executions using sessionStorage (unless in debug mode)
+    if (sessionValue && !DEBUG_MODE) {
       console.log(
         "ODB Plus: Script already executed in this session, skipping"
       );
+      console.log("==> To test again, clear session storage or reload in new tab");
       return;
     }
+
+    if (sessionValue && DEBUG_MODE) {
+      console.log("==> Debug mode enabled, bypassing session storage check");
+    }
+
+    console.log("==> Session check passed, proceeding...");
 
     try {
       console.log(
@@ -181,13 +242,27 @@
    * Initialize the script when DOM is ready
    */
   function init() {
+    console.log("==> Init function called");
+    console.log("==> Document ready state in init:", document.readyState);
+
     if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", openReadTodayInNewTab);
+      console.log(
+        "==> Document still loading, adding DOMContentLoaded listener"
+      );
+      document.addEventListener("DOMContentLoaded", () => {
+        console.log("==> DOMContentLoaded event fired");
+        openReadTodayInNewTab();
+      });
     } else {
+      console.log(
+        "==> Document already ready, calling openReadTodayInNewTab immediately"
+      );
       openReadTodayInNewTab();
     }
   }
 
   // Start the script
+  console.log("==> About to call init()");
   init();
+  console.log("==> Script initialization complete");
 })();
