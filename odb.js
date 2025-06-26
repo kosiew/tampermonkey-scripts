@@ -17,10 +17,6 @@
   console.log("==> Current URL:", window.location.href);
   console.log("==> Document ready state:", document.readyState);
 
-  // Debug mode - set to true to bypass session storage check
-  const DEBUG_MODE = true;
-  console.log("==> Debug mode:", DEBUG_MODE);
-
   /**
    * Waits for an element to appear in the DOM
    * @param {string} selector - CSS selector for the element
@@ -146,24 +142,16 @@
 
   /**
    * Opens the "Read Today" link in a new tab automatically
-   */  async function openReadTodayInNewTab() {
+   */
+  async function openReadTodayInNewTab() {
     console.log("==> openReadTodayInNewTab function called");
-    
-    // Check session storage value
-    const sessionValue = sessionStorage.getItem(SESSION_KEY);
-    console.log("==> Session storage value for", SESSION_KEY, ":", sessionValue);
-    
-    // Prevent multiple executions using sessionStorage (unless in debug mode)
-    if (sessionValue && !DEBUG_MODE) {
+
+    // Prevent multiple executions using sessionStorage
+    if (sessionStorage.getItem(SESSION_KEY)) {
       console.log(
         "ODB Plus: Script already executed in this session, skipping"
       );
-      console.log("==> To test again, clear session storage or reload in new tab");
       return;
-    }
-
-    if (sessionValue && DEBUG_MODE) {
-      console.log("==> Debug mode enabled, bypassing session storage check");
     }
 
     console.log("==> Session check passed, proceeding...");
