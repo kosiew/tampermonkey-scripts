@@ -238,6 +238,14 @@
         br.replaceWith("\n");
       });
 
+      // Preserve markdown formatting for code blocks
+      Array.from(clone.querySelectorAll("pre, code")).forEach((block) => {
+        const content = block.textContent.trim();
+        if (content) {
+          block.replaceWith(document.createTextNode(`\n\`\`\`\n${content}\n\`\`\`\n`));
+        }
+      });
+
       // Normalize line breaks and clean up excessive whitespace
       let cleanedText = clone.textContent
         .replace(/\n\s*\n\s*\n+/g, "\n\n")
