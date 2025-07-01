@@ -5,6 +5,7 @@
 // @description  Adds a button to copy issue content from GitHub issue pages
 // @author       Siew Kam Onn
 // @match        https://github.com/*/issues/*
+// @match        https://github.com/*/pull/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
 // @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js
 // @grant        GM.notification
@@ -199,6 +200,48 @@
   }
 
   /**
+   * Extracts conversation content from discussion chains in issues and PRs
+   * @param {HTMLElement} container - The container element for the discussion chain
+   * @returns {string} The extracted conversation content
+   */
+  function extractConversationContent(container) {
+    if (!container) {
+      return null;
+    }
+
+    // Clone the container to avoid modifying the page
+    const clone = container.cloneNode(true);
+
+    // Convert links to markdown format
+    Array.from(clone.querySelectorAll("a")).forEach((link) => {
+      const href = link.href;
+      const text = link.textContent.trim();
+
+      if (!href || !text) {
+        return;
+      }
+
+      const markdownLink = text === href ? href : `[${text}](${href})`;
+      link.replaceWith(document.createTextNode(markdownLink));
+    });
+
+    // Convert <br> tags to newlines
+    Array.from(clone.querySelectorAll("br")).forEach((br) => {
+      br.replaceWith("\n");
+    });
+
+    // Normalize line breaks and clean up excessive whitespace
+    let cleanedText = clone.textContent
+      .replace(/\n\s*\n\s*\n+/g, "\n\n")
+      .replace(/(?<!^) {2,}/gm, " ")
+      .trim();
+
+    cleanedText = cleanedText.replace(/\n{3,}/g, "\n\n");
+
+    return cleanedText;
+  }
+
+  /**
    * Copy text to clipboard
    * @param {string} text - Text to copy
    * @returns {Promise<boolean>} Success status
@@ -284,6 +327,62 @@
     );
   }
 
+  /**
+   * Adds a copy button to discussion chains in issues and PRs
+   */
+  function addCopyButtonToDiscussions() {
+    const discussionContainers = document.querySelectorAll(
+      "div[data-testid='discussion-chain']"
+    );
+
+    discussionContainers.forEach((container, index) => {
+      const buttonId = `gh-discussion-copy-button-${index}`;
+
+      // Check if button already exists
+      if (document.getElementById(buttonId)) {
+        return;
+      }
+
+      // Create copy button
+      const copyButton = document.createElement("button");
+      copyButton.id = buttonId;
+      copyButton.textContent = "Copy Conversation";
+      copyButton.title = "Copy conversation content to clipboard";
+      copyButton.className = "gh-markdown-copy-button";
+
+      copyButton.addEventListener("click", async () => {
+        const conversationContent = extractConversationContent(container);
+
+        if (!conversationContent) {
+          GM.notification({
+            title: "GitHub Markdown Copy",
+            text: "No conversation content found.",
+            timeout: 3000
+          });
+          return;
+        }
+
+        const success = await copyToClipboard(conversationContent);
+
+        if (success) {
+          copyButton.textContent = "Copied!";
+          setTimeout(() => {
+            copyButton.textContent = "Copy Conversation";
+          }, 2000);
+        } else {
+          GM.notification({
+            title: "GitHub Markdown Copy",
+            text: "Failed to copy conversation content!",
+            timeout: 3000
+          });
+        }
+      });
+
+      // Append the button to the container
+      container.appendChild(copyButton);
+    });
+  }
+
   // Initialize the script when the document is ready
   if (document.readyState === "loading") {
     console.log(" ==> Document still loading, waiting for DOMContentLoaded");
@@ -296,10 +395,12 @@
   }
 
   // Handle GitHub's Turbo navigation for single-page application behavior
-  document.addEventListener("turbo:load", () =>
-    uiManager.waitForUILibrary(initializeScript)
-  );
-  document.addEventListener("turbo:render", () =>
-    uiManager.waitForUILibrary(initializeScript)
-  );
+  document.addEventListener("turbo:load", () => {
+    uiManager.waitForUILibrary(initializeScript);
+    addCopyButtonToDiscussions();
+  });
+  document.addEventListener("turbo:render", () => {
+    uiManager.waitForUILibrary(initializeScript);
+    addCopyButtonToDiscussions();
+  });
 })();
