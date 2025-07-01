@@ -368,7 +368,8 @@
 
     if (isPullRequestPage()) {
       // Target divs with IDs starting with #pullrequestreview- on PR pages
-      discussionContainers = document.querySelectorAll("div[id^='pullrequestreview-']");
+      discussionContainers = Array.from(document.querySelectorAll("div[id^='pullrequestreview-']"))
+        .filter(container => !container.closest("div[id^='pullrequestreview-']"));
     } else if (isIssuePage()) {
       // Target divs with IDs starting with #issuecomment- on issue pages
       discussionContainers = document.querySelectorAll("div[id^='issuecomment-']");
@@ -380,9 +381,9 @@
       const buttonId = `gh-discussion-copy-button-${index}`;
 
       // Locate the first commenter element
-      const firstCommenterElement = container.querySelector("div:nth-child(2)");
+      const firstCommenterElement = container.querySelector("div.TimelineItem");
       if (!firstCommenterElement) {
-        console.warn("First commenter element not found for container:", container);
+        console.warn("First TimelineItem element not found for container:", container);
         return;
       }
 
@@ -426,8 +427,8 @@
         }
       });
 
-      // Place the button after the first commenter
-      firstCommenterElement.appendChild(copyButton);
+      // Place the button after the first TimelineItem element
+      firstCommenterElement.insertAdjacentElement("afterend", copyButton);
     });
   }
 
