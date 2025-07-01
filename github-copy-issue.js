@@ -379,8 +379,15 @@
     discussionContainers.forEach((container, index) => {
       const buttonId = `gh-discussion-copy-button-${index}`;
 
-      // Check if button already exists
-      if (document.getElementById(buttonId)) {
+      // Locate the first commenter element
+      const firstCommenterElement = container.querySelector("div:nth-child(2)");
+      if (!firstCommenterElement) {
+        console.warn("First commenter element not found for container:", container);
+        return;
+      }
+
+      // Check if button already exists within the first commenter element
+      if (firstCommenterElement.querySelector(`#${buttonId}`)) {
         return;
       }
 
@@ -419,8 +426,8 @@
         }
       });
 
-      // Prepend the button to the container
-      container.insertBefore(copyButton, container.firstChild);
+      // Place the button after the first commenter
+      firstCommenterElement.appendChild(copyButton);
     });
   }
 
