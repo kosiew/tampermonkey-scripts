@@ -334,12 +334,36 @@
   }
 
   /**
+   * Helper function to check if the current URL matches a pull request page
+   * @returns {boolean} True if the URL matches a pull request page
+   */
+  function isPullRequestPage() {
+    return window.location.href.match(/https:\/\/github\.com\/.*\/pull\/\d+/);
+  }
+
+  /**
+   * Helper function to check if the current URL matches an issue page
+   * @returns {boolean} True if the URL matches an issue page
+   */
+  function isIssuePage() {
+    return window.location.href.match(/https:\/\/github\.com\/.*\/issues\/\d+/);
+  }
+
+  /**
    * Adds a copy button to discussion chains in issues and PRs
    */
   function addCopyButtonToDiscussions() {
-    const discussionContainers = document.querySelectorAll(
-      "div[data-testid='discussion-chain']"
-    );
+    let discussionContainers;
+
+    if (isPullRequestPage()) {
+      // Target divs with IDs starting with #discussion_ on PR pages
+      discussionContainers = document.querySelectorAll("div[id^='discussion_']");
+    } else if (isIssuePage()) {
+      // Target divs with IDs starting with #issuecomment- on issue pages
+      discussionContainers = document.querySelectorAll("div[id^='issuecomment-']");
+    } else {
+      return; // Exit if not on a PR or issue page
+    }
 
     discussionContainers.forEach((container, index) => {
       const buttonId = `gh-discussion-copy-button-${index}`;
