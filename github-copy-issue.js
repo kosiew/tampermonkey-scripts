@@ -277,6 +277,12 @@
   async function initializeScript() {
     console.log(" ==> initializeScript function called");
 
+    // Check if the current URL matches an issue page
+    if (!window.location.href.match(/https:\/\/github\.com\/.*\/issues\/\d+/)) {
+      console.log(" ==> Not an issue page, skipping Copy Issue button creation");
+      return;
+    }
+
     // Check if button already exists
     if (document.getElementById(CONFIG.buttonId)) {
       console.log(" ==> Button already exists, skipping creation");
