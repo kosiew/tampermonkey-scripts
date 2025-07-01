@@ -388,6 +388,40 @@
     discussionContainers.forEach((container, index) => {
       const buttonId = `gh-discussion-copy-button-${index}`;
 
+      // Create the copy button dynamically for each container
+      const copyButton = document.createElement("button");
+      copyButton.id = buttonId;
+      copyButton.textContent = "Copy Conversation";
+      copyButton.title = "Copy discussion content to clipboard";
+      copyButton.className = "gh-markdown-copy-button";
+      copyButton.addEventListener("click", async () => {
+        const conversationContent = extractConversationContent(container);
+
+        if (!conversationContent) {
+          GM.notification({
+            title: "GitHub Markdown Copy",
+            text: "No conversation content found in this discussion.",
+            timeout: 3000
+          });
+          return;
+        }
+
+        const success = await copyToClipboard(conversationContent);
+
+        if (success) {
+          copyButton.textContent = "Copied!";
+          setTimeout(() => {
+            copyButton.textContent = "Copy Conversation";
+          }, 2000);
+        } else {
+          GM.notification({
+            title: "GitHub Markdown Copy",
+            text: "Failed to copy conversation content!",
+            timeout: 3000
+          });
+        }
+      });
+
       // Locate the first commenter element
       let firstCommenterElement;
       if (isPullRequestPage()) {
