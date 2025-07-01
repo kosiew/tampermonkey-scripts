@@ -369,7 +369,7 @@
     if (isPullRequestPage()) {
       // Target divs with IDs starting with #pullrequestreview- on PR pages
       discussionContainers = Array.from(document.querySelectorAll("div[id^='pullrequestreview-']"))
-        .filter(container => !container.closest("div[id^='pullrequestreview-']"));
+        .filter(container => container.parentElement.closest("div[id^='pullrequestreview-']") === null);
     } else if (isIssuePage()) {
       // Target divs with IDs starting with #issuecomment- on issue pages
       discussionContainers = document.querySelectorAll("div[id^='issuecomment-']");
