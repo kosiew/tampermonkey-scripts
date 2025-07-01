@@ -20,6 +20,9 @@
     buttonId: "gh-markdown-copy-button"
   };
 
+  const IS_PULL_REQUEST_PAGE = window.location.href.match(/https:\/\/github\.com\/.*\/pull\/\d+/);
+  const IS_ISSUE_PAGE = window.location.href.match(/https:\/\/github\.com\/.*\/issues\/\d+/);
+
   /**
    * Class for managing the TampermonkeyUI instance
    */
@@ -385,7 +388,7 @@
    * @returns {boolean} True if the URL matches a pull request page
    */
   function isPullRequestPage() {
-    return window.location.href.match(/https:\/\/github\.com\/.*\/pull\/\d+/);
+    return IS_PULL_REQUEST_PAGE;
   }
 
   /**
@@ -393,7 +396,7 @@
    * @returns {boolean} True if the URL matches an issue page
    */
   function isIssuePage() {
-    return window.location.href.match(/https:\/\/github\.com\/.*\/issues\/\d+/);
+    return IS_ISSUE_PAGE;
   }
 
   /**
@@ -429,14 +432,14 @@
 
 function getDiscussionContainers() {
     if (isPullRequestPage()) {
-        return Array.from(document.querySelectorAll("div[id^='pullrequestreview-']"))
-            .filter(container => container.parentElement.closest("div[id^='pullrequestreview-']") === null);
+      return Array.from(document.querySelectorAll("div[id^='pullrequestreview-']"))
+        .filter(container => container.parentElement.closest("div[id^='pullrequestreview-']") === null);
     } else if (isIssuePage()) {
-        return Array.from(document.querySelectorAll("div[data-testid^='comment-viewer-outer-box-IC_']"));
+      return Array.from(document.querySelectorAll("div[data-testid^='comment-viewer-outer-box-IC_']"));
     } else {
-        return null;
+      return null;
     }
-}
+  }
 
 function createCopyButton(buttonId) {
     const copyButton = document.createElement("button");
@@ -468,19 +471,19 @@ function showNotification(message, title) {
 
 function placeCopyButton(container, copyButton) {
     try {
-        if (isPullRequestPage()) {
-            const firstCommenterElement = container.querySelector("div.TimelineItem");
-            if (!firstCommenterElement) {
-                throw new Error("First TimelineItem element not found for container.");
-            }
-            firstCommenterElement.insertAdjacentElement("afterend", copyButton);
-        } else if (isIssuePage()) {
-            container.insertBefore(copyButton, container.firstChild);
+      if (isPullRequestPage()) {
+        const firstCommenterElement = container.querySelector("div.TimelineItem");
+        if (!firstCommenterElement) {
+          throw new Error("First TimelineItem element not found for container.");
         }
+        firstCommenterElement.insertAdjacentElement("afterend", copyButton);
+      } else if (isIssuePage()) {
+        container.insertBefore(copyButton, container.firstChild);
+      }
     } catch (error) {
-        console.warn("Error placing copy button:", error);
+      console.warn("Error placing copy button:", error);
     }
-}
+  }
   // Initialize the script when the document is ready
   if (document.readyState === "loading") {
     console.log(" ==> Document still loading, waiting for DOMContentLoaded");
