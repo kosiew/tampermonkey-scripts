@@ -209,8 +209,14 @@
       return null;
     }
 
-    // Clone the container to avoid modifying the page
-    const clone = container.cloneNode(true);
+    // Target only the .comment-body element within the container
+    const commentBody = container.querySelector(".comment-body");
+    if (!commentBody) {
+      return null;
+    }
+
+    // Clone the comment body to avoid modifying the page
+    const clone = commentBody.cloneNode(true);
 
     // Convert links to markdown format
     Array.from(clone.querySelectorAll("a")).forEach((link) => {
