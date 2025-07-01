@@ -400,73 +400,87 @@
    * Adds a copy button to discussion chains in issues and PRs
    */
   function addCopyButtonToDiscussions() {
-    let discussionContainers;
-
-    if (isPullRequestPage()) {
-      // Target divs with IDs starting with #pullrequestreview- on PR pages
-      discussionContainers = Array.from(document.querySelectorAll("div[id^='pullrequestreview-']"))
-        .filter(container => container.parentElement.closest("div[id^='pullrequestreview-']") === null);
-    } else if (isIssuePage()) {
-      // Updated selector to match the provided DOM structure
-      discussionContainers = Array.from(document.querySelectorAll("div[data-testid^='comment-viewer-outer-box-IC_']"));
-    } else {
-      return; // Exit if not on a PR or issue page
-    }
+    let discussionContainers = getDiscussionContainers();
+    if (!discussionContainers) return;
 
     discussionContainers.forEach((container, index) => {
-      const buttonId = `gh-discussion-copy-button-${index}`;
+        const buttonId = `gh-discussion-copy-button-${index}`;
+        const copyButton = createCopyButton(buttonId);
 
-      // Create the copy button dynamically for each container
-      const copyButton = document.createElement("button");
-      copyButton.id = buttonId;
-      copyButton.textContent = "Copy Conversation";
-      copyButton.title = "Copy discussion content to clipboard";
-      copyButton.className = "gh-markdown-copy-button";
-      copyButton.addEventListener("click", async () => {
-        const conversationContent = extractConversationContent(container);
+        copyButton.addEventListener("click", async () => {
+            try {
+                const conversationContent = extractConversationContent(container);
+                if (!conversationContent) {
+                    showNotification("No conversation content found in this discussion.", "GitHub Markdown Copy");
+                    return;
+                }
 
-        if (!conversationContent) {
-          GM.notification({
-            title: "GitHub Markdown Copy",
-            text: "No conversation content found in this discussion.",
-            timeout: 3000
-          });
-          return;
-        }
+                const success = await copyToClipboard(conversationContent);
+                handleCopySuccess(copyButton, success);
+            } catch (error) {
+                console.error("Error copying conversation content:", error);
+                showNotification("Failed to copy conversation content!", "GitHub Markdown Copy");
+            }
+        });
 
-        const success = await copyToClipboard(conversationContent);
-
-        if (success) {
-          copyButton.textContent = "Copied!";
-          setTimeout(() => {
-            copyButton.textContent = "Copy Conversation";
-          }, 2000);
-        } else {
-          GM.notification({
-            title: "GitHub Markdown Copy",
-            text: "Failed to copy conversation content!",
-            timeout: 3000
-          });
-        }
-      });
-
-      // Locate the first commenter element
-      let firstCommenterElement;
-      if (isPullRequestPage()) {
-        firstCommenterElement = container.querySelector("div.TimelineItem");
-        if (!firstCommenterElement) {
-          console.warn("First TimelineItem element not found for container:", container);
-          return;
-        }
-        // Place the button after the first TimelineItem element
-        firstCommenterElement.insertAdjacentElement("afterend", copyButton);
-      } else if (isIssuePage()) {
-        // Place the button as the first element within the container
-        container.insertBefore(copyButton, container.firstChild);
-      }
+        placeCopyButton(container, copyButton);
     });
-  }
+}
 
+function getDiscussionContainers() {
+    if (isPullRequestPage()) {
+        return Array.from(document.querySelectorAll("div[id^='pullrequestreview-']"))
+            .filter(container => container.parentElement.closest("div[id^='pullrequestreview-']") === null);
+    } else if (isIssuePage()) {
+        return Array.from(document.querySelectorAll("div[data-testid^='comment-viewer-outer-box-IC_']"));
+    } else {
+        return null;
+    }
+}
+
+function createCopyButton(buttonId) {
+    const copyButton = document.createElement("button");
+    copyButton.id = buttonId;
+    copyButton.textContent = "Copy Conversation";
+    copyButton.title = "Copy discussion content to clipboard";
+    copyButton.className = "gh-markdown-copy-button";
+    return copyButton;
+}
+
+function handleCopySuccess(copyButton, success) {
+    if (success) {
+        copyButton.textContent = "Copied!";
+        setTimeout(() => {
+            copyButton.textContent = "Copy Conversation";
+        }, 2000);
+    } else {
+        showNotification("Failed to copy conversation content!", "GitHub Markdown Copy");
+    }
+}
+
+function showNotification(message, title) {
+    GM.notification({
+        title: title,
+        text: message,
+        timeout: 3000
+    });
+}
+
+function placeCopyButton(container, copyButton) {
+    try {
+        if (isPullRequestPage()) {
+            const firstCommenterElement = container.querySelector("div.TimelineItem");
+            if (!firstCommenterElement) {
+                throw new Error("First TimelineItem element not found for container.");
+            }
+            firstCommenterElement.insertAdjacentElement("afterend", copyButton);
+        } else if (isIssuePage()) {
+            container.insertBefore(copyButton, container.firstChild);
+        }
+    } catch (error) {
+        console.warn("Error placing copy button:", error);
+    }
+}
   // Initialize the script when the document is ready
   if (document.readyState === "loading") {
     console.log(" ==> Document still loading, waiting for DOMContentLoaded");
