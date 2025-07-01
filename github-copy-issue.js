@@ -419,8 +419,8 @@
         }
       });
 
-      // Append the button to the container
-      container.appendChild(copyButton);
+      // Prepend the button to the container
+      container.insertBefore(copyButton, container.firstChild);
     });
   }
 
