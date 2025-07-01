@@ -356,8 +356,8 @@
     let discussionContainers;
 
     if (isPullRequestPage()) {
-      // Target divs with IDs starting with #discussion_ on PR pages
-      discussionContainers = document.querySelectorAll("div[id^='discussion_']");
+      // Target divs with IDs starting with #pullrequestreview- on PR pages
+      discussionContainers = document.querySelectorAll("div[id^='pullrequestreview-']");
     } else if (isIssuePage()) {
       // Target divs with IDs starting with #issuecomment- on issue pages
       discussionContainers = document.querySelectorAll("div[id^='issuecomment-']");
