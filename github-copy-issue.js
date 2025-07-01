@@ -384,14 +384,6 @@
   }
 
   /**
-   * Helper function to check if the current URL matches a pull request page
-   * @returns {boolean} True if the URL matches a pull request page
-   */
-  function isPullRequestPage() {
-    return IS_PULL_REQUEST_PAGE;
-  }
-
-  /**
    * Helper function to check if the current URL matches an issue page
    * @returns {boolean} True if the URL matches an issue page
    */
@@ -431,13 +423,13 @@
 }
 
 function getDiscussionContainers() {
-    if (isPullRequestPage()) {
-      return Array.from(document.querySelectorAll("div[id^='pullrequestreview-']"))
-        .filter(container => container.parentElement.closest("div[id^='pullrequestreview-']") === null);
-    } else if (isIssuePage()) {
-      return Array.from(document.querySelectorAll("div[data-testid^='comment-viewer-outer-box-IC_']"));
+    if (IS_PULL_REQUEST_PAGE) {
+        return Array.from(document.querySelectorAll("div[id^='pullrequestreview-']"))
+            .filter(container => container.parentElement.closest("div[id^='pullrequestreview-']") === null);
+    } else if (IS_ISSUE_PAGE) {
+        return Array.from(document.querySelectorAll("div[data-testid^='comment-viewer-outer-box-IC_']"));
     } else {
-      return null;
+        return null;
     }
   }
 
@@ -471,15 +463,15 @@ function showNotification(message, title) {
 
 function placeCopyButton(container, copyButton) {
     try {
-      if (isPullRequestPage()) {
-        const firstCommenterElement = container.querySelector("div.TimelineItem");
-        if (!firstCommenterElement) {
-          throw new Error("First TimelineItem element not found for container.");
+        if (IS_PULL_REQUEST_PAGE) {
+            const firstCommenterElement = container.querySelector("div.TimelineItem");
+            if (!firstCommenterElement) {
+                throw new Error("First TimelineItem element not found for container.");
+            }
+            firstCommenterElement.insertAdjacentElement("afterend", copyButton);
+        } else if (IS_ISSUE_PAGE) {
+            container.insertBefore(copyButton, container.firstChild);
         }
-        firstCommenterElement.insertAdjacentElement("afterend", copyButton);
-      } else if (isIssuePage()) {
-        container.insertBefore(copyButton, container.firstChild);
-      }
     } catch (error) {
       console.warn("Error placing copy button:", error);
     }
