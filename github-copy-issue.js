@@ -209,42 +209,47 @@
       return null;
     }
 
-    // Target only the .comment-body element within the container
-    const commentBody = container.querySelector(".comment-body");
-    if (!commentBody) {
+    // Target all .comment-body elements within the container
+    const commentBodies = container.querySelectorAll(".comment-body");
+    if (!commentBodies.length) {
       return null;
     }
 
-    // Clone the comment body to avoid modifying the page
-    const clone = commentBody.cloneNode(true);
+    // Concatenate content from all .comment-body elements
+    let combinedContent = "";
+    commentBodies.forEach((commentBody) => {
+      const clone = commentBody.cloneNode(true);
 
-    // Convert links to markdown format
-    Array.from(clone.querySelectorAll("a")).forEach((link) => {
-      const href = link.href;
-      const text = link.textContent.trim();
+      // Convert links to markdown format
+      Array.from(clone.querySelectorAll("a")).forEach((link) => {
+        const href = link.href;
+        const text = link.textContent.trim();
 
-      if (!href || !text) {
-        return;
-      }
+        if (!href || !text) {
+          return;
+        }
 
-      const markdownLink = text === href ? href : `[${text}](${href})`;
-      link.replaceWith(document.createTextNode(markdownLink));
+        const markdownLink = text === href ? href : `[${text}](${href})`;
+        link.replaceWith(document.createTextNode(markdownLink));
+      });
+
+      // Convert <br> tags to newlines
+      Array.from(clone.querySelectorAll("br")).forEach((br) => {
+        br.replaceWith("\n");
+      });
+
+      // Normalize line breaks and clean up excessive whitespace
+      let cleanedText = clone.textContent
+        .replace(/\n\s*\n\s*\n+/g, "\n\n")
+        .replace(/(?<!^) {2,}/gm, " ")
+        .trim();
+
+      cleanedText = cleanedText.replace(/\n{3,}/g, "\n\n");
+
+      combinedContent += cleanedText + "\n\n"; // Add spacing between comments
     });
 
-    // Convert <br> tags to newlines
-    Array.from(clone.querySelectorAll("br")).forEach((br) => {
-      br.replaceWith("\n");
-    });
-
-    // Normalize line breaks and clean up excessive whitespace
-    let cleanedText = clone.textContent
-      .replace(/\n\s*\n\s*\n+/g, "\n\n")
-      .replace(/(?<!^) {2,}/gm, " ")
-      .trim();
-
-    cleanedText = cleanedText.replace(/\n{3,}/g, "\n\n");
-
-    return cleanedText;
+    return combinedContent.trim();
   }
 
   /**
