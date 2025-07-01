@@ -380,7 +380,8 @@
         .filter(container => container.parentElement.closest("div[id^='pullrequestreview-']") === null);
     } else if (isIssuePage()) {
       // Target divs with IDs starting with #issuecomment- on issue pages
-      discussionContainers = document.querySelectorAll("div[id^='issuecomment-']");
+      discussionContainers = Array.from(document.querySelectorAll("div[id^='issuecomment-']"))
+        .map(comment => comment.parentElement);
     } else {
       return; // Exit if not on a PR or issue page
     }
