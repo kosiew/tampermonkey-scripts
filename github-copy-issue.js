@@ -389,54 +389,19 @@
       const buttonId = `gh-discussion-copy-button-${index}`;
 
       // Locate the first commenter element
-      const firstCommenterElement = container.querySelector("div.TimelineItem");
-      if (!firstCommenterElement) {
-        console.warn("First TimelineItem element not found for container:", container);
-        return;
-      }
-
-      // Check if button already exists within the first commenter element
-      if (firstCommenterElement.querySelector(`#${buttonId}`)) {
-        return;
-      }
-
-      // Create copy button
-      const copyButton = document.createElement("button");
-      copyButton.id = buttonId;
-      copyButton.textContent = "Copy Conversation";
-      copyButton.title = "Copy conversation content to clipboard";
-      copyButton.className = "gh-markdown-copy-button";
-
-      copyButton.addEventListener("click", async () => {
-        const conversationContent = extractConversationContent(container);
-
-        if (!conversationContent) {
-          GM.notification({
-            title: "GitHub Markdown Copy",
-            text: "No conversation content found.",
-            timeout: 3000
-          });
+      let firstCommenterElement;
+      if (isPullRequestPage()) {
+        firstCommenterElement = container.querySelector("div.TimelineItem");
+        if (!firstCommenterElement) {
+          console.warn("First TimelineItem element not found for container:", container);
           return;
         }
-
-        const success = await copyToClipboard(conversationContent);
-
-        if (success) {
-          copyButton.textContent = "Copied!";
-          setTimeout(() => {
-            copyButton.textContent = "Copy Conversation";
-          }, 2000);
-        } else {
-          GM.notification({
-            title: "GitHub Markdown Copy",
-            text: "Failed to copy conversation content!",
-            timeout: 3000
-          });
-        }
-      });
-
-      // Place the button after the first TimelineItem element
-      firstCommenterElement.insertAdjacentElement("afterend", copyButton);
+        // Place the button after the first TimelineItem element
+        firstCommenterElement.insertAdjacentElement("afterend", copyButton);
+      } else if (isIssuePage()) {
+        // Place the button as the first element within the container
+        container.insertBefore(copyButton, container.firstChild);
+      }
     });
   }
 
