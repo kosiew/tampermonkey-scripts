@@ -423,15 +423,22 @@
 }
 
 function getDiscussionContainers() {
+    let containers;
+
     if (IS_PULL_REQUEST_PAGE) {
-        return Array.from(document.querySelectorAll("div[id^='pullrequestreview-']"))
+        containers = Array.from(document.querySelectorAll("div[id^='pullrequestreview-']"))
             .filter(container => container.parentElement.closest("div[id^='pullrequestreview-']") === null);
     } else if (IS_ISSUE_PAGE) {
-        return Array.from(document.querySelectorAll("div[data-testid^='comment-viewer-outer-box-IC_']"));
+        containers = Array.from(document.querySelectorAll("div[data-testid^='comment-viewer-outer-box-IC_']"));
     } else {
         return null;
     }
-  }
+
+    // Debugging logs
+    console.log("Matched discussion containers:", containers);
+
+    return containers;
+}
 
 function createCopyButton(buttonId) {
     const copyButton = document.createElement("button");
