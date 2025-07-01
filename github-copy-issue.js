@@ -209,18 +209,15 @@
       return null;
     }
 
-    // Target all .comment-body elements within the container
-    const commentBodies = container.querySelectorAll(".comment-body");
-    if (!commentBodies.length) {
-      return null;
-    }
+    if (isIssuePage()) {
+      // Specific logic for Issue page conversations
+      const markdownBody = container.querySelector("div[data-testid='markdown-body']");
+      if (!markdownBody) {
+        return null;
+      }
 
-    // Concatenate content from all .comment-body elements
-    let combinedContent = "";
-    commentBodies.forEach((commentBody) => {
-      const clone = commentBody.cloneNode(true);
+      const clone = markdownBody.cloneNode(true);
 
-      // Convert links to markdown format
       Array.from(clone.querySelectorAll("a")).forEach((link) => {
         const href = link.href;
         const text = link.textContent.trim();
@@ -233,12 +230,10 @@
         link.replaceWith(document.createTextNode(markdownLink));
       });
 
-      // Convert <br> tags to newlines
       Array.from(clone.querySelectorAll("br")).forEach((br) => {
         br.replaceWith("\n");
       });
 
-      // Preserve markdown formatting for code blocks
       Array.from(clone.querySelectorAll("pre, code")).forEach((block) => {
         const content = block.textContent.trim();
         if (content) {
@@ -246,7 +241,6 @@
         }
       });
 
-      // Normalize line breaks and clean up excessive whitespace
       let cleanedText = clone.textContent
         .replace(/\n\s*\n\s*\n+/g, "\n\n")
         .replace(/(?<!^) {2,}/gm, " ")
@@ -254,10 +248,53 @@
 
       cleanedText = cleanedText.replace(/\n{3,}/g, "\n\n");
 
-      combinedContent += cleanedText + "\n\n"; // Add spacing between comments
-    });
+      return cleanedText;
+    } else {
+      // Original logic for PR discussions
+      const commentBodies = container.querySelectorAll(".comment-body");
+      if (!commentBodies.length) {
+        return null;
+      }
 
-    return combinedContent.trim();
+      let combinedContent = "";
+      commentBodies.forEach((commentBody) => {
+        const clone = commentBody.cloneNode(true);
+
+        Array.from(clone.querySelectorAll("a")).forEach((link) => {
+          const href = link.href;
+          const text = link.textContent.trim();
+
+          if (!href || !text) {
+            return;
+          }
+
+          const markdownLink = text === href ? href : `[${text}](${href})`;
+          link.replaceWith(document.createTextNode(markdownLink));
+        });
+
+        Array.from(clone.querySelectorAll("br")).forEach((br) => {
+          br.replaceWith("\n");
+        });
+
+        Array.from(clone.querySelectorAll("pre, code")).forEach((block) => {
+          const content = block.textContent.trim();
+          if (content) {
+            block.replaceWith(document.createTextNode(`\n\`\`\`\n${content}\n\`\`\`\n`));
+          }
+        });
+
+        let cleanedText = clone.textContent
+          .replace(/\n\s*\n\s*\n+/g, "\n\n")
+          .replace(/(?<!^) {2,}/gm, " ")
+          .trim();
+
+        cleanedText = cleanedText.replace(/\n{3,}/g, "\n\n");
+
+        combinedContent += cleanedText + "\n\n";
+      });
+
+      return combinedContent.trim();
+    }
   }
 
   /**
