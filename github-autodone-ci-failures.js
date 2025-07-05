@@ -207,13 +207,21 @@
   }
 
   /**
+   * Selects all notification rows from the DOM
+   * @returns {NodeList} A NodeList of notification row elements
+   */
+  function getNotificationRows() {
+    return document.querySelectorAll("[data-notification-id]");
+  }
+
+  /**
    * Auto-click "Done" for CI activity rows that show a failed status
    * @returns {number} Number of failed CI notifications processed
    */
   function clickDoneForFailedCI() {
     console.log("==> clickDoneForFailedCI function called");
 
-    const rows = document.querySelectorAll("[data-notification-id]");
+    const rows = getNotificationRows();
     return processRows(rows, (details) => {
       const hasFailureIcon = !!(
         details.failedIcon ||
@@ -239,7 +247,7 @@
   function clickDoneForStoppedCI() {
     console.log("==> clickDoneForStoppedCI function called");
 
-    const rows = document.querySelectorAll("[data-notification-id]");
+    const rows = getNotificationRows();
     return processRows(rows, (details) => {
       const hasStoppedIcon = !!details.stoppedIcon;
       const isCIActivity =
