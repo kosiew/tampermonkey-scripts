@@ -140,7 +140,7 @@
   /**
    * Extracts CI activity and icon details from a row
    * @param {HTMLElement} row - The notification row element
-   * @returns {Object} An object containing CI activity and icon details
+   * @returns {Object} An object containing CI activity, icon details, and matching flags
    */
   function extractRowDetails(row) {
     const failedIcon = row.querySelector("svg.octicon-x.color-fg-danger");
@@ -156,6 +156,15 @@
     const checkSuiteText = row.textContent.toLowerCase().includes("checksuite");
     const workflowText = row.textContent.toLowerCase().includes("workflow");
 
+    const isCIActivity =
+      labelText === "ci activity" || ciText || checkSuiteText || workflowText;
+
+    const hasFailureIcon = !!(
+      failedIcon || failedIconAlt || anyFailedIcon || xIcon || redIcon
+    );
+
+    const hasStoppedIcon = !!stoppedIcon;
+
     return {
       failedIcon,
       failedIconAlt,
@@ -166,7 +175,10 @@
       labelText,
       ciText,
       checkSuiteText,
-      workflowText
+      workflowText,
+      isCIActivity,
+      hasFailureIcon,
+      hasStoppedIcon
     };
   }
 
@@ -223,20 +235,7 @@
 
     const rows = getNotificationRows();
     return processRows(rows, (details) => {
-      const hasFailureIcon = !!(
-        details.failedIcon ||
-        details.failedIconAlt ||
-        details.anyFailedIcon ||
-        details.xIcon ||
-        details.redIcon
-      );
-      const isCIActivity =
-        details.labelText === "ci activity" ||
-        details.ciText ||
-        details.checkSuiteText ||
-        details.workflowText;
-
-      return hasFailureIcon && isCIActivity;
+      return details.hasFailureIcon && details.isCIActivity;
     });
   }
 
@@ -249,14 +248,7 @@
 
     const rows = getNotificationRows();
     return processRows(rows, (details) => {
-      const hasStoppedIcon = !!details.stoppedIcon;
-      const isCIActivity =
-        details.labelText === "ci activity" ||
-        details.ciText ||
-        details.checkSuiteText ||
-        details.workflowText;
-
-      return hasStoppedIcon && isCIActivity;
+      return details.hasStoppedIcon && details.isCIActivity;
     });
   }
 
