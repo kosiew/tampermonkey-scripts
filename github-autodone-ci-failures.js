@@ -166,16 +166,6 @@
     const hasStoppedIcon = !!stoppedIcon;
 
     return {
-      failedIcon,
-      failedIconAlt,
-      anyFailedIcon,
-      xIcon,
-      redIcon,
-      stoppedIcon,
-      labelText,
-      ciText,
-      checkSuiteText,
-      workflowText,
       isCIActivity,
       hasFailureIcon,
       hasStoppedIcon
@@ -305,8 +295,8 @@
       console.log("==> About to create button...");
       const autoDoneButton = uiManager.addButton({
         id: CONFIG.buttonId,
-        text: "Auto-Done CI Failures",
-        title: "Mark all failed CI activity notifications as done",
+        text: "Auto-Done CI Activity",
+        title: "Mark all CI activity notifications as done",
         className: "gh-ci-autodone-button",
         onClick: async () => {
           console.log("==> Button clicked!");
