@@ -138,169 +138,118 @@
   document.head.appendChild(styleSheet);
 
   /**
+   * Extracts CI activity and icon details from a row
+   * @param {HTMLElement} row - The notification row element
+   * @returns {Object} An object containing CI activity and icon details
+   */
+  function extractRowDetails(row) {
+    const failedIcon = row.querySelector("svg.octicon-x.color-fg-danger");
+    const failedIconAlt = row.querySelector("svg.octicon-x");
+    const anyFailedIcon = row.querySelector("svg[class*='octicon-x']");
+    const xIcon = row.querySelector("svg.octicon-x-circle-fill");
+    const redIcon = row.querySelector("svg.color-fg-danger");
+    const stoppedIcon = row.querySelector("svg.octicon-stop");
+
+    const label = row.querySelector(".px-2");
+    const labelText = label?.textContent?.trim();
+    const ciText = row.textContent.toLowerCase().includes("ci activity");
+    const checkSuiteText = row.textContent.toLowerCase().includes("checksuite");
+    const workflowText = row.textContent.toLowerCase().includes("workflow");
+
+    return {
+      failedIcon,
+      failedIconAlt,
+      anyFailedIcon,
+      xIcon,
+      redIcon,
+      stoppedIcon,
+      labelText,
+      ciText,
+      checkSuiteText,
+      workflowText
+    };
+  }
+
+  /**
+   * Processes rows and clicks "Done" for matching criteria
+   * @param {NodeList} rows - The list of notification rows
+   * @param {Function} matchCriteria - A function to determine if a row matches the criteria
+   * @returns {number} The count of processed rows
+   */
+  function processRows(rows, matchCriteria) {
+    let processedCount = 0;
+
+    rows.forEach((row, index) => {
+      const details = extractRowDetails(row);
+
+      if (matchCriteria(details)) {
+        console.log(`==> Row ${index + 1} matches criteria, looking for done button`);
+
+        const doneButton = row.querySelector("button.js-mark-notification-as-read") ||
+          row.querySelector("button[title*='Done']") ||
+          row.querySelector("button[aria-label*='Done']") ||
+          row.querySelector("button[aria-label*='Mark as done']") ||
+          row.querySelector("button[title*='Mark as done']");
+
+        if (doneButton) {
+          console.log(`==> Clicking done button for row ${index + 1}:`, doneButton);
+          doneButton.click();
+          processedCount++;
+        } else {
+          console.log(`==> No done button found for row ${index + 1}`);
+        }
+      } else {
+        console.log(`==> Row ${index + 1} does not match criteria`);
+      }
+    });
+
+    return processedCount;
+  }
+
+  /**
    * Auto-click "Done" for CI activity rows that show a failed status
    * @returns {number} Number of failed CI notifications processed
    */
   function clickDoneForFailedCI() {
     console.log("==> clickDoneForFailedCI function called");
 
-    // Try multiple selectors for notification rows
-    const checkSuiteRows = document.querySelectorAll(
-      'div[data-hydro-click*="CheckSuite"]'
-    );
-    const allNotificationRows = document.querySelectorAll(
-      '[data-testid="notification-list-item"]'
-    );
-    const listItems = document.querySelectorAll(".notifications-list-item");
-    const notificationRows = document.querySelectorAll(
-      "[data-notification-id]"
-    );
-
-    console.log("==> Row selector results:", {
-      checkSuiteRows: checkSuiteRows.length,
-      testidRows: allNotificationRows.length,
-      listItems: listItems.length,
-      notificationRows: notificationRows.length
-    });
-
-    // Use the selector that finds the most rows (likely the correct one)
-    let rows = listItems;
-    if (allNotificationRows.length > rows.length) rows = allNotificationRows;
-    if (notificationRows.length > rows.length) rows = notificationRows;
-    if (checkSuiteRows.length > rows.length) rows = checkSuiteRows;
-
-    console.log("==> Using selector with", rows.length, "rows");
-
-    let processedCount = 0;
-
-    rows.forEach((row, index) => {
-      console.log(`==> Processing row ${index + 1}:`, row);
-      console.log(`==> Row ${index + 1} classes:`, row.className);
-      console.log(
-        `==> Row ${index + 1} data attributes:`,
-        Array.from(row.attributes).filter((attr) =>
-          attr.name.startsWith("data-")
-        )
-      );
-
-      // Check if the red "X" (octicon-x) exists inside the row (failed CI)
-      const failedIcon = row.querySelector("svg.octicon-x.color-fg-danger");
-      const failedIconAlt = row.querySelector("svg.octicon-x");
-      const anyFailedIcon = row.querySelector("svg[class*='octicon-x']");
-      const xIcon = row.querySelector("svg.octicon-x-circle-fill");
-      const redIcon = row.querySelector("svg.color-fg-danger");
-
-      console.log(`==> Row ${index + 1} failed icon checks:`, {
-        primarySelector: !!failedIcon,
-        altSelector: !!failedIconAlt,
-        anyOcticonX: !!anyFailedIcon,
-        xCircleFill: !!xIcon,
-        redIcon: !!redIcon
-      });
-
-      // Check for CI activity indicators
-      const label = row.querySelector(".px-2");
-      const labelText = label?.textContent?.trim();
-      const ciText = row.textContent.toLowerCase().includes("ci activity");
-      const checkSuiteText = row.textContent
-        .toLowerCase()
-        .includes("checksuite");
-      const workflowText = row.textContent.toLowerCase().includes("workflow");
-
-      console.log(`==> Row ${index + 1} CI indicators:`, {
-        labelText: labelText,
-        hasCiActivityText: ciText,
-        hasCheckSuiteText: checkSuiteText,
-        hasWorkflowText: workflowText
-      });
-
-      // Check all possible text content in the row
-      const rowText = row.textContent.toLowerCase();
-      console.log(
-        `==> Row ${index + 1} full text preview:`,
-        rowText.substring(0, 150)
-      );
-
-      // More flexible matching criteria
+    const rows = document.querySelectorAll("[data-notification-id]");
+    return processRows(rows, (details) => {
       const hasFailureIcon = !!(
-        failedIcon ||
-        failedIconAlt ||
-        anyFailedIcon ||
-        xIcon ||
-        redIcon
+        details.failedIcon ||
+        details.failedIconAlt ||
+        details.anyFailedIcon ||
+        details.xIcon ||
+        details.redIcon
       );
       const isCIActivity =
-        labelText === "ci activity" || ciText || checkSuiteText || workflowText;
+        details.labelText === "ci activity" ||
+        details.ciText ||
+        details.checkSuiteText ||
+        details.workflowText;
 
-      if (hasFailureIcon && isCIActivity) {
-        console.log(
-          `==> Row ${index + 1} matches criteria, looking for done button`
-        );
-
-        // Find and click the "Done" (✓) button - try multiple selectors
-        const doneButton = row.querySelector(
-          "button.js-mark-notification-as-read"
-        );
-        const doneButtonAlt = row.querySelector("button[title*='Done']");
-        const doneButtonAlt2 = row.querySelector("button[aria-label*='Done']");
-        const doneButtonAlt3 = row.querySelector(
-          "button[aria-label*='Mark as done']"
-        );
-        const doneButtonAlt4 = row.querySelector(
-          "button[title*='Mark as done']"
-        );
-        const anyButton = row.querySelectorAll("button");
-
-        console.log(`==> Row ${index + 1} button search:`, {
-          primarySelector: !!doneButton,
-          titleSelector: !!doneButtonAlt,
-          ariaSelector: !!doneButtonAlt2,
-          markAsDoneAria: !!doneButtonAlt3,
-          markAsDoneTitle: !!doneButtonAlt4,
-          totalButtons: anyButton.length
-        });
-
-        if (anyButton.length > 0) {
-          console.log(
-            `==> Row ${index + 1} all buttons:`,
-            Array.from(anyButton).map((btn) => ({
-              classes: btn.className,
-              title: btn.title,
-              ariaLabel: btn.getAttribute("aria-label"),
-              textContent: btn.textContent.trim(),
-              outerHTML: btn.outerHTML.substring(0, 100)
-            }))
-          );
-        }
-
-        const targetButton =
-          doneButton ||
-          doneButtonAlt ||
-          doneButtonAlt2 ||
-          doneButtonAlt3 ||
-          doneButtonAlt4;
-        if (targetButton) {
-          console.log(
-            `==> Clicking done button for row ${index + 1}:`,
-            targetButton
-          );
-          targetButton.click();
-          processedCount++;
-        } else {
-          console.log(`==> No done button found for row ${index + 1}`);
-        }
-      } else {
-        console.log(`==> Row ${index + 1} does not match criteria:`, {
-          hasFailedIcon: hasFailureIcon,
-          isCIActivity: isCIActivity,
-          actualLabel: labelText,
-          rowTextPreview: rowText.substring(0, 50)
-        });
-      }
+      return hasFailureIcon && isCIActivity;
     });
+  }
 
-    console.log("==> Total processed count:", processedCount);
-    return processedCount;
+  /**
+   * Auto-click "Done" for CI activity rows that show a stopped status
+   * @returns {number} Number of stopped CI notifications processed
+   */
+  function clickDoneForStoppedCI() {
+    console.log("==> clickDoneForStoppedCI function called");
+
+    const rows = document.querySelectorAll("[data-notification-id]");
+    return processRows(rows, (details) => {
+      const hasStoppedIcon = !!details.stoppedIcon;
+      const isCIActivity =
+        details.labelText === "ci activity" ||
+        details.ciText ||
+        details.checkSuiteText ||
+        details.workflowText;
+
+      return hasStoppedIcon && isCIActivity;
+    });
   }
 
   /**
@@ -361,30 +310,34 @@
         className: "gh-ci-autodone-button",
         onClick: async () => {
           console.log("==> Button clicked!");
-          const processedCount = clickDoneForFailedCI();
 
-          if (processedCount > 0) {
+          const failedCount = clickDoneForFailedCI();
+          const stoppedCount = clickDoneForStoppedCI();
+
+          const totalProcessed = failedCount + stoppedCount;
+
+          if (totalProcessed > 0) {
             // Visual feedback on button
-            autoDoneButton.textContent = `Processed ${processedCount}!`;
+            autoDoneButton.textContent = `Processed ${totalProcessed}!`;
             setTimeout(() => {
               autoDoneButton.textContent = "Auto-Done CI Failures";
             }, 3000);
 
             GM.notification({
               title: "GitHub CI Auto-Done",
-              text: `Marked ${processedCount} failed CI notification(s) as done.`,
+              text: `Marked ${totalProcessed} CI notification(s) as done.`,
               timeout: 3000
             });
           } else {
             // Visual feedback for no items
-            autoDoneButton.textContent = "No failures found";
+            autoDoneButton.textContent = "No failures or stopped found";
             setTimeout(() => {
               autoDoneButton.textContent = "Auto-Done CI Failures";
             }, 2000);
 
             GM.notification({
               title: "GitHub CI Auto-Done",
-              text: "No failed CI activity notifications found.",
+              text: "No failed or stopped CI activity notifications found.",
               timeout: 3000
             });
           }
