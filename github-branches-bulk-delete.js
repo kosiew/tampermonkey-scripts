@@ -17,11 +17,11 @@
    * @returns {boolean}
    */
   function isBranchesPage() {
-    return (
-      window.location.hostname === "github.com" &&
-      window.location.pathname.includes("/branches") &&
-      window.location.search.includes("page=")
-    );
+    const isGithub = window.location.hostname === "github.com";
+    const hasBranches = window.location.pathname.includes("/branches");
+    const hasPage = window.location.search.includes("page=");
+    console.log("[BulkDelete] isGithub:", isGithub, "hasBranches:", hasBranches, "hasPage:", hasPage);
+    return isGithub && hasBranches && hasPage;
   }
 
   /**
@@ -102,30 +102,117 @@
   /**
    * Adds a bulk delete button to the page UI
    */
+  // UIManager class for robust button injection (modeled after github-autodone-ci-failures.js)
+  class UIManager {
+    constructor(options = {}) {
+      this.ui = null;
+      this.options = {
+        containerClass: "tm-scripts-container",
+        containerParent: ".Header, .AppHeader, .subnav, .Subnav, .Box-header, .d-flex.flex-justify-between",
+        ...options
+      };
+    }
+
+    waitForUILibrary(initFn) {
+      if (window.TampermonkeyUI) {
+        try {
+          this.ui = new window.TampermonkeyUI(this.options);
+          initFn();
+        } catch (error) {
+          console.error("[BulkDelete] Error creating UI instance:", error);
+        }
+      } else {
+        setTimeout(() => this.waitForUILibrary(initFn), 50);
+      }
+    }
+
+    getUI() {
+      return this.ui;
+    }
+
+    addButton(options) {
+      if (!this.ui) {
+        console.error("[BulkDelete] No UI instance available for button creation");
+        return null;
+      }
+      try {
+        return this.ui.addButton(options);
+      } catch (error) {
+        console.error("[BulkDelete] Error creating button:", error);
+        return null;
+      }
+    }
+  }
+
+  // Create a global instance of the UI manager
+  const uiManager = new UIManager();
+
+  // Styles for the button
+  const styles = `
+    .bulk-delete-branches-btn {
+      padding: 8px 16px;
+      font-size: 14px;
+      border-radius: 6px;
+      border: 1px solid rgba(27, 31, 36, 0.15);
+      background-color: var(--color-danger-fg, #d73a49);
+      color: var(--color-fg-on-emphasis, #fff);
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      transition: all 0.2s;
+    }
+    .bulk-delete-branches-btn:hover {
+      opacity: 0.9;
+      background-color: var(--color-danger-emphasis, #b31d28);
+    }
+  `;
+  const styleSheet = document.createElement("style");
+  styleSheet.textContent = styles;
+  document.head.appendChild(styleSheet);
+
   function addBulkDeleteButton() {
-    if (document.getElementById("bulk-delete-branches-btn")) return;
-    const container = document.querySelector(".subnav, .Subnav, .d-flex.flex-justify-between, .Box-header");
-    if (!container) return;
-    const btn = document.createElement("button");
-    btn.id = "bulk-delete-branches-btn";
-    btn.textContent = "Delete ALL Branches on Page";
-    btn.style = "margin-left: 1em; background: #d73a49; color: #fff; border: none; border-radius: 6px; padding: 8px 16px; font-weight: bold; cursor: pointer;";
-    btn.onclick = deleteAllBranches;
-    container.appendChild(btn);
+    if (document.getElementById("bulk-delete-branches-btn")) {
+      console.log("[BulkDelete] Button already exists, skipping add.");
+      return;
+    }
+    if (!uiManager.getUI()) {
+      console.error("[BulkDelete] No UI instance available, cannot create button");
+      return;
+    }
+    const button = uiManager.addButton({
+      id: "bulk-delete-branches-btn",
+      text: "Delete ALL Branches on Page",
+      title: "Bulk delete all branches on this page",
+      className: "bulk-delete-branches-btn",
+      onClick: deleteAllBranches
+    });
+    if (button) {
+      console.log("[BulkDelete] Bulk delete button added via UIManager.");
+    } else {
+      console.error("[BulkDelete] Button creation returned null/undefined");
+    }
   }
 
   // Initialize when DOM is ready and on correct page
-  function initialize() {
-    if (!isBranchesPage()) return;
+  async function initializeScript() {
+    console.log("[BulkDelete] Initializing bulk delete script...");
+    if (!isBranchesPage()) {
+      console.log("[BulkDelete] Not a branches page, aborting init.");
+      return;
+    }
     addBulkDeleteButton();
   }
 
+  // Wait for UI library and initialize
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initialize);
+    document.addEventListener("DOMContentLoaded", () => {
+      uiManager.waitForUILibrary(initializeScript);
+    });
   } else {
-    initialize();
+    uiManager.waitForUILibrary(initializeScript);
   }
 
   // Re-add button on navigation (GitHub uses PJAX)
-  document.addEventListener("pjax:end", initialize);
+  document.addEventListener("pjax:end", () => {
+    uiManager.waitForUILibrary(initializeScript);
+  });
 })();
