@@ -13,6 +13,7 @@
 (function () {
   "use strict";
 
+  const NOTIFY = false;
   /**
    * Checks if the current page is a GitHub branches page with pagination
    * @returns {boolean}
@@ -84,11 +85,13 @@
         // Visual feedback
         row.style.background = "#ffeaea";
         // Notify
-        GM.notification({
-          title: "Branch Deleted",
-          text: name,
-          timeout: 2000
-        });
+        if (NOTIFY) {
+          GM.notification({
+            title: "Branch Deleted",
+            text: name,
+            timeout: 2000
+          });
+        }
         // Wait for modal/confirmation if needed
         await new Promise((r) => setTimeout(r, 500));
         // If a modal appears, auto-confirm
