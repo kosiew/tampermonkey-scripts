@@ -6,6 +6,7 @@
 // @author       You
 // @match        https://github.com/*/branches*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
+// @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js
 // @grant        GM.notification
 // ==/UserScript==
 
@@ -61,18 +62,20 @@
    */
   async function deleteAllBranches() {
     const rows = getBranchRows();
-    if (rows.length === 0) {
-      alert("No branches found on this page.");
+    // Filter out rows with unknown branch name
+    const validRows = rows.filter(row => getBranchName(row) !== "(unknown)");
+    if (validRows.length === 0) {
+      alert("No valid branches found on this page.");
       return;
     }
-    const branchNames = rows.map(getBranchName).join("\n");
+    const branchNames = validRows.map(getBranchName).join("\n");
     const confirmed = confirm(
       `Are you sure you want to delete ALL branches on this page?\n\n${branchNames}`
     );
     if (!confirmed) return;
 
     let deleted = 0;
-    for (const row of rows) {
+    for (const row of validRows) {
       const btn = getDeleteButton(row);
       const name = getBranchName(row);
       if (btn) {
