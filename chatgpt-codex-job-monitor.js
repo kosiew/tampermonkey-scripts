@@ -13,10 +13,10 @@
   "use strict";
 
   console.log("==> ChatGPT Codex Job Monitor script started");
-
+  const SECOND = 1000; // 1 second in milliseconds
   const CONFIG = {
-    checkInterval: 1000, // Check every 1 second
-    debounceDelay: 2000  // Wait 2 seconds before confirming job completion
+    checkInterval: 30 * SECOND, 
+    debounceDelay: 10 * SECOND  // Wait 2 seconds before confirming job completion
   };
 
   /**
