@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         GitHub Issue Copy
+// @name         GitHub Issue/PR Copy
 // @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  Adds a button to copy issue content from GitHub issue pages
+// @version      2.0
+// @description  Adds a button to copy issue/PR content and comments from GitHub pages
 // @author       Siew Kam Onn
 // @match        https://github.com/*/issues/*
 // @match        https://github.com/*/pull/*
@@ -14,7 +14,7 @@
 (function () {
   "use strict";
 
-  console.log(" ==> GitHub Markdown Copy script started");
+  console.log(" ==> GitHub Issue/PR Copy script started");
 
   const CONFIG = {
     buttonId: "gh-markdown-copy-button"
@@ -114,181 +114,182 @@
   document.head.appendChild(styleSheet);
 
   /**
-   * Extracts markdown content from elements with data-testid="markdown-body"
-   * @returns {string} The extracted content with spacing and links preserved from the first matching element
+   * Extracts comprehensive content from issues/PRs including main content and all comments
+   * @returns {string} Formatted content with URLs and proper markdown
    */
-  function extractIssueContent() {
-    // Get only the first element with data-testid="markdown-body"
-    const markdownElement = document.querySelector(
-      '[data-testid="markdown-body"]'
-    );
-    if (!markdownElement) {
-      return null;
+  function extractAllContent() {
+    const pageTitle = document.querySelector('h1.gh-header-title, h1.title')?.textContent?.trim() || '';
+    const pageUrl = window.location.href;
+    const repoUrl = pageUrl.match(/^(https:\/\/github\.com\/[^\/]+\/[^\/]+)/)?.[1] || '';
+    
+    let content = `# ${pageTitle}\n\n`;
+    content += `**URL:** ${pageUrl}\n\n`;
+    
+    // Get main content (issue/PR description)
+    const mainContent = extractMainContent();
+    if (mainContent) {
+      content += `## ${IS_PULL_REQUEST_PAGE ? 'PR Description' : 'Issue Description'}\n\n${mainContent}\n\n`;
     }
-
-    // Process only the first markdown element
-    // Clone the element to avoid modifying the page
-    const clone = markdownElement.cloneNode(true);
-
-    // Convert links to markdown format before processing text content
-    Array.from(clone.querySelectorAll("a")).forEach((link) => {
-      const href = link.href;
-      const text = link.textContent.trim();
-
-      // Skip if it's an empty link or the text is the same as href
-      if (!href || !text) {
-        return;
-      }
-
-      // Create markdown link format [text](url)
-      // If the link text is the same as the URL, just use the URL
-      const markdownLink = text === href ? href : `[${text}](${href})`;
-      link.replaceWith(document.createTextNode(markdownLink));
-    });
-
-    // Convert <br> tags to newlines
-    Array.from(clone.querySelectorAll("br")).forEach((br) => {
-      br.replaceWith("\n");
-    });
-
-    // Handle pre.translate elements to wrap with markdown code blocks
-    Array.from(clone.querySelectorAll("pre.notranslate")).forEach((pre) => {
-      const content = pre.textContent.trim();
-      if (content) {
-        pre.replaceWith(
-          document.createTextNode(`\n\`\`\`\n${content}\n\`\`\`\n`)
-        );
-      }
-    });
-
-    // Handle other pre and code blocks to preserve formatting
-    Array.from(clone.querySelectorAll("pre:not(.translate), code")).forEach(
-      (block) => {
-        // Ensure code blocks maintain their whitespace
-        block.style.whiteSpace = "pre";
-
-        // Clean up internal blank lines in code blocks
-        const content = block.textContent;
-        block.textContent = content.replace(/\n\s*\n\s*\n+/g, "\n\n");
-      }
-    );
-
-    // Ensure paragraphs have line breaks between them
-    Array.from(clone.querySelectorAll("p")).forEach((p) => {
-      p.appendChild(document.createTextNode("\n\n"));
-    });
-
-    // Handle lists
-    Array.from(clone.querySelectorAll("li")).forEach((li) => {
-      li.appendChild(document.createTextNode("\n"));
-    });
-
-    // Get the processed text content
-    const contents = clone.textContent;
-
-    // Aggressively normalize line breaks and clean up excessive whitespace
-    let cleanedText = contents
-      // First pass: Replace any 2+ consecutive blank lines with a single blank line
-      .replace(/\n\s*\n\s*\n+/g, "\n\n")
-      // Remove multiple spaces (except for indentation at start of lines)
-      .replace(/(?<!^) {2,}/gm, " ")
-      // Final trim to remove leading/trailing whitespace
-      .trim();
-
-    // Second pass: Do another check for any remaining excessive blank lines
-    // This catches cases that might be missed in the first pass
-    cleanedText = cleanedText.replace(/\n{3,}/g, "\n\n");
-
-    return cleanedText;
+    
+    // Get all comments
+    const comments = extractComments();
+    if (comments.length > 0) {
+      content += `## Comments\n\n${comments.join('\n\n---\n\n')}`;
+    }
+    
+    return content;
   }
 
   /**
-   * Extracts conversation content from discussion chains in issues and PRs
-   * @param {HTMLElement} container - The container element for the discussion chain
-   * @returns {string} The extracted conversation content
+   * Extracts the main issue/PR description content
+   * @returns {string} Formatted markdown content
    */
-  function extractConversationContent(container) {
-    if (!container) {
-      return null;
-    }
-
-    if (isIssuePage()) {
-      return extractIssueConversation(container);
-    } else {
-      return extractPRConversation(container);
-    }
+  function extractMainContent() {
+    const container = document.querySelector('[data-testid="issue-viewer-container"], .js-issue-markdown');
+    if (!container) return null;
+    
+    const markdownElement = container.querySelector('[data-testid="markdown-body"]');
+    if (!markdownElement) return null;
+    
+    return processElementToMarkdown(markdownElement);
   }
 
-  function extractIssueConversation(container) {
-    const markdownBody = container.querySelector("div[data-testid='markdown-body']");
-    if (!markdownBody) {
-      console.error("Markdown body not found in issue container.");
-      return null;
-    }
-
-    return processMarkdownElement(markdownBody);
-  }
-
-  function extractPRConversation(container) {
-    const commentBodies = container.querySelectorAll(".comment-body");
-    if (!commentBodies.length) {
-      console.error("No comment bodies found in PR container.");
-      return null;
-    }
-
-    let combinedContent = "";
-    commentBodies.forEach((commentBody) => {
-      combinedContent += processMarkdownElement(commentBody) + "\n\n";
+  /**
+   * Extracts all comments from the issue/PR
+   * @returns {Array<string>} Array of formatted comment contents
+   */
+  function extractComments() {
+    const comments = [];
+    
+    // Find all comment containers
+    const commentSelectors = [
+      '[data-testid="comment-viewer-container"]',
+      '.timeline-comment',
+      '.comment',
+      '.review-comment'
+    ];
+    
+    let commentElements = [];
+    commentSelectors.forEach(selector => {
+      commentElements.push(...document.querySelectorAll(selector));
     });
-
-    return combinedContent.trim();
+    
+    commentElements.forEach((comment, index) => {
+      const author = comment.querySelector('.author, .comment-author')?.textContent?.trim() || 'Unknown';
+      const timestamp = comment.querySelector('relative-time, .timestamp')?.getAttribute('datetime') || 
+                       comment.querySelector('relative-time, .timestamp')?.textContent?.trim() || '';
+      const permalink = comment.querySelector('a[href*="#issuecomment-"], a[href*="#discussion_r"]')?.href || '';
+      
+      const markdownBody = comment.querySelector('[data-testid="markdown-body"], .comment-body');
+      if (markdownBody) {
+        const content = processElementToMarkdown(markdownBody);
+        let commentContent = `**Comment by ${author}**`;
+        if (timestamp) commentContent += ` - ${timestamp}`;
+        if (permalink) commentContent += `\n${permalink}`;
+        commentContent += `\n\n${content}`;
+        
+        comments.push(commentContent);
+      }
+    });
+    
+    return comments;
   }
 
-  function processMarkdownElement(element) {
+  /**
+   * Converts DOM element to markdown format with proper URL handling
+   * @param {HTMLElement} element - DOM element to process
+   * @returns {string} Markdown formatted content
+   */
+  function processElementToMarkdown(element) {
     const clone = element.cloneNode(true);
-
-    convertLinksToMarkdown(clone);
-    replaceBreakTags(clone);
-    preserveCodeBlocks(clone);
-
-    let cleanedText = clone.textContent
-      .replace(/\n\s*\n\s*\n+/g, "\n\n")
-      .replace(/(?<!^) {2,}/gm, " ")
-      .trim();
-
-    cleanedText = cleanedText.replace(/\n{3,}/g, "\n\n");
-
-    return cleanedText;
-  }
-
-  function convertLinksToMarkdown(element) {
-    Array.from(element.querySelectorAll("a")).forEach((link) => {
+    
+    // Process links to include URLs
+    Array.from(clone.querySelectorAll('a')).forEach(link => {
       const href = link.href;
       const text = link.textContent.trim();
-
-      if (!href || !text) {
-        console.warn("Invalid link detected: ", link);
-        return;
-      }
-
-      const markdownLink = text === href ? href : `[${text}](${href})`;
-      link.replaceWith(document.createTextNode(markdownLink));
-    });
-  }
-
-  function replaceBreakTags(element) {
-    Array.from(element.querySelectorAll("br")).forEach((br) => {
-      br.replaceWith("\n");
-    });
-  }
-
-  function preserveCodeBlocks(element) {
-    Array.from(element.querySelectorAll("pre, code")).forEach((block) => {
-      const content = block.textContent.trim();
-      if (content) {
-        block.replaceWith(document.createTextNode(`\n\`\`\`\n${content}\n\`\`\`\n`));
+      
+      if (href && text) {
+        const markdownLink = text === href ? href : `[${text}](${href})`;
+        link.replaceWith(document.createTextNode(markdownLink));
       }
     });
+    
+    // Process images to include URLs
+    Array.from(clone.querySelectorAll('img')).forEach(img => {
+      const src = img.src;
+      const alt = img.alt || 'image';
+      const markdownImage = `![${alt}](${src})`;
+      img.replaceWith(document.createTextNode(markdownImage));
+    });
+    
+    // Handle code blocks
+    Array.from(clone.querySelectorAll('pre')).forEach(pre => {
+      const code = pre.querySelector('code');
+      if (code) {
+        const language = code.className.match(/language-(\w+)/)?.[1] || '';
+        const content = code.textContent.trim();
+        pre.replaceWith(document.createTextNode(`\n\`\`\`${language}\n${content}\n\`\`\`\n`));
+      } else {
+        const content = pre.textContent.trim();
+        pre.replaceWith(document.createTextNode(`\n\`\`\`\n${content}\n\`\`\`\n`));
+      }
+    });
+    
+    // Handle inline code
+    Array.from(clone.querySelectorAll('code')).forEach(code => {
+      if (!code.closest('pre')) {
+        const content = code.textContent.trim();
+        code.replaceWith(document.createTextNode(`\`${content}\``));
+      }
+    });
+    
+    // Handle headers
+    Array.from(clone.querySelectorAll('h1, h2, h3, h4, h5, h6')).forEach(header => {
+      const level = parseInt(header.tagName.substring(1));
+      const content = header.textContent.trim();
+      const prefix = '#'.repeat(level) + ' ';
+      header.replaceWith(document.createTextNode(`\n${prefix}${content}\n\n`));
+    });
+    
+    // Handle lists
+    Array.from(clone.querySelectorAll('ul li')).forEach(li => {
+      const content = li.textContent.trim();
+      li.replaceWith(document.createTextNode(`- ${content}\n`));
+    });
+    
+    Array.from(clone.querySelectorAll('ol li')).forEach((li, index) => {
+      const content = li.textContent.trim();
+      li.replaceWith(document.createTextNode(`${index + 1}. ${content}\n`));
+    });
+    
+    // Handle bold and italic
+    Array.from(clone.querySelectorAll('strong, b')).forEach(b => {
+      const content = b.textContent.trim();
+      b.replaceWith(document.createTextNode(`**${content}**`));
+    });
+    
+    Array.from(clone.querySelectorAll('em, i')).forEach(i => {
+      const content = i.textContent.trim();
+      i.replaceWith(document.createTextNode(`*${content}*`));
+    });
+    
+    // Handle line breaks
+    Array.from(clone.querySelectorAll('br')).forEach(br => {
+      br.replaceWith(document.createTextNode('\n'));
+    });
+    
+    // Handle paragraphs
+    Array.from(clone.querySelectorAll('p')).forEach(p => {
+      p.appendChild(document.createTextNode('\n\n'));
+    });
+    
+    // Clean up excessive whitespace
+    let text = clone.textContent
+      .replace(/\n\s*\n\s*\n+/g, '\n\n')
+      .replace(/ {2,}/g, ' ')
+      .trim();
+    
+    return text;
   }
 
   /**
@@ -327,9 +328,9 @@
   async function initializeScript() {
     console.log(" ==> initializeScript function called");
 
-    // Check if the current URL matches an issue page
-    if (!window.location.href.match(/https:\/\/github\.com\/.*\/issues\/\d+/)) {
-      console.log(" ==> Not an issue page, skipping Copy Issue button creation");
+    // Check if the current URL matches an issue or PR page
+    if (!IS_ISSUE_PAGE && !IS_PULL_REQUEST_PAGE) {
+      console.log(" ==> Not an issue or PR page, skipping button creation");
       return;
     }
 
@@ -340,34 +341,41 @@
     }
 
     // Create copy button
+    const buttonText = IS_PULL_REQUEST_PAGE ? "Copy PR" : "Copy Issue";
     const copyButton = uiManager.addButton({
       id: CONFIG.buttonId,
-      text: "Copy Issue",
-      title: "Copy primary issue content to clipboard",
+      text: buttonText,
+      title: `Copy ${IS_PULL_REQUEST_PAGE ? 'PR' : 'issue'} content and comments to clipboard`,
       className: "gh-markdown-copy-button",
       onClick: async () => {
-        const markdownContent = extractIssueContent();
+        const allContent = extractAllContent();
 
-        if (!markdownContent) {
+        if (!allContent) {
           GM.notification({
-            title: "GitHub Markdown Copy",
-            text: "No markdown content found on this page.",
+            title: "GitHub Copy",
+            text: "No content found on this page.",
             timeout: 3000
           });
           return;
         }
 
-        const success = await copyToClipboard(markdownContent);
+        const success = await copyToClipboard(allContent);
 
         if (success) {
           // Visual feedback on button
           copyButton.textContent = "Copied!";
           setTimeout(() => {
-            copyButton.textContent = "Copy Issue";
+            copyButton.textContent = buttonText;
           }, 2000);
+          
+          GM.notification({
+            title: "GitHub Copy",
+            text: `${IS_PULL_REQUEST_PAGE ? 'PR' : 'Issue'} content copied to clipboard!`,
+            timeout: 3000
+          });
         } else {
           GM.notification({
-            title: "GitHub Markdown Copy",
+            title: "GitHub Copy",
             text: "Failed to copy content to clipboard!",
             timeout: 3000
           });
@@ -383,106 +391,6 @@
     );
   }
 
-  /**
-   * Helper function to check if the current URL matches an issue page
-   * @returns {boolean} True if the URL matches an issue page
-   */
-  function isIssuePage() {
-    return IS_ISSUE_PAGE;
-  }
-
-  /**
-   * Adds a copy button to discussion chains in issues and PRs
-   */
-  function addCopyButtonToDiscussions() {
-    let discussionContainers = getDiscussionContainers();
-    if (!discussionContainers) return;
-
-    discussionContainers.forEach((container, index) => {
-        const buttonId = `gh-discussion-copy-button-${index}`;
-        const copyButton = createCopyButton(buttonId);
-
-        copyButton.addEventListener("click", async () => {
-            try {
-                const conversationContent = extractConversationContent(container);
-                if (!conversationContent) {
-                    showNotification("No conversation content found in this discussion.", "GitHub Markdown Copy");
-                    return;
-                }
-
-                const success = await copyToClipboard(conversationContent);
-                handleCopySuccess(copyButton, success);
-            } catch (error) {
-                console.error("Error copying conversation content:", error);
-                showNotification("Failed to copy conversation content!", "GitHub Markdown Copy");
-            }
-        });
-
-        placeCopyButton(container, copyButton);
-    });
-}
-
-function getDiscussionContainers() {
-    let containers;
-
-    if (IS_PULL_REQUEST_PAGE) {
-        containers = Array.from(document.querySelectorAll("div[id^='pullrequestreview-']"))
-            .filter(container => container.parentElement.closest("div[id^='pullrequestreview-']") === null);
-    } else if (IS_ISSUE_PAGE) {
-        containers = Array.from(document.querySelectorAll("div[data-testid^='comment-viewer-outer-box-IC_']"));
-    } else {
-        return null;
-    }
-
-    // Debugging logs
-    console.log("Matched discussion containers:", containers);
-
-    return containers;
-}
-
-function createCopyButton(buttonId) {
-    const copyButton = document.createElement("button");
-    copyButton.id = buttonId;
-    copyButton.textContent = "Copy Conversation";
-    copyButton.title = "Copy discussion content to clipboard";
-    copyButton.className = "gh-markdown-copy-button";
-    return copyButton;
-}
-
-function handleCopySuccess(copyButton, success) {
-    if (success) {
-        copyButton.textContent = "Copied!";
-        setTimeout(() => {
-            copyButton.textContent = "Copy Conversation";
-        }, 2000);
-    } else {
-        showNotification("Failed to copy conversation content!", "GitHub Markdown Copy");
-    }
-}
-
-function showNotification(message, title) {
-    GM.notification({
-        title: title,
-        text: message,
-        timeout: 3000
-    });
-}
-
-function placeCopyButton(container, copyButton) {
-    try {
-        if (IS_PULL_REQUEST_PAGE) {
-            const firstCommenterElement = container.querySelector("div.TimelineItem");
-            if (!firstCommenterElement) {
-                throw new Error("First TimelineItem element not found for container.");
-            }
-            firstCommenterElement.insertAdjacentElement("afterend", copyButton);
-        } else if (IS_ISSUE_PAGE) {
-            container.insertBefore(copyButton, container.firstChild);
-        }
-    } catch (error) {
-      console.warn("Error placing copy button:", error);
-    }
-  }
   // Initialize the script when the document is ready
   if (document.readyState === "loading") {
     console.log(" ==> Document still loading, waiting for DOMContentLoaded");
@@ -497,10 +405,8 @@ function placeCopyButton(container, copyButton) {
   // Handle GitHub's Turbo navigation for single-page application behavior
   document.addEventListener("turbo:load", () => {
     uiManager.waitForUILibrary(initializeScript);
-    addCopyButtonToDiscussions();
   });
   document.addEventListener("turbo:render", () => {
     uiManager.waitForUILibrary(initializeScript);
-    addCopyButtonToDiscussions();
   });
 })();
