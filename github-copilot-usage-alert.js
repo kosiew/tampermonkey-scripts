@@ -90,10 +90,10 @@
 
             if (diff >= 0) {
                 // We are using less than expected (excess available)
-                showUsageAlert(`Surplus: ${absDiff}% under expected`, true);
+                showUsageAlert(`Surplus: ${absDiff}%`, true);
             } else {
                 // We are using more than expected (deficit)
-                showUsageAlert(`Deficit: ${absDiff}% over expected`, false);
+                showUsageAlert(`Deficit: ${absDiff}%`, false);
             }
 
             // Optional: send a notification
