@@ -100,8 +100,8 @@
             GM_notification({
                 title: 'Copilot Usage Alert',
                 text: diff >= 0
-                    ? `You have used ${absDiff}% less than expected this month.`
-                    : `You have used ${absDiff}% more than expected this month.`,
+                    ? `You have used ${absDiff}% less than expected month-to-date.`
+                    : `You have used ${absDiff}% more than expected month-to-date.`,
                 timeout: 5000
             });
 
