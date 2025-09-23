@@ -70,9 +70,15 @@
 
       const frag = document.createDocumentFragment();
       let lastRepo = null;
+      // track index per-repo for numbering
+      const repoCounts = {};
       for (const it of items) {
+        const repo = it.repo || "";
+        repoCounts[repo] = repoCounts[repo] || 0;
+        repoCounts[repo]++;
+
         // When repo changes, insert a visible divider between groups
-        if (lastRepo !== null && it.repo !== lastRepo) {
+        if (lastRepo !== null && repo !== lastRepo) {
           const hr = document.createElement("hr");
           hr.className = "repo-divider";
           // lightweight styling to match GitHub's neutral divider color
@@ -82,8 +88,29 @@
           frag.appendChild(hr);
         }
 
+        // Insert per-item counter before the target inner element, idempotent
+        try {
+          const target = it.el.querySelector(".flex-shrink-0.pt-2.pl-3");
+          if (target) {
+            // Look for existing counter
+            let counter = it.el.querySelector(".pr-counter");
+            const label = String(repoCounts[repo]);
+            if (!counter) {
+              counter = document.createElement("span");
+              counter.className = "pr-counter";
+              counter.style.marginRight = "8px";
+              counter.style.fontSize = "12px";
+              counter.style.color = "#57606a";
+              target.parentNode.insertBefore(counter, target);
+            }
+            counter.textContent = label;
+          }
+        } catch (e) {
+          // ignore failing to insert counter for an item
+        }
+
         frag.appendChild(it.el);
-        lastRepo = it.repo;
+        lastRepo = repo;
       }
 
       // Replace children with sorted fragment
