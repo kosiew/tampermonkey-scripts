@@ -33,189 +33,194 @@
     }
   }
 
+  /**
+   * Filter out injected repo divider nodes from a container children list.
+   * @param {HTMLElement[]} nodes
+   * @returns {HTMLElement[]}
+   */
+  function filterOutDividers(nodes) {
+    return nodes.filter((n) => {
+      return !(
+        n.nodeType === 1 &&
+        n.classList &&
+        n.classList.contains("repo-divider")
+      );
+    });
+  }
+
+  /**
+   * Compute ratio of items that have a summary element loaded.
+   * @param {HTMLElement[]} children
+   * @returns {number}
+   */
+  function computeSummaryLoadingRatio(children) {
+    const summaryCount = children.reduce((count, child) => {
+      const hasSummary = Boolean(
+        child.querySelector("summary") ||
+          child.querySelector(".flex-auto summary") ||
+          child.querySelector("div.flex-auto details summary")
+      );
+      return count + (hasSummary ? 1 : 0);
+    }, 0);
+    return summaryCount / (children.length || 1);
+  }
+
+  /**
+   * Create a lightweight model object for sorting from a container child element.
+   * @param {HTMLElement} el
+   * @param {number} idx
+   */
+  function createItemFromElement(el, idx) {
+    const repo = getRepoNameFromItem(el) || "";
+
+    const draft = Boolean(
+      el.querySelector('span[aria-label="Draft Pull Request"]')
+    );
+
+    // Enhanced error detection - use conservative checks
+    const method1 = Boolean(
+      el.querySelector('.color-fg-danger, [class*="color-fg-danger"]')
+    );
+    const method2 = Boolean(el.querySelector(".State--error, .State--failure"));
+    const method3 = Boolean(
+      el.querySelector(".octicon-x, .octicon-alert, .octicon-stop")
+    );
+    const error = method1 || method2 || method3;
+
+    return { el, repo, idx, draft, error };
+  }
+
+  /**
+   * Sort item models by repo name then by priority (draft -> error -> other) and original index.
+   * @param {Array} items
+   */
+  function sortItems(items) {
+    items.sort((a, b) => {
+      const cmp = a.repo.localeCompare(b.repo, undefined, {
+        sensitivity: "base",
+      });
+      if (cmp !== 0) return cmp;
+
+      const getPriority = (item) => {
+        if (item.draft) return 1;
+        if (item.error) return 2;
+        return 3;
+      };
+
+      const pa = getPriority(a);
+      const pb = getPriority(b);
+      if (pa !== pb) return pa - pb;
+
+      return a.idx - b.idx;
+    });
+  }
+
+  /**
+   * Create a HR divider used between repository groups.
+   * @returns {HTMLElement}
+   */
+  function createRepoDivider() {
+    const hr = document.createElement("hr");
+    hr.className = "repo-divider";
+    hr.style.border = "0";
+    hr.style.borderTop = "1px solid #e1e4e8";
+    hr.style.margin = "8px 0";
+    return hr;
+  }
+
+  /**
+   * Build a document fragment from sorted items, inserting counters and dividers.
+   * @param {Array} items
+   */
+  function buildFragmentFromItems(items) {
+    const frag = document.createDocumentFragment();
+    let lastRepo = null;
+    const repoCounts = {};
+
+    for (const it of items) {
+      const repo = it.repo || "";
+      repoCounts[repo] = repoCounts[repo] || 0;
+      repoCounts[repo]++;
+
+      if (lastRepo !== null && repo !== lastRepo) {
+        frag.appendChild(createRepoDivider());
+      }
+
+      // Insert per-item counter before the target inner element, idempotent
+      try {
+        const target = it.el.querySelector(".flex-shrink-0.pt-2.pl-3");
+        if (target) {
+          let counter = it.el.querySelector(".pr-counter");
+          const label = String(repoCounts[repo]);
+          if (!counter) {
+            counter = document.createElement("span");
+            counter.className = "pr-counter";
+            counter.style.display = "inline-block";
+            counter.style.marginRight = "8px";
+            counter.style.marginTop = "8px";
+            counter.style.fontSize = "13px";
+            counter.style.fontWeight = "600";
+            counter.style.borderRadius = "999px";
+            counter.style.padding = "2px 8px";
+            counter.style.lineHeight = "1";
+            counter.style.minWidth = "22px";
+            counter.style.textAlign = "center";
+
+            if (it.draft) {
+              counter.style.color = "#fb8500";
+              counter.style.background = "rgba(251,133,0,0.12)";
+              counter.style.border = "1px solid rgba(251,133,0,0.18)";
+            } else if (it.error) {
+              counter.style.color = "#dc2626";
+              counter.style.background = "rgba(220,38,38,0.12)";
+              counter.style.border = "1px solid rgba(220,38,38,0.18)";
+            } else {
+              counter.style.color = "#0366d6";
+              counter.style.background = "rgba(3,102,214,0.12)";
+              counter.style.border = "1px solid rgba(3,102,214,0.18)";
+            }
+
+            target.parentNode.insertBefore(counter, target);
+          }
+          counter.textContent = label;
+        }
+      } catch (e) {
+        // ignore failing to insert counter for an item
+      }
+
+      frag.appendChild(it.el);
+      lastRepo = repo;
+    }
+
+    return frag;
+  }
+
   function sortContainerByRepo() {
     try {
       const container = getContainer();
       if (!container) return;
 
-      // Filter out any previously inserted divider elements so we don't duplicate them
-      const children = Array.from(container.children).filter((n) => {
-        return !(
-          n.nodeType === 1 &&
-          n.classList &&
-          n.classList.contains("repo-divider")
-        );
-      });
+      const children = filterOutDividers(Array.from(container.children));
       if (children.length <= 1) return;
 
-      // Check if summary elements are loaded for CI status information
-      const summaryCount = children.reduce((count, child) => {
-        // Try different selectors to find summary elements
-        const hasSummary = Boolean(
-          child.querySelector("summary") ||
-            child.querySelector(".flex-auto summary") ||
-            child.querySelector("div.flex-auto details summary")
-        );
-        return count + (hasSummary ? 1 : 0);
-      }, 0);
-
-      const summaryLoadingRatio = summaryCount / children.length;
-
-      // If less than 80% of PRs have summary elements loaded, wait for them
-      if (summaryLoadingRatio < 0.8) {
-        // Schedule another check in 1 second
+      const ratio = computeSummaryLoadingRatio(children);
+      if (ratio < 0.8) {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(sortContainerByRepo, 1000);
         return;
       }
 
-      const items = children.map((el, idx) => {
-        const repo = getRepoNameFromItem(el) || "";
-
-        // detect draft PR by the presence of the span with aria-label
-        const draft = Boolean(
-          el.querySelector('span[aria-label="Draft Pull Request"]')
-        );
-
-        // detect error PR by scanning the whole item for any danger class
-        const error = Boolean(
-          el.querySelector('.color-fg-danger, [class*="color-fg-danger"]')
-        );
-
-        // Enhanced error detection attempts - but be more conservative
-        const errorDetectionMethods = {
-          method1_originalDanger: Boolean(
-            el.querySelector('.color-fg-danger, [class*="color-fg-danger"]')
-          ),
-          method2_stateError: Boolean(
-            el.querySelector(".State--error, .State--failure")
-          ),
-          method3_octicons: Boolean(
-            el.querySelector(".octicon-x, .octicon-alert, .octicon-stop")
-          ),
-          // Remove overly aggressive text-based detection
-          // method4_textContent and method5_innerHTML were too broad
-        };
-
-        // Use only the more reliable error detection methods
-        const enhancedError =
-          errorDetectionMethods.method1_originalDanger ||
-          errorDetectionMethods.method2_stateError ||
-          errorDetectionMethods.method3_octicons;
-
-        return { el, repo, idx, draft, error };
-      });
-
+      const items = children.map((el, idx) => createItemFromElement(el, idx));
       const anyRepo = items.some((it) => it.repo !== "");
       if (!anyRepo) return;
 
-      // Summary of detection results with priority breakdown
-      const errorPRs = items.filter((it) => it.error);
-      const draftPRs = items.filter((it) => it.draft);
-      const otherPRs = items.filter((it) => !it.draft && !it.error);
-
-      items.sort((a, b) => {
-        // First sort by repository name
-        const cmp = a.repo.localeCompare(b.repo, undefined, {
-          sensitivity: "base",
-        });
-        if (cmp !== 0) return cmp;
-
-        // Within same repo: priority order is drafts -> error PRs -> other PRs
-        // Assign priority scores: lower number = higher priority
-        const getPriority = (item) => {
-          if (item.draft) return 1; // Drafts first
-          if (item.error) return 2; // Error PRs second
-          return 3; // Other PRs last
-        };
-
-        const priorityA = getPriority(a);
-        const priorityB = getPriority(b);
-
-        if (priorityA !== priorityB) {
-          return priorityA - priorityB; // Lower priority number comes first
-        }
-
-        // If same priority, maintain original order
-        return a.idx - b.idx;
-      });
+      sortItems(items);
 
       const alreadyOrdered = items.every((it, i) => children[i] === it.el);
       if (alreadyOrdered) return;
 
-      const frag = document.createDocumentFragment();
-      let lastRepo = null;
-      // track index per-repo for numbering
-      const repoCounts = {};
-      for (const it of items) {
-        const repo = it.repo || "";
-        repoCounts[repo] = repoCounts[repo] || 0;
-        repoCounts[repo]++;
+      const frag = buildFragmentFromItems(items);
 
-        // When repo changes, insert a visible divider between groups
-        if (lastRepo !== null && repo !== lastRepo) {
-          const hr = document.createElement("hr");
-          hr.className = "repo-divider";
-          // lightweight styling to match GitHub's neutral divider color
-          hr.style.border = "0";
-          hr.style.borderTop = "1px solid #e1e4e8";
-          hr.style.margin = "8px 0";
-          frag.appendChild(hr);
-        }
-
-        // Insert per-item counter before the target inner element, idempotent
-        try {
-          const target = it.el.querySelector(".flex-shrink-0.pt-2.pl-3");
-          if (target) {
-            // Look for existing counter
-            let counter = it.el.querySelector(".pr-counter");
-            const label = String(repoCounts[repo]);
-            if (!counter) {
-              counter = document.createElement("span");
-              counter.className = "pr-counter";
-              // Prominent pill-style badge with different colors based on PR type
-              counter.style.display = "inline-block";
-              counter.style.marginRight = "8px";
-              counter.style.marginTop = "8px";
-              counter.style.fontSize = "13px";
-              counter.style.fontWeight = "600";
-              counter.style.borderRadius = "999px";
-              counter.style.padding = "2px 8px";
-              counter.style.lineHeight = "1";
-              counter.style.minWidth = "22px";
-              counter.style.textAlign = "center";
-
-              // Color coding based on PR type
-              if (it.draft) {
-                // Orange for drafts (highest priority)
-                counter.style.color = "#fb8500";
-                counter.style.background = "rgba(251,133,0,0.12)";
-                counter.style.border = "1px solid rgba(251,133,0,0.18)";
-              } else if (it.error) {
-                // Red for errors (medium priority)
-                counter.style.color = "#dc2626";
-                counter.style.background = "rgba(220,38,38,0.12)";
-                counter.style.border = "1px solid rgba(220,38,38,0.18)";
-              } else {
-                // Blue for regular PRs (lowest priority)
-                counter.style.color = "#0366d6";
-                counter.style.background = "rgba(3,102,214,0.12)";
-                counter.style.border = "1px solid rgba(3,102,214,0.18)";
-              }
-
-              target.parentNode.insertBefore(counter, target);
-            }
-            counter.textContent = label;
-          }
-        } catch (e) {
-          // ignore failing to insert counter for an item
-        }
-
-        frag.appendChild(it.el);
-        lastRepo = repo;
-      }
-
-      // Replace children with sorted fragment
       container.innerHTML = "";
       container.appendChild(frag);
     } catch (err) {
