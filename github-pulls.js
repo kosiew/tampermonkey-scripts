@@ -11,135 +11,114 @@
 // ==/UserScript==
 
 (function () {
-    "use strict";
+  "use strict";
 
-    const CONTAINER_SELECTOR = "#js-issues-toolbar > div.js-navigation-container.js-active-navigation-container";
-    const REPO_LINK_SELECTOR = 'a[data-hovercard-type="repository"]';
+  const CONTAINER_SELECTOR =
+    "#js-issues-toolbar > div.js-navigation-container.js-active-navigation-container";
+  const REPO_LINK_SELECTOR = 'a[data-hovercard-type="repository"]';
 
-    let observer = null;
-    let debounceTimer = null;
+  let observer = null;
+  let debounceTimer = null;
 
-    function getContainer() {
-        return document.querySelector(CONTAINER_SELECTOR);
+  function getContainer() {
+    return document.querySelector(CONTAINER_SELECTOR);
+  }
+
+  function getRepoNameFromItem(item) {
+    try {
+      const anchor = item.querySelector(REPO_LINK_SELECTOR);
+      if (!anchor) return null;
+      return anchor.textContent.trim();
+    } catch (e) {
+      return null;
     }
+  }
 
-    function getRepoNameFromItem(item) {
-        try {
-            const anchor = item.querySelector(REPO_LINK_SELECTOR);
-            if (!anchor) return null;
-            return anchor.textContent.trim();
-        } catch (e) {
-            return null;
-        }
-    }
+  function sortContainerByRepo() {
+    try {
+      const container = getContainer();
+      if (!container) return;
 
-    function sortContainerByRepo() {
-        try {
-            const container = getContainer();
-            if (!container) return;
+      const children = Array.from(container.children);
+      if (children.length <= 1) return;
 
-            const children = Array.from(container.children);
-            if (children.length <= 1) return;
+      const items = children.map((el, idx) => ({
+        el,
+        repo: getRepoNameFromItem(el) || "",
+        idx,
+      }));
 
-            const items = children.map((el, idx) => ({ el, repo: getRepoNameFromItem(el) || "", idx }));
+      const anyRepo = items.some((it) => it.repo !== "");
+      if (!anyRepo) return;
 
-            const anyRepo = items.some(it => it.repo !== "");
-            if (!anyRepo) return;
-
-            items.sort((a, b) => {
-                const cmp = a.repo.localeCompare(b.repo, undefined, { sensitivity: "base" });
-                return cmp !== 0 ? cmp : a.idx - b.idx;
-            });
-
-            const alreadyOrdered = items.every((it, i) => children[i] === it.el);
-            if (alreadyOrdered) return;
-
-            const frag = document.createDocumentFragment();
-            for (const it of items) frag.appendChild(it.el);
-
-            // Replace children with sorted fragment
-            container.innerHTML = "";
-            container.appendChild(frag);
-
-        } catch (err) {
-            console.error("github-pulls-sort-by-repo error:", err);
-        }
-    }
-
-    function scheduleSort() {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(sortContainerByRepo, 150);
-    }
-
-    function addManualSortButton() {
-        try {
-            const toolbar = document.querySelector("#js-issues-toolbar");
-            if (!toolbar) return;
-            if (document.getElementById("tm-sort-pulls-by-repo")) return;
-
-            const btn = document.createElement("button");
-            btn.id = "tm-sort-pulls-by-repo";
-            btn.type = "button";
-            btn.textContent = "Sort by repo";
-            btn.title = "Sort pull requests by repository name";
-            btn.style.marginLeft = "8px";
-            btn.style.padding = "4px 8px";
-            btn.style.fontSize = "12px";
-            btn.style.cursor = "pointer";
-
-            btn.addEventListener("click", () => sortContainerByRepo());
-
-            const header = toolbar.querySelector("div.d-flex, .table-list-header, .pagehead-actions");
-            if (header) {
-                header.appendChild(btn);
-            } else {
-                toolbar.insertBefore(btn, toolbar.firstChild);
-            }
-        } catch (e) {}
-    }
-
-    function observeContainer(container) {
-        if (!container) return;
-        if (observer) observer.disconnect();
-
-        observer = new MutationObserver(mutations => {
-            for (const m of mutations) {
-                if (m.type === "childList" && (m.addedNodes.length || m.removedNodes.length)) {
-                    scheduleSort();
-                    break;
-                }
-            }
+      items.sort((a, b) => {
+        const cmp = a.repo.localeCompare(b.repo, undefined, {
+          sensitivity: "base",
         });
+        return cmp !== 0 ? cmp : a.idx - b.idx;
+      });
 
-        observer.observe(container, { childList: true, subtree: false });
-        scheduleSort();
+      const alreadyOrdered = items.every((it, i) => children[i] === it.el);
+      if (alreadyOrdered) return;
+
+      const frag = document.createDocumentFragment();
+      for (const it of items) frag.appendChild(it.el);
+
+      // Replace children with sorted fragment
+      container.innerHTML = "";
+      container.appendChild(frag);
+    } catch (err) {
+      console.error("github-pulls-sort-by-repo error:", err);
     }
+  }
 
-    function waitForContainerAndInit() {
-        const container = getContainer();
-        if (container) {
-            addManualSortButton();
-            observeContainer(container);
-            return;
+  function scheduleSort() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(sortContainerByRepo, 150);
+  }
+
+  function observeContainer(container) {
+    if (!container) return;
+    if (observer) observer.disconnect();
+
+    observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (
+          m.type === "childList" &&
+          (m.addedNodes.length || m.removedNodes.length)
+        ) {
+          scheduleSort();
+          break;
         }
+      }
+    });
 
-        // If not present, monitor the page body for the container to appear (SPA navigation)
-        const bodyObserver = new MutationObserver((mutations, obs) => {
-            const c = getContainer();
-            if (c) {
-                obs.disconnect();
-                addManualSortButton();
-                observeContainer(c);
-            }
-        });
+    observer.observe(container, { childList: true, subtree: false });
+    scheduleSort();
+  }
 
-        bodyObserver.observe(document.body, { childList: true, subtree: true });
+  function waitForContainerAndInit() {
+    const container = getContainer();
+    if (container) {
+      observeContainer(container);
+      return;
     }
 
-    if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", waitForContainerAndInit);
-    } else {
-        waitForContainerAndInit();
-    }
+    // If not present, monitor the page body for the container to appear (SPA navigation)
+    const bodyObserver = new MutationObserver((mutations, obs) => {
+      const c = getContainer();
+      if (c) {
+        obs.disconnect();
+        observeContainer(c);
+      }
+    });
 
+    bodyObserver.observe(document.body, { childList: true, subtree: true });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", waitForContainerAndInit);
+  } else {
+    waitForContainerAndInit();
+  }
 })();
