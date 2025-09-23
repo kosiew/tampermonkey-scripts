@@ -101,6 +101,7 @@
               // Prominent pill-style badge
               counter.style.display = "inline-block";
               counter.style.marginRight = "8px";
+              counter.style.marginTop = "8px";
               counter.style.fontSize = "13px";
               counter.style.fontWeight = "600";
               counter.style.color = "#0366d6";
