@@ -39,7 +39,14 @@
       const container = getContainer();
       if (!container) return;
 
-      const children = Array.from(container.children);
+      // Filter out any previously inserted divider elements so we don't duplicate them
+      const children = Array.from(container.children).filter((n) => {
+        return !(
+          n.nodeType === 1 &&
+          n.classList &&
+          n.classList.contains("repo-divider")
+        );
+      });
       if (children.length <= 1) return;
 
       const items = children.map((el, idx) => ({
@@ -62,7 +69,22 @@
       if (alreadyOrdered) return;
 
       const frag = document.createDocumentFragment();
-      for (const it of items) frag.appendChild(it.el);
+      let lastRepo = null;
+      for (const it of items) {
+        // When repo changes, insert a visible divider between groups
+        if (lastRepo !== null && it.repo !== lastRepo) {
+          const hr = document.createElement("hr");
+          hr.className = "repo-divider";
+          // lightweight styling to match GitHub's neutral divider color
+          hr.style.border = "0";
+          hr.style.borderTop = "1px solid #e1e4e8";
+          hr.style.margin = "8px 0";
+          frag.appendChild(hr);
+        }
+
+        frag.appendChild(it.el);
+        lastRepo = it.repo;
+      }
 
       // Replace children with sorted fragment
       container.innerHTML = "";
