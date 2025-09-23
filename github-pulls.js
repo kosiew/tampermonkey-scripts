@@ -53,6 +53,12 @@
         el,
         repo: getRepoNameFromItem(el) || "",
         idx,
+        // detect draft PR by the presence of the span with aria-label
+        draft: Boolean(
+          el.querySelector(
+            'span[aria-label="Draft Pull Request"], span[aria-label="Draft Pull Request"]'
+          )
+        ),
       }));
 
       const anyRepo = items.some((it) => it.repo !== "");
@@ -62,7 +68,10 @@
         const cmp = a.repo.localeCompare(b.repo, undefined, {
           sensitivity: "base",
         });
-        return cmp !== 0 ? cmp : a.idx - b.idx;
+        if (cmp !== 0) return cmp;
+        // same repo: place drafts before non-drafts
+        if (a.draft !== b.draft) return a.draft ? -1 : 1;
+        return a.idx - b.idx;
       });
 
       const alreadyOrdered = items.every((it, i) => children[i] === it.el);
