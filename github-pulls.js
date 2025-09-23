@@ -1,13 +1,12 @@
 // ==UserScript==
 // @name         GitHub Pulls - Sort by Repository
 // @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  Sort pull request entries on /pulls by repository name inside the issues toolbar container.
-// @author       Siew Kam Onn
+// @version      0.5
+// @description  Sort GitHub pull requests by repository name in repository view
+// @author       You
 // @match        https://github.com/pulls
 // @match        https://github.com/pulls?*
-// @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
-// @grant        GM_notification
+// @grant        none
 // ==/UserScript==
 
 (function () {
@@ -49,28 +48,95 @@
       });
       if (children.length <= 1) return;
 
-      const items = children.map((el, idx) => ({
-        el,
-        repo: getRepoNameFromItem(el) || "",
-        idx,
+      // Check if summary elements are loaded for CI status information
+      const summaryCount = children.reduce((count, child) => {
+        // Try different selectors to find summary elements
+        const hasSummary = Boolean(
+          child.querySelector("summary") ||
+            child.querySelector(".flex-auto summary") ||
+            child.querySelector("div.flex-auto details summary")
+        );
+        return count + (hasSummary ? 1 : 0);
+      }, 0);
+
+      const summaryLoadingRatio = summaryCount / children.length;
+
+      // If less than 80% of PRs have summary elements loaded, wait for them
+      if (summaryLoadingRatio < 0.8) {
+        // Schedule another check in 1 second
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(sortContainerByRepo, 1000);
+        return;
+      }
+
+      const items = children.map((el, idx) => {
+        const repo = getRepoNameFromItem(el) || "";
+
         // detect draft PR by the presence of the span with aria-label
-        draft: Boolean(
-          el.querySelector(
-            'span[aria-label="Draft Pull Request"], span[aria-label="Draft Pull Request"]'
-          )
-        ),
-      }));
+        const draft = Boolean(
+          el.querySelector('span[aria-label="Draft Pull Request"]')
+        );
+
+        // detect error PR by scanning the whole item for any danger class
+        const error = Boolean(
+          el.querySelector('.color-fg-danger, [class*="color-fg-danger"]')
+        );
+
+        // Enhanced error detection attempts - but be more conservative
+        const errorDetectionMethods = {
+          method1_originalDanger: Boolean(
+            el.querySelector('.color-fg-danger, [class*="color-fg-danger"]')
+          ),
+          method2_stateError: Boolean(
+            el.querySelector(".State--error, .State--failure")
+          ),
+          method3_octicons: Boolean(
+            el.querySelector(".octicon-x, .octicon-alert, .octicon-stop")
+          ),
+          // Remove overly aggressive text-based detection
+          // method4_textContent and method5_innerHTML were too broad
+        };
+
+        // Use only the more reliable error detection methods
+        const enhancedError =
+          errorDetectionMethods.method1_originalDanger ||
+          errorDetectionMethods.method2_stateError ||
+          errorDetectionMethods.method3_octicons;
+
+        return { el, repo, idx, draft, error };
+      });
 
       const anyRepo = items.some((it) => it.repo !== "");
       if (!anyRepo) return;
 
+      // Summary of detection results with priority breakdown
+      const errorPRs = items.filter((it) => it.error);
+      const draftPRs = items.filter((it) => it.draft);
+      const otherPRs = items.filter((it) => !it.draft && !it.error);
+
       items.sort((a, b) => {
+        // First sort by repository name
         const cmp = a.repo.localeCompare(b.repo, undefined, {
           sensitivity: "base",
         });
         if (cmp !== 0) return cmp;
-        // same repo: place drafts before non-drafts
-        if (a.draft !== b.draft) return a.draft ? -1 : 1;
+
+        // Within same repo: priority order is drafts -> error PRs -> other PRs
+        // Assign priority scores: lower number = higher priority
+        const getPriority = (item) => {
+          if (item.draft) return 1; // Drafts first
+          if (item.error) return 2; // Error PRs second
+          return 3; // Other PRs last
+        };
+
+        const priorityA = getPriority(a);
+        const priorityB = getPriority(b);
+
+        if (priorityA !== priorityB) {
+          return priorityA - priorityB; // Lower priority number comes first
+        }
+
+        // If same priority, maintain original order
         return a.idx - b.idx;
       });
 
@@ -107,20 +173,36 @@
             if (!counter) {
               counter = document.createElement("span");
               counter.className = "pr-counter";
-              // Prominent pill-style badge
+              // Prominent pill-style badge with different colors based on PR type
               counter.style.display = "inline-block";
               counter.style.marginRight = "8px";
               counter.style.marginTop = "8px";
               counter.style.fontSize = "13px";
               counter.style.fontWeight = "600";
-              counter.style.color = "#0366d6";
-              counter.style.background = "rgba(3,102,214,0.12)";
-              counter.style.border = "1px solid rgba(3,102,214,0.18)";
               counter.style.borderRadius = "999px";
               counter.style.padding = "2px 8px";
               counter.style.lineHeight = "1";
               counter.style.minWidth = "22px";
               counter.style.textAlign = "center";
+
+              // Color coding based on PR type
+              if (it.draft) {
+                // Orange for drafts (highest priority)
+                counter.style.color = "#fb8500";
+                counter.style.background = "rgba(251,133,0,0.12)";
+                counter.style.border = "1px solid rgba(251,133,0,0.18)";
+              } else if (it.error) {
+                // Red for errors (medium priority)
+                counter.style.color = "#dc2626";
+                counter.style.background = "rgba(220,38,38,0.12)";
+                counter.style.border = "1px solid rgba(220,38,38,0.18)";
+              } else {
+                // Blue for regular PRs (lowest priority)
+                counter.style.color = "#0366d6";
+                counter.style.background = "rgba(3,102,214,0.12)";
+                counter.style.border = "1px solid rgba(3,102,214,0.18)";
+              }
+
               target.parentNode.insertBefore(counter, target);
             }
             counter.textContent = label;
