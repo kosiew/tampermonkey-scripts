@@ -98,9 +98,19 @@
             if (!counter) {
               counter = document.createElement("span");
               counter.className = "pr-counter";
+              // Prominent pill-style badge
+              counter.style.display = "inline-block";
               counter.style.marginRight = "8px";
-              counter.style.fontSize = "12px";
-              counter.style.color = "#57606a";
+              counter.style.fontSize = "13px";
+              counter.style.fontWeight = "600";
+              counter.style.color = "#0366d6";
+              counter.style.background = "rgba(3,102,214,0.12)";
+              counter.style.border = "1px solid rgba(3,102,214,0.18)";
+              counter.style.borderRadius = "999px";
+              counter.style.padding = "2px 8px";
+              counter.style.lineHeight = "1";
+              counter.style.minWidth = "22px";
+              counter.style.textAlign = "center";
               target.parentNode.insertBefore(counter, target);
             }
             counter.textContent = label;
