@@ -4,7 +4,7 @@
 // @version      0.1.0
 // @description  Monitor GitHub Actions page for "In progress" runs and notify when all are finished
 // @author       Your Name
-// @match        https://github.com/*/*/actions
+// @match        https://github.com/*/*/actions*
 // @grant        GM_notification
 // @grant        GM_notification
 // @grant        GM_getValue
