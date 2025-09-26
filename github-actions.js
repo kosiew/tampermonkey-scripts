@@ -18,13 +18,15 @@
   // Configuration
   const POLL_INTERVAL_MS = 5000; // how often to check (5s)
 
-  // Utility: safe querySelectorAll with trimming
-  function findInProgressSpans() {
-    // The user provided sample selector path; we'll be flexible and search for spans that contain the text "In progress" (case-insensitive)
+  // Utility: find spans indicating pending runs ("in progress" or "queued", case-insensitive)
+  function findPendingSpans() {
+    // The user provided sample selector path; we'll be flexible and search for spans that contain the text "In progress" or "Queued" (case-insensitive)
     const spans = Array.from(document.querySelectorAll("span"));
-    return spans.filter(
-      (s) => s.textContent && /in\s*progress/i.test(s.textContent)
-    );
+    return spans.filter((s) => {
+      if (!s.textContent) return false;
+      const t = s.textContent.trim();
+      return /in\s*progress/i.test(t) || /queued/i.test(t);
+    });
   }
 
   // Notify helper
@@ -84,9 +86,9 @@
 
   function checkAndNotify() {
     try {
-      const inProgress = findInProgressSpans();
-      // For debugging: console.log('inProgress count', inProgress.length);
-      if (inProgress.length === 0) {
+      const pending = findPendingSpans();
+      // For debugging: console.log('pending count', pending.length);
+      if (pending.length === 0) {
         // No in-progress runs, notify and stop
         const repo = getRepoFullName();
         notifyAllComplete(repo);
