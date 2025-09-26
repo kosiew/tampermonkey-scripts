@@ -50,6 +50,29 @@
     }
   }
 
+  // Notify that monitoring has started
+  function notifyMonitoringStarted(repoFullName) {
+    const title = `GitHub Actions - ${repoFullName}`;
+    const text = `Started monitoring Actions for ${repoFullName}`;
+    if (typeof GM_notification === "function") {
+      GM_notification({ title, text, timeout: 3000 });
+    } else if (window.Notification) {
+      try {
+        if (Notification.permission === "granted") {
+          new Notification(title, { body: text });
+        } else if (Notification.permission !== "denied") {
+          Notification.requestPermission().then((p) => {
+            if (p === "granted") new Notification(title, { body: text });
+          });
+        }
+      } catch (e) {
+        console.log(title, text);
+      }
+    } else {
+      console.log(title, text);
+    }
+  }
+
   // Derive repo name from URL
   function getRepoFullName() {
     const m = location.pathname.split("/").filter(Boolean);
@@ -81,6 +104,12 @@
   function start() {
     // If navigated away or not an actions page, don't start
     if (!/\/actions(\/|$)/.test(location.pathname)) return;
+    // Notify that monitoring has started
+    try {
+      notifyMonitoringStarted(getRepoFullName());
+    } catch (e) {
+      // ignore notification errors
+    }
     // Run immediately then poll
     checkAndNotify();
     intervalId = setInterval(checkAndNotify, POLL_INTERVAL_MS);
