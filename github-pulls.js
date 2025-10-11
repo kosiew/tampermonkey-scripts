@@ -12,6 +12,16 @@
 (function () {
   "use strict";
 
+  // Make `span.opened-by` more visible: larger font and white color
+  try {
+    const __gm_style = document.createElement("style");
+    __gm_style.textContent =
+      "span.opened-by { color: #ffffff !important; font-size: 14px !important; }";
+    document.head && document.head.appendChild(__gm_style);
+  } catch (e) {
+    // ignore in environments where document.head isn't available yet
+  }
+
   const CONTAINER_SELECTOR =
     "#js-issues-toolbar > div.js-navigation-container.js-active-navigation-container";
   const REPO_LINK_SELECTOR = 'a[data-hovercard-type="repository"]';
