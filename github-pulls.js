@@ -12,11 +12,11 @@
 (function () {
   "use strict";
 
-  // Style only the PR number when present (we'll wrap it in `.pr-number`)
+  // Make `span.opened-by` more visible: larger font and white color
   try {
     const __gm_style = document.createElement("style");
     __gm_style.textContent =
-      ".pr-number { color: #ffffff !important; font-size: 14px !important; font-weight: 600; }";
+      "span.opened-by { color: #ffffff !important; font-size: 14px !important; }";
     document.head && document.head.appendChild(__gm_style);
   } catch (e) {
     // ignore in environments where document.head isn't available yet
@@ -205,39 +205,6 @@
     return frag;
   }
 
-  /**
-   * Wrap leading PR number (e.g. "#18989") inside a span.pr-number within span.opened-by
-   * Only operates on plain text spans (skips when child elements already present or .pr-number exists).
-   * @param {HTMLElement} [root] - optional scope to search within
-   */
-  function wrapPrNumberInOpenedBy(root) {
-    try {
-      const scope = root || document;
-      const spans = scope.querySelectorAll("span.opened-by");
-      for (const s of spans) {
-        if (s.querySelector(".pr-number")) continue;
-        // avoid altering complex nodes
-        if (s.childElementCount > 0) continue;
-        const text = s.textContent;
-        if (!text) continue;
-        const m = text.match(/^(#\d+)(\s*)([\s\S]*)/);
-        if (!m) continue;
-        const pr = m[1];
-        const sep = m[2] || " ";
-        const rest = m[3] || "";
-        // rebuild content: <span class="pr-number">#123</span> + remainder
-        s.textContent = "";
-        const prSpan = document.createElement("span");
-        prSpan.className = "pr-number";
-        prSpan.textContent = pr;
-        s.appendChild(prSpan);
-        s.appendChild(document.createTextNode(sep + rest));
-      }
-    } catch (e) {
-      // swallow errors to avoid breaking the page
-    }
-  }
-
   function sortContainerByRepo() {
     try {
       const container = getContainer();
@@ -266,8 +233,6 @@
 
       container.innerHTML = "";
       container.appendChild(frag);
-      // Ensure PR numbers inside "opened-by" spans are wrapped so only the number gets styled
-      wrapPrNumberInOpenedBy(container);
     } catch (err) {
       console.error("github-pulls-sort-by-repo error:", err);
     }
