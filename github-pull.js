@@ -105,14 +105,19 @@
    * @returns {Promise<boolean>} Success status
    */
   async function copyToClipboard(text) {
+    console.log("[github-pull] copyToClipboard called with text:", text);
     try {
       await navigator.clipboard.writeText(text);
+      console.log(
+        "[github-pull] Successfully copied to clipboard using navigator.clipboard"
+      );
       return true;
     } catch (err) {
-      console.error("Failed to copy text to clipboard:", err);
+      console.error("[github-pull] Failed to copy text to clipboard:", err);
 
       // Fallback method for older browsers
       try {
+        console.log("[github-pull] Attempting fallback clipboard method");
         const textarea = document.createElement("textarea");
         textarea.value = text;
         textarea.style.position = "fixed"; // Prevent scrolling to bottom
@@ -121,9 +126,16 @@
         textarea.select();
         const successful = document.execCommand("copy");
         document.body.removeChild(textarea);
+        console.log(
+          "[github-pull] Fallback clipboard method result:",
+          successful
+        );
         return successful;
       } catch (fallbackError) {
-        console.error("Fallback clipboard copy failed:", fallbackError);
+        console.error(
+          "[github-pull] Fallback clipboard copy failed:",
+          fallbackError
+        );
         return false;
       }
     }
@@ -134,29 +146,68 @@
    * @returns {Object|null} Object containing username and branch name, or null if not found
    */
   function extractBranchInfo() {
+    console.log("[github-pull] extractBranchInfo called");
+    console.log("[github-pull] Looking for selector:", CONFIG.branchSelector);
     const branchElement = document.querySelector(CONFIG.branchSelector);
     if (!branchElement) {
-      console.error("Branch element not found");
+      console.error(
+        "[github-pull] Branch element not found with selector:",
+        CONFIG.branchSelector
+      );
+      console.log("[github-pull] Trying alternative selectors...");
+
+      // Try alternative selectors
+      const altSelectors = [
+        ".head-ref a",
+        "span.commit-ref.head-ref a",
+        "[data-hovercard-type='repository'] .commit-ref a",
+      ];
+
+      for (const altSelector of altSelectors) {
+        const altElement = document.querySelector(altSelector);
+        if (altElement) {
+          console.log(
+            "[github-pull] Found element with alternative selector:",
+            altSelector,
+            altElement
+          );
+          const href = altElement.getAttribute("href");
+          console.log("[github-pull] href from alternative element:", href);
+        }
+      }
+
       return null;
     }
 
+    console.log("[github-pull] Branch element found:", branchElement);
     const href = branchElement.getAttribute("href");
     if (!href) {
-      console.error("Branch href not found");
+      console.error("[github-pull] Branch href not found");
       return null;
     }
+
+    console.log("[github-pull] Branch href:", href);
 
     // Extract username and branch from href
     // Example href: "/Jefffrey/datafusion/tree/acc_args_input_fields"
     const match = href.match(/\/([^\/]+)\/([^\/]+)\/tree\/(.+)/);
     if (!match) {
-      console.error("Could not parse branch information from href:", href);
+      console.error(
+        "[github-pull] Could not parse branch information from href:",
+        href
+      );
       return null;
     }
 
     const username = match[1];
     const repo = match[2];
     const branchName = match[3];
+
+    console.log("[github-pull] Extracted branch info:", {
+      username,
+      repo,
+      branchName,
+    });
 
     return { username, repo, branchName };
   }
@@ -169,14 +220,22 @@
    * @returns {Array<string>} Array of git commands
    */
   function generateGitCommands(prNumber, issueNumber, branchInfo) {
+    console.log("[github-pull] generateGitCommands called with:", {
+      prNumber,
+      issueNumber,
+      branchInfo,
+    });
     const { username, repo, branchName } = branchInfo;
 
-    return [
+    const commands = [
       `g co -b pr-${prNumber}_${issueNumber}`,
       `g co ${username}/${branchName}`,
       `g f ${username} ${branchName}`,
       `g remote add ${username} git@github.com:${username}/${repo}.git`,
     ];
+
+    console.log("[github-pull] Generated commands:", commands);
+    return commands;
   }
 
   /**
@@ -205,31 +264,56 @@
    * Handle git fetch commands button click
    */
   async function handleGitFetchCommands(button) {
+    console.log("[github-pull] handleGitFetchCommands called");
     const buttonText = button.textContent;
 
     // Extract branch information
+    console.log("[github-pull] Extracting branch information...");
     const branchInfo = extractBranchInfo();
     if (!branchInfo) {
+      console.error("[github-pull] Failed to extract branch information");
       notifyMessage("Error", "Could not find branch information on this page");
       return;
     }
 
+    console.log(
+      "[github-pull] Branch info extracted successfully:",
+      branchInfo
+    );
+
     // Ask user for issue number
+    console.log("[github-pull] Prompting user for issue number...");
     const issueNumber = prompt("Enter the issue number closed by this PR:");
+    console.log("[github-pull] User entered issue number:", issueNumber);
+
     if (!issueNumber) {
+      console.log("[github-pull] User cancelled or entered empty issue number");
       notifyMessage("Cancelled", "Git fetch commands generation cancelled");
       return;
     }
 
     // Generate commands
+    console.log(
+      "[github-pull] Generating commands with PR#:",
+      prNumber,
+      "Issue#:",
+      issueNumber
+    );
     const commands = generateGitCommands(prNumber, issueNumber, branchInfo);
 
     // Copy last command to clipboard (so it's ready to paste)
     const lastCommand = commands[commands.length - 1];
+    console.log(
+      "[github-pull] Copying last command to clipboard:",
+      lastCommand
+    );
     const success = await copyToClipboard(lastCommand);
+
+    console.log("[github-pull] Copy result:", success);
 
     if (success) {
       // Visual feedback on button
+      console.log("[github-pull] Successfully copied, updating button text");
       button.textContent = "Copied!";
       setTimeout(() => {
         button.textContent = buttonText;
@@ -239,11 +323,13 @@
       const commandsList = commands
         .map((cmd, i) => `${i + 1}. ${cmd}`)
         .join("\n");
+      console.log("[github-pull] Showing notification with commands list");
       notifyMessage(
         "Git Fetch Commands Ready",
         `Last command copied to clipboard. All commands:\n\n${commandsList}`
       );
     } else {
+      console.error("[github-pull] Failed to copy to clipboard");
       notifyMessage("Error", "Failed to copy commands to clipboard");
     }
   }
@@ -252,19 +338,26 @@
    * Initialize the git fetch commands button
    */
   function initializeGitFetchButton() {
+    console.log("[github-pull] initializeGitFetchButton called");
     // Check if button already exists
     if (document.getElementById(CONFIG.buttonId)) {
+      console.log("[github-pull] Button already exists, skipping creation");
       return;
     }
 
+    console.log("[github-pull] Creating git fetch commands button");
     // Create git fetch commands button
     const gitFetchButton = uiManager.addButton({
       id: CONFIG.buttonId,
       text: "Git Fetch Commands",
       title: "Copy git fetch commands to clipboard",
       className: "gh-git-fetch-commands-button",
-      onClick: () => handleGitFetchCommands(gitFetchButton),
+      onClick: () => {
+        console.log("[github-pull] Button clicked!");
+        handleGitFetchCommands(gitFetchButton);
+      },
     });
+    console.log("[github-pull] Button created:", gitFetchButton);
   }
 
   /**
