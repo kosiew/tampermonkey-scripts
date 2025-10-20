@@ -243,20 +243,33 @@
    * @param {Array<string>} commands - Array of commands to copy
    */
   async function copyCommandsSequentially(commands) {
+    console.log(
+      "[github-pull] copyCommandsSequentially called with",
+      commands.length,
+      "commands"
+    );
     for (let i = 0; i < commands.length; i++) {
       const command = commands[i];
+      console.log(
+        `[github-pull] Copying command ${i + 1}/${commands.length}:`,
+        command
+      );
       const success = await copyToClipboard(command);
 
       if (!success) {
+        console.error(`[github-pull] Failed to copy command ${i + 1}`);
         notifyMessage("Error", `Failed to copy command ${i + 1} to clipboard`);
         return false;
       }
 
+      console.log(`[github-pull] Command ${i + 1} copied successfully`);
+
       // Brief pause between copies to ensure clipboard updates
       if (i < commands.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 200));
       }
     }
+    console.log("[github-pull] All commands copied successfully");
     return true;
   }
 
@@ -301,13 +314,9 @@
     );
     const commands = generateGitCommands(prNumber, issueNumber, branchInfo);
 
-    // Copy last command to clipboard (so it's ready to paste)
-    const lastCommand = commands[commands.length - 1];
-    console.log(
-      "[github-pull] Copying last command to clipboard:",
-      lastCommand
-    );
-    const success = await copyToClipboard(lastCommand);
+    // Copy commands sequentially to clipboard
+    console.log("[github-pull] Copying commands sequentially...");
+    const success = await copyCommandsSequentially(commands);
 
     console.log("[github-pull] Copy result:", success);
 
@@ -325,8 +334,10 @@
         .join("\n");
       console.log("[github-pull] Showing notification with commands list");
       notifyMessage(
-        "Git Fetch Commands Ready",
-        `Last command copied to clipboard. All commands:\n\n${commandsList}`
+        "Git Fetch Commands Copied",
+        `All 4 commands have been copied sequentially. Last command in clipboard:\n\n${
+          commands[commands.length - 1]
+        }\n\nAll commands:\n${commandsList}`
       );
     } else {
       console.error("[github-pull] Failed to copy to clipboard");
