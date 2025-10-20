@@ -228,7 +228,7 @@
     const { username, repo, branchName } = branchInfo;
 
     const commands = [
-      `g co -b pr-${prNumber}_${issueNumber}`,
+      `gnb pr-${prNumber}_${issueNumber}`,
       `g co ${username}/${branchName}`,
       `g f ${username} ${branchName}`,
       `g remote add ${username} git@github.com:${username}/${repo}.git`,
