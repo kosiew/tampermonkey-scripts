@@ -146,11 +146,12 @@
     const waitFn = hasGlobalWait
       ? window.TampermonkeyUtils.waitForCondition
       : fallbackWaitForCondition;
+    const MAX_UTILS_WAIT_MS = 10000; // give utils up to 10s to load
     const utilsAvailable = utilsPresent
       ? await waitFn(
           () => !!window.TampermonkeyUtils.extractElementsContaining,
           200,
-          5000
+          MAX_UTILS_WAIT_MS
         )
       : false;
     let extractFn = null;
@@ -215,8 +216,14 @@
 
     // If not found, wait using polling wait function for up to MAX_FIND_WAIT_MS
     if (!matches || matches.length === 0) {
-      console.debug('Did not find "Weekly usage limit" quickly; waiting up to 10s for the element to appear.');
-      const foundWithinWait = await waitFn(() => findWeeklyUsage().length > 0, 200, MAX_FIND_WAIT_MS);
+      console.debug(
+        'Did not find "Weekly usage limit" quickly; waiting up to 10s for the element to appear.'
+      );
+      const foundWithinWait = await waitFn(
+        () => findWeeklyUsage().length > 0,
+        200,
+        MAX_FIND_WAIT_MS
+      );
       if (foundWithinWait) {
         matches = findWeeklyUsage();
       }
@@ -224,7 +231,9 @@
 
     // If still not found, observe DOM mutations to catch when the site inserts new content
     if (!matches || matches.length === 0) {
-      console.debug('Starting MutationObserver to catch dynamic insertion of "Weekly usage limit" for up to 10s');
+      console.debug(
+        'Starting MutationObserver to catch dynamic insertion of "Weekly usage limit" for up to 10s'
+      );
       matches = await new Promise((resolve) => {
         const timeout = setTimeout(() => {
           observer.disconnect();
