@@ -119,8 +119,35 @@
   async function main() {
     // Wait for utils to be present (our `tampermonkey-utils.js` should have created this)
     const utilsPresent = !!window.TampermonkeyUtils;
+    const hasGlobalWait =
+      utilsPresent &&
+      typeof window.TampermonkeyUtils.waitForCondition === "function";
+    // Local fallback wait function
+    const fallbackWaitForCondition = (
+      conditionFn,
+      interval = 200,
+      timeout = 5000
+    ) => {
+      return new Promise((resolve) => {
+        const start = Date.now();
+        const tick = () => {
+          try {
+            if (conditionFn()) return resolve(true);
+            if (Date.now() - start > timeout) return resolve(false);
+            setTimeout(tick, interval);
+          } catch (err) {
+            return resolve(false);
+          }
+        };
+        tick();
+      });
+    };
+
+    const waitFn = hasGlobalWait
+      ? window.TampermonkeyUtils.waitForCondition
+      : fallbackWaitForCondition;
     const utilsAvailable = utilsPresent
-      ? await window.TampermonkeyUtils.waitForCondition(
+      ? await waitFn(
           () => !!window.TampermonkeyUtils.extractElementsContaining,
           200,
           5000
