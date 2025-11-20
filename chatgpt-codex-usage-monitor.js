@@ -194,12 +194,57 @@
     }
 
     // Search for an element that contains "Weekly usage limit"
-    // Try a few selectors (article, section, div, or wildcard) to be resilient to markup changes
+    // Try a few selectors to be resilient to markup changes, and keep trying for up to 10s
     const triedSelectors = ["article", "section", "div", "*"];
-    let matches = [];
-    for (const s of triedSelectors) {
-      matches = extractFn("Weekly usage limit", { selector: s });
-      if (matches && matches.length) break;
+    const MAX_FIND_WAIT_MS = 10000; // per user request: try at least 10s
+
+    function findWeeklyUsage() {
+      for (const s of triedSelectors) {
+        try {
+          const res = extractFn("Weekly usage limit", { selector: s });
+          if (res && res.length) return res;
+        } catch (err) {
+          // swallow errors from extractFn calls
+        }
+      }
+      return [];
+    }
+
+    // Try immediate find first
+    let matches = findWeeklyUsage();
+
+    // If not found, wait using polling wait function for up to MAX_FIND_WAIT_MS
+    if (!matches || matches.length === 0) {
+      console.debug('Did not find "Weekly usage limit" quickly; waiting up to 10s for the element to appear.');
+      const foundWithinWait = await waitFn(() => findWeeklyUsage().length > 0, 200, MAX_FIND_WAIT_MS);
+      if (foundWithinWait) {
+        matches = findWeeklyUsage();
+      }
+    }
+
+    // If still not found, observe DOM mutations to catch when the site inserts new content
+    if (!matches || matches.length === 0) {
+      console.debug('Starting MutationObserver to catch dynamic insertion of "Weekly usage limit" for up to 10s');
+      matches = await new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          observer.disconnect();
+          resolve([]);
+        }, MAX_FIND_WAIT_MS);
+
+        const observer = new MutationObserver((mutations) => {
+          const found = findWeeklyUsage();
+          if (found && found.length) {
+            clearTimeout(timeout);
+            observer.disconnect();
+            resolve(found);
+          }
+        });
+
+        observer.observe(document.body || document.documentElement, {
+          childList: true,
+          subtree: true,
+        });
+      });
     }
 
     if (!matches || matches.length === 0) {
