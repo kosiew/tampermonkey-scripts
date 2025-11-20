@@ -15,7 +15,7 @@
   // Global flag: when true, the script will require `tampermonkey-utils.js` to be loaded
   // If the utils file is not present, the script will alert the user and abort.
   // If false, the script will fall back to local implementations when possible.
-  const REQUIRE_TAMPERMONKEY_UTILS = false;
+  const REQUIRE_TAMPERMONKEY_UTILS = true;
   // Allow overriding the constant by setting `window.REQUIRE_TAMPERMONKEY_UTILS = true|false` before the script runs
   const REQUIRE_UTILS =
     typeof window.REQUIRE_TAMPERMONKEY_UTILS === "boolean"
