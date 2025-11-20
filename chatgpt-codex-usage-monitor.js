@@ -101,18 +101,33 @@
     };
   }
 
-  // Add a small in-page widget to show the status
-  function showStatusWidget(text) {
-    const id = "tm-codex-usage-monitor-widget";
+  // Add a small in-page widget to show the status. Uses shared `TampermonkeyUtils.showStatusWidget` when available,
+  // otherwise falls back to a local implementation similar to the original.
+  function showStatusWidget(text, opts = {}) {
+    const optsWithId = { id: opts.id || 'tm-codex-usage-monitor-widget', ...opts };
+    if (window.TampermonkeyUtils && typeof window.TampermonkeyUtils.showStatusWidget === 'function') {
+      try {
+        window.TampermonkeyUtils.showStatusWidget(text, optsWithId);
+        return;
+      } catch (e) {
+        // fallthrough to local fallback
+      }
+    }
+
+    const id = optsWithId.id;
     let el = document.getElementById(id);
     if (!el) {
-      el = document.createElement("div");
+      el = document.createElement('div');
       el.id = id;
-      el.style.cssText =
-        "position:fixed;right:20px;bottom:80px;background:#0d1117;color:#fff;padding:10px 14px;border-radius:8px;z-index:99999;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:13px;";
+      el.style.cssText = `position:fixed;right:${optsWithId.position?.right || 20}px;bottom:${optsWithId.position?.bottom || 80}px;background:${optsWithId.background || '#0d1117'};color:${optsWithId.color || '#fff'};padding:10px 14px;border-radius:8px;z-index:99999;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:13px;`;
       document.body.appendChild(el);
     }
     el.textContent = text;
+    if (optsWithId.duration && optsWithId.duration > 0) {
+      setTimeout(() => {
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+      }, optsWithId.duration);
+    }
   }
 
   // The main action

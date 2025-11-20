@@ -151,6 +151,30 @@
         check();
       });
     },
+    // Add a small utility for displaying status messages on the page.
+    // options: { id, position: { right, bottom }, background, color, duration }
+    showStatusWidget: function showStatusWidget(text, options = {}) {
+      try {
+        const id = options.id || 'tm-status-widget';
+        let el = document.getElementById(id);
+        if (!el) {
+          el = document.createElement('div');
+          el.id = id;
+          el.style.cssText = `position:fixed;right:${options.position?.right || 20}px;bottom:${options.position?.bottom || 80}px;background:${options.background || '#0d1117'};color:${options.color || '#fff'};padding:10px 14px;border-radius:8px;z-index:99999;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:13px;`;
+          document.body.appendChild(el);
+        }
+        el.textContent = text;
+        // Optional auto-dismiss after duration ms
+        if (options.duration > 0) {
+          setTimeout(() => {
+            if (el && el.parentNode) el.parentNode.removeChild(el);
+          }, options.duration);
+        }
+      } catch (e) {
+        // Ignore failures - best effort display only
+        console.debug('showStatusWidget error', e);
+      }
+    }
   });
   // Keep the original name as an alias for backward compatibility
   window.TampermonkeyUtils.extractArticlesContaining =
@@ -178,3 +202,6 @@
 // Explicit CSS selector (highest precedence)
 // const matches5 = window.TampermonkeyUtils.extractElementsContaining('your phrase here', { selector: 'div.post > .body' });
 // console.log(matches5);
+
+// Example showing the status widget helper
+// window.TampermonkeyUtils.showStatusWidget('Hello world', { id: 'example-widget', duration: 5000, position: { right: 30, bottom: 80 } });
