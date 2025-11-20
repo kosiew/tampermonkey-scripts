@@ -19,22 +19,8 @@
   // metadata above (the raw GitHub URL is also present in the userscript header):
   // @require https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-utils.js
 
-  // Helper: wait for a condition to be true
-  function waitForCondition(conditionFn, interval = 200, timeout = 5000) {
-    return new Promise((resolve, reject) => {
-      const start = Date.now();
-      const check = () => {
-        try {
-          if (conditionFn()) return resolve(true);
-          if (Date.now() - start > timeout) return resolve(false);
-          setTimeout(check, interval);
-        } catch (err) {
-          return resolve(false);
-        }
-      };
-      check();
-    });
-  }
+  // NOTE: waitForCondition moved into `tampermonkey-utils.js` and is used via `TampermonkeyUtils.waitForCondition`.
+  // A fallback wrapper is available below to keep behavior if the shared util is not loaded for any reason.
 
   // Parse percent string (e.g., "66%" or "66 %") and return number 66
   function parsePercent(text) {
@@ -132,19 +118,28 @@
   // The main action
   async function main() {
     // Wait for utils to be present (our `tampermonkey-utils.js` should have created this)
-    const utilsAvailable = await waitForCondition(
-      () =>
-        !!window.TampermonkeyUtils &&
-        typeof window.TampermonkeyUtils.extractElementsContaining ===
-          "function",
-      200,
-      5000
-    );
+    const utilsPresent = !!window.TampermonkeyUtils;
+    const utilsAvailable = utilsPresent
+      ? await window.TampermonkeyUtils.waitForCondition(
+          () => !!window.TampermonkeyUtils.extractElementsContaining,
+          200,
+          5000
+        )
+      : false;
     let extractFn = null;
     if (utilsAvailable) {
       extractFn = window.TampermonkeyUtils.extractElementsContaining;
+    } else if (utilsPresent) {
+      // If utils were present but the specific function isn't, fallback to an available function
+      extractFn =
+        window.TampermonkeyUtils.extractElementsContaining ||
+        fallbackExtractElementsContaining;
+      if (extractFn === fallbackExtractElementsContaining)
+        console.warn(
+          "TampermonkeyUtils.extractElementsContaining not available; using fallback search."
+        );
     } else {
-      console.warn("TampermonkeyUtils not available; using fallback search.");
+      console.warn("TampermonkeyUtils not present; using fallback search.");
       extractFn = fallbackExtractElementsContaining;
     }
 

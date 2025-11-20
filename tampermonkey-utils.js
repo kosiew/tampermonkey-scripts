@@ -131,6 +131,26 @@
   Object.assign(window.TampermonkeyUtils, {
     extractElementsContaining,
     getTextNodeStrings,
+    // Add waiting helper
+    waitForCondition: function waitForCondition(
+      conditionFn,
+      interval = 200,
+      timeout = 5000
+    ) {
+      return new Promise((resolve, reject) => {
+        const start = Date.now();
+        const check = () => {
+          try {
+            if (conditionFn()) return resolve(true);
+            if (Date.now() - start > timeout) return resolve(false);
+            setTimeout(check, interval);
+          } catch (err) {
+            return resolve(false);
+          }
+        };
+        check();
+      });
+    },
   });
   // Keep the original name as an alias for backward compatibility
   window.TampermonkeyUtils.extractArticlesContaining =
