@@ -155,12 +155,18 @@
     // options: { id, position: { right, bottom }, background, color, duration }
     showStatusWidget: function showStatusWidget(text, options = {}) {
       try {
-        const id = options.id || 'tm-status-widget';
+        const id = options.id || "tm-status-widget";
         let el = document.getElementById(id);
         if (!el) {
-          el = document.createElement('div');
+          el = document.createElement("div");
           el.id = id;
-          el.style.cssText = `position:fixed;right:${options.position?.right || 20}px;bottom:${options.position?.bottom || 80}px;background:${options.background || '#0d1117'};color:${options.color || '#fff'};padding:10px 14px;border-radius:8px;z-index:99999;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:13px;`;
+          el.style.cssText = `position:fixed;right:${
+            options.position?.right || 20
+          }px;bottom:${options.position?.bottom || 80}px;background:${
+            options.background || "#0d1117"
+          };color:${
+            options.color || "#fff"
+          };padding:10px 14px;border-radius:8px;z-index:99999;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:13px;`;
           document.body.appendChild(el);
         }
         el.textContent = text;
@@ -172,9 +178,9 @@
         }
       } catch (e) {
         // Ignore failures - best effort display only
-        console.debug('showStatusWidget error', e);
+        console.debug("showStatusWidget error", e);
       }
-    }
+    },
   });
   // Keep the original name as an alias for backward compatibility
   window.TampermonkeyUtils.extractArticlesContaining =

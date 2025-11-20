@@ -12,6 +12,15 @@
 
 (function () {
   "use strict";
+  // Global flag: when true, the script will require `tampermonkey-utils.js` to be loaded
+  // If the utils file is not present, the script will alert the user and abort.
+  // If false, the script will fall back to local implementations when possible.
+  const REQUIRE_TAMPERMONKEY_UTILS = false;
+  // Allow overriding the constant by setting `window.REQUIRE_TAMPERMONKEY_UTILS = true|false` before the script runs
+  const REQUIRE_UTILS =
+    typeof window.REQUIRE_TAMPERMONKEY_UTILS === "boolean"
+      ? window.REQUIRE_TAMPERMONKEY_UTILS
+      : REQUIRE_TAMPERMONKEY_UTILS;
 
   // NOTE: This script optionally depends on `tampermonkey-utils.js` for shared utilities
   // (extractElementsContaining). A fallback search will be used if the utility library is
@@ -104,8 +113,14 @@
   // Add a small in-page widget to show the status. Uses shared `TampermonkeyUtils.showStatusWidget` when available,
   // otherwise falls back to a local implementation similar to the original.
   function showStatusWidget(text, opts = {}) {
-    const optsWithId = { id: opts.id || 'tm-codex-usage-monitor-widget', ...opts };
-    if (window.TampermonkeyUtils && typeof window.TampermonkeyUtils.showStatusWidget === 'function') {
+    const optsWithId = {
+      id: opts.id || "tm-codex-usage-monitor-widget",
+      ...opts,
+    };
+    if (
+      window.TampermonkeyUtils &&
+      typeof window.TampermonkeyUtils.showStatusWidget === "function"
+    ) {
       try {
         window.TampermonkeyUtils.showStatusWidget(text, optsWithId);
         return;
@@ -117,9 +132,15 @@
     const id = optsWithId.id;
     let el = document.getElementById(id);
     if (!el) {
-      el = document.createElement('div');
+      el = document.createElement("div");
       el.id = id;
-      el.style.cssText = `position:fixed;right:${optsWithId.position?.right || 20}px;bottom:${optsWithId.position?.bottom || 80}px;background:${optsWithId.background || '#0d1117'};color:${optsWithId.color || '#fff'};padding:10px 14px;border-radius:8px;z-index:99999;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:13px;`;
+      el.style.cssText = `position:fixed;right:${
+        optsWithId.position?.right || 20
+      }px;bottom:${optsWithId.position?.bottom || 80}px;background:${
+        optsWithId.background || "#0d1117"
+      };color:${
+        optsWithId.color || "#fff"
+      };padding:10px 14px;border-radius:8px;z-index:99999;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:13px;`;
       document.body.appendChild(el);
     }
     el.textContent = text;
@@ -169,6 +190,24 @@
           MAX_UTILS_WAIT_MS
         )
       : false;
+
+    // If the user requires the utils file to be present, abort with an alert if not loaded
+    if (REQUIRE_UTILS && !utilsAvailable) {
+      const alertMsg =
+        "This script requires tampermonkey-utils.js to be loaded. Please include it using `@require https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-utils.js` in the userscript header.";
+      console.error(alertMsg);
+      try {
+        showStatusWidget(alertMsg, { duration: 15000 });
+      } catch (e) {
+        /* ignore */
+      }
+      try {
+        alert(alertMsg);
+      } catch (e) {
+        /* ignore */
+      }
+      return;
+    }
     let extractFn = null;
     if (utilsAvailable) {
       extractFn = window.TampermonkeyUtils.extractElementsContaining;
