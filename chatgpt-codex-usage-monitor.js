@@ -45,8 +45,16 @@
     if (!m) return null;
     // Removing trailing/leading whitespace
     const dateStr = m[1].trim();
-    const d = new Date(dateStr);
+    // Try a natural date first
+    let d = new Date(dateStr);
     if (isNaN(d)) {
+      // If the text contains only a time (eg. "3:18 PM" or "15:18"), assume it's resetting today.
+      // We ignore the time portion for calculations, so return today's date at midnight.
+      const timeOnly = /^\d{1,2}(:\d{2})?(\s*[AaPp][Mm])?$/.test(dateStr);
+      if (timeOnly) {
+        const today = new Date();
+        return new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      }
       // Try to parse without time (ignore time as instructed)
       // Date constructor may be sensitive; return null on failure
       return null;
