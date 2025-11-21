@@ -4,7 +4,7 @@
 // @version      1.0
 // @description  Monitor for job completion on ChatGPT Codex by detecting when stop buttons disappear
 // @author       Siew Kam Onn
-// @match        https://chatgpt.com/codex*
+// @match        https://chatgpt.com/codex
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=chatgpt.com
 // @grant        GM.notification
 // ==/UserScript==
@@ -15,8 +15,8 @@
   console.log("==> ChatGPT Codex Job Monitor script started");
   const SECOND = 1000; // 1 second in milliseconds
   const CONFIG = {
-    checkInterval: 30 * SECOND, 
-    debounceDelay: 10 * SECOND  // Wait 2 seconds before confirming job completion
+    checkInterval: 30 * SECOND,
+    debounceDelay: 10 * SECOND, // Wait 2 seconds before confirming job completion
   };
 
   /**
@@ -43,7 +43,7 @@
      * @returns {boolean} True if job should be considered completed
      */
     isCompleted() {
-      return this.isActive && (Date.now() - this.lastSeen) > CONFIG.debounceDelay;
+      return this.isActive && Date.now() - this.lastSeen > CONFIG.debounceDelay;
     }
 
     /**
@@ -104,8 +104,10 @@
      */
     scanForJobs() {
       // Find all stop buttons currently on the page
-      const stopButtons = document.querySelectorAll('button[data-testid="stop-button"], button[aria-label="Cancel task"]');
-      
+      const stopButtons = document.querySelectorAll(
+        'button[data-testid="stop-button"], button[aria-label="Cancel task"]'
+      );
+
       console.log(`==> Found ${stopButtons.length} stop button(s)`);
 
       // Track which jobs are currently active
@@ -115,29 +117,39 @@
         const jobInfo = this.extractJobInfo(stopButton);
         if (jobInfo) {
           // Create a more stable job ID based on job name
-          const sanitizedJobName = jobInfo.jobName.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
+          const sanitizedJobName = jobInfo.jobName
+            .replace(/[^a-zA-Z0-9]/g, "_")
+            .substring(0, 30);
           const jobId = `job_${sanitizedJobName}_${jobInfo.jobName.length}`;
           currentJobIds.add(jobId);
 
           if (this.jobs.has(jobId)) {
             // Update existing job
             this.jobs.get(jobId).updateLastSeen();
-            console.log(`==> Updated existing job: "${jobInfo.jobName}" (ID: ${jobId})`);
+            console.log(
+              `==> Updated existing job: "${jobInfo.jobName}" (ID: ${jobId})`
+            );
           } else {
             // Create new job
             const job = new Job(stopButton, jobInfo.jobName, jobId);
             this.jobs.set(jobId, job);
-            console.log(`==> New job detected: "${jobInfo.jobName}" (ID: ${jobId})`);
+            console.log(
+              `==> New job detected: "${jobInfo.jobName}" (ID: ${jobId})`
+            );
           }
         } else {
-          console.log(`==> Could not extract job info for stop button ${index + 1}`);
+          console.log(
+            `==> Could not extract job info for stop button ${index + 1}`
+          );
         }
       });
 
       // Check for jobs whose stop buttons are no longer present
       for (const [jobId, job] of this.jobs) {
         if (!currentJobIds.has(jobId) && job.isActive) {
-          console.log(`==> Job stop button disappeared: "${job.jobName}" (ID: ${jobId})`);
+          console.log(
+            `==> Job stop button disappeared: "${job.jobName}" (ID: ${jobId})`
+          );
           // Don't update lastSeen here - let the debounce logic handle completion detection
         }
       }
@@ -151,12 +163,13 @@
     extractJobInfo(stopButton) {
       try {
         console.log("==> Extracting job info from stop button:", stopButton);
-        
+
         // Find the main job container (the div with grid layout)
-        const jobContainer = stopButton.closest('div[class*="grid"]') || 
-                            stopButton.closest('div[class*="border-b"]') ||
-                            stopButton.closest('div');
-        
+        const jobContainer =
+          stopButton.closest('div[class*="grid"]') ||
+          stopButton.closest('div[class*="border-b"]') ||
+          stopButton.closest("div");
+
         if (!jobContainer) {
           console.log("==> No job container found");
           return null;
@@ -166,30 +179,35 @@
 
         // Look for the job name in the specific structure
         // Pattern: .text-token-text-primary > div > .font-medium > span
-        let jobNameElement = jobContainer.querySelector('.text-token-text-primary .font-medium span');
-        
+        let jobNameElement = jobContainer.querySelector(
+          ".text-token-text-primary .font-medium span"
+        );
+
         if (!jobNameElement) {
           // Alternative patterns to try
-          jobNameElement = jobContainer.querySelector('.font-medium span') ||
-                          jobContainer.querySelector('.text-token-text-primary span') ||
-                          jobContainer.querySelector('div.font-medium span') ||
-                          jobContainer.querySelector('.truncate.font-medium span');
+          jobNameElement =
+            jobContainer.querySelector(".font-medium span") ||
+            jobContainer.querySelector(".text-token-text-primary span") ||
+            jobContainer.querySelector("div.font-medium span") ||
+            jobContainer.querySelector(".truncate.font-medium span");
         }
 
         if (!jobNameElement) {
           console.log("==> Trying broader search within job container");
           // Broader search - look for any span with meaningful text
-          const spans = jobContainer.querySelectorAll('span');
+          const spans = jobContainer.querySelectorAll("span");
           for (const span of spans) {
             const text = span.textContent.trim();
             // Look for spans that contain job-like text (avoid timestamps, repo names, etc.)
-            if (text.length > 5 && 
-                !text.includes('min ago') && 
-                !text.includes('·') &&
-                !text.includes('/') &&
-                !text.match(/^\d+/) &&
-                !text.includes('Running') &&
-                !text.includes('Cancel')) {
+            if (
+              text.length > 5 &&
+              !text.includes("min ago") &&
+              !text.includes("·") &&
+              !text.includes("/") &&
+              !text.match(/^\d+/) &&
+              !text.includes("Running") &&
+              !text.includes("Cancel")
+            ) {
               jobNameElement = span;
               console.log(`==> Found potential job name span: "${text}"`);
               break;
@@ -198,38 +216,45 @@
         }
 
         if (!jobNameElement) {
-          console.log("==> No job name element found, trying text node extraction");
+          console.log(
+            "==> No job name element found, trying text node extraction"
+          );
           // Last resort: extract meaningful text from the container
-          const allText = jobContainer.textContent || '';
-          const lines = allText.split('\n').map(line => line.trim()).filter(line => line);
-          
+          const allText = jobContainer.textContent || "";
+          const lines = allText
+            .split("\n")
+            .map((line) => line.trim())
+            .filter((line) => line);
+
           // Find the first line that looks like a job name
           for (const line of lines) {
-            if (line.length > 5 && 
-                !line.includes('min ago') && 
-                !line.includes('·') &&
-                !line.match(/^[\d\s]*$/) &&
-                !line.includes('Running') &&
-                !line.includes('Cancel')) {
+            if (
+              line.length > 5 &&
+              !line.includes("min ago") &&
+              !line.includes("·") &&
+              !line.match(/^[\d\s]*$/) &&
+              !line.includes("Running") &&
+              !line.includes("Cancel")
+            ) {
               console.log(`==> Extracted job name from text: "${line}"`);
               return {
                 jobName: line.substring(0, 100),
-                element: jobContainer
+                element: jobContainer,
               };
             }
           }
-          
+
           console.log("==> Could not extract job name");
           return null;
         }
 
         const jobName = jobNameElement.textContent.trim();
-        
+
         if (jobName && jobName.length > 0) {
           console.log(`==> Successfully extracted job name: "${jobName}"`);
           return {
             jobName: jobName,
-            element: jobNameElement
+            element: jobNameElement,
           };
         }
 
@@ -256,7 +281,7 @@
       );
 
       let node;
-      while (node = walker.nextNode()) {
+      while ((node = walker.nextNode())) {
         if (node.textContent.trim()) {
           textNodes.push(node);
         }
@@ -279,12 +304,14 @@
           job.markCompleted();
         } else if (job.isActive) {
           const timeSinceLastSeen = Date.now() - job.lastSeen;
-          console.log(`==> Job "${job.jobName}" still active, last seen ${timeSinceLastSeen}ms ago`);
+          console.log(
+            `==> Job "${job.jobName}" still active, last seen ${timeSinceLastSeen}ms ago`
+          );
         }
       }
 
       // Clean up old completed jobs (keep them for a while for debugging)
-      const cutoffTime = Date.now() - (5 * 60 * 1000); // 5 minutes
+      const cutoffTime = Date.now() - 5 * 60 * 1000; // 5 minutes
       for (const [jobId, job] of this.jobs) {
         if (!job.isActive && job.lastSeen < cutoffTime) {
           console.log(`==> Cleaning up old completed job: "${job.jobName}"`);
@@ -299,14 +326,14 @@
      */
     notifyJobCompleted(job) {
       const message = `Job completed: ${job.jobName}`;
-      
+
       console.log(`==> ${message}`);
 
       // Send GM notification
       GM.notification({
         title: "ChatGPT Codex Job Completed",
         text: job.jobName,
-        timeout: 5000
+        timeout: 5000,
       });
 
       // Optional: Add visual notification on the page
@@ -319,7 +346,7 @@
      */
     showPageNotification(jobName) {
       // Create a temporary notification element
-      const notification = document.createElement('div');
+      const notification = document.createElement("div");
       notification.style.cssText = `
         position: fixed;
         top: 20px;
@@ -343,7 +370,7 @@
       `;
 
       // Add slide-in animation
-      const style = document.createElement('style');
+      const style = document.createElement("style");
       style.textContent = `
         @keyframes slideIn {
           from { transform: translateX(100%); opacity: 0; }
@@ -356,7 +383,7 @@
 
       // Remove notification after 4 seconds
       setTimeout(() => {
-        notification.style.animation = 'slideIn 0.3s ease-out reverse';
+        notification.style.animation = "slideIn 0.3s ease-out reverse";
         setTimeout(() => {
           if (notification.parentNode) {
             notification.parentNode.removeChild(notification);
@@ -373,20 +400,24 @@
      * @returns {Object} Status information
      */
     getStatus() {
-      const activeJobs = Array.from(this.jobs.values()).filter(job => job.isActive);
-      const completedJobs = Array.from(this.jobs.values()).filter(job => !job.isActive);
+      const activeJobs = Array.from(this.jobs.values()).filter(
+        (job) => job.isActive
+      );
+      const completedJobs = Array.from(this.jobs.values()).filter(
+        (job) => !job.isActive
+      );
 
       return {
         isMonitoring: this.isMonitoring,
         activeJobs: activeJobs.length,
         completedJobs: completedJobs.length,
         totalJobs: this.jobs.size,
-        jobs: Array.from(this.jobs.values()).map(job => ({
+        jobs: Array.from(this.jobs.values()).map((job) => ({
           id: job.jobId,
           name: job.jobName,
           isActive: job.isActive,
-          lastSeen: new Date(job.lastSeen).toLocaleTimeString()
-        }))
+          lastSeen: new Date(job.lastSeen).toLocaleTimeString(),
+        })),
       };
     }
   }
@@ -402,7 +433,7 @@
     console.log("==> Current page URL:", window.location.href);
 
     // Check if we're on the right page
-    if (!window.location.href.includes('/codex')) {
+    if (!window.location.href.includes("/codex")) {
       console.log("==> Not on Codex page, monitoring not started");
       return;
     }
@@ -426,19 +457,21 @@
 
     // Add function to test job extraction on current stop buttons
     window.testJobExtraction = () => {
-      const stopButtons = document.querySelectorAll('button[data-testid="stop-button"], button[aria-label="Cancel task"]');
+      const stopButtons = document.querySelectorAll(
+        'button[data-testid="stop-button"], button[aria-label="Cancel task"]'
+      );
       console.log(`==> Found ${stopButtons.length} stop buttons for testing`);
-      
+
       stopButtons.forEach((button, index) => {
         console.log(`==> Testing button ${index + 1}:`, button);
         const jobInfo = jobMonitor.extractJobInfo(button);
         console.log(`==> Extracted job info:`, jobInfo);
       });
-      
+
       return Array.from(stopButtons).map((button, index) => ({
         buttonIndex: index + 1,
         button: button,
-        jobInfo: jobMonitor.extractJobInfo(button)
+        jobInfo: jobMonitor.extractJobInfo(button),
       }));
     };
 
@@ -453,10 +486,10 @@
    */
   function handlePageChange() {
     console.log("==> Page change detected");
-    
+
     // Stop current monitoring
     jobMonitor.stopMonitoring();
-    
+
     // Restart if on codex page
     setTimeout(() => {
       initializeScript();
@@ -483,10 +516,10 @@
   }).observe(document, { subtree: true, childList: true });
 
   // Also listen for popstate events
-  window.addEventListener('popstate', handlePageChange);
+  window.addEventListener("popstate", handlePageChange);
 
   // Cleanup on page unload
-  window.addEventListener('beforeunload', () => {
+  window.addEventListener("beforeunload", () => {
     jobMonitor.stopMonitoring();
   });
 })();
