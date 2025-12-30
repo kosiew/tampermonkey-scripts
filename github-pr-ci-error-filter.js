@@ -2,7 +2,7 @@
 // @name         GitHub PR CI Error Filter
 // @namespace    http://tampermonkey.net/
 // @version      1.0
-// @description  Adds a floating button to hide/show GitHub PRs with CI errors
+// @description  Adds a floating button to hide/show GitHub PRs with CI errors and Draft PRs
 // @author       You
 // @match        https://github.com/*/*/pulls*
 // @icon         https://github.githubassets.com/favicons/favicon.svg
@@ -22,8 +22,11 @@
     storageKey: "github-pr-hide-ci-errors",
     selectors: {
       prList: ".js-issue-row",
-      errorIndicator: ".octicon-x"
-    }
+      // More specific selector for CI error status
+      errorIndicator: ".color-fg-danger .octicon-x",
+      // Selector for merge status links (we'll check text content)
+      mergeStatusLink: 'a.Link--muted[href*="#partial-pull-merging"]',
+    },
   };
 
   /**
@@ -35,7 +38,7 @@
       this.options = {
         containerClass: "tm-scripts-container",
         containerParent: ".Header",
-        ...options
+        ...options,
       };
     }
 
@@ -98,17 +101,17 @@
     // Add button
     const button = uiManager.addButton({
       id: CONFIG.buttonId,
-      text: shouldHide ? "Show CI Errors" : "Hide CI Errors",
-      title: "Toggle visibility of PRs with CI errors",
+      text: shouldHide ? "Show CI/Draft" : "Hide CI/Draft",
+      title: "Toggle visibility of PRs with CI errors and Draft PRs",
       onClick: toggleErrorPRs,
-      active: shouldHide
+      active: shouldHide,
     });
 
     // Apply hiding if needed
     if (shouldHide) {
       const allPRs = document.querySelectorAll(CONFIG.selectors.prList);
       allPRs.forEach((pr) => {
-        if (hasCIErrors(pr)) {
+        if (shouldHidePR(pr)) {
           pr.classList.add(CONFIG.hiddenClass);
         }
       });
@@ -125,7 +128,7 @@
                 node.nodeType === 1 &&
                 node.matches(CONFIG.selectors.prList)
               ) {
-                if (hasCIErrors(node)) {
+                if (shouldHidePR(node)) {
                   node.classList.add(CONFIG.hiddenClass);
                 }
               }
@@ -154,7 +157,28 @@
   }
 
   /**
-   * Toggles the visibility of PRs with CI errors
+   * Checks if a PR is a draft
+   * @param {HTMLElement} prElement - The PR element to check
+   * @returns {boolean} True if the PR is a draft
+   */
+  function isDraft(prElement) {
+    const mergeStatusLink = prElement.querySelector(
+      CONFIG.selectors.mergeStatusLink
+    );
+    return mergeStatusLink && mergeStatusLink.textContent.trim() === "Draft";
+  }
+
+  /**
+   * Checks if a PR should be hidden (has CI errors or is a draft)
+   * @param {HTMLElement} prElement - The PR element to check
+   * @returns {boolean} True if the PR should be hidden
+   */
+  function shouldHidePR(prElement) {
+    return hasCIErrors(prElement) || isDraft(prElement);
+  }
+
+  /**
+   * Toggles the visibility of PRs with CI errors and Draft PRs
    * @returns {void}
    */
   function toggleErrorPRs() {
@@ -164,18 +188,22 @@
 
       // Update button state
       button.classList.toggle("active");
-      button.textContent = isHiding ? "Show CI Errors" : "Hide CI Errors";
+      button.textContent = isHiding ? "Show CI/Draft" : "Hide CI/Draft";
 
       // Find all PRs
       const allPRs = document.querySelectorAll(CONFIG.selectors.prList);
 
-      let hiddenCount = 0;
+      let ciErrorCount = 0;
+      let draftCount = 0;
 
-      // Toggle visibility for PRs with errors
+      // Toggle visibility for PRs with errors or drafts
       allPRs.forEach((pr) => {
-        if (hasCIErrors(pr)) {
+        if (shouldHidePR(pr)) {
           pr.classList.toggle(CONFIG.hiddenClass, isHiding);
-          if (isHiding) hiddenCount++;
+          if (isHiding) {
+            if (hasCIErrors(pr)) ciErrorCount++;
+            if (isDraft(pr)) draftCount++;
+          }
         }
       });
 
@@ -184,9 +212,17 @@
 
       // Show feedback
       if (isHiding) {
-        const message = `${hiddenCount} PR${
-          hiddenCount !== 1 ? "s" : ""
-        } with CI errors hidden`;
+        const parts = [];
+        if (ciErrorCount > 0) {
+          parts.push(
+            `${ciErrorCount} CI error${ciErrorCount !== 1 ? "s" : ""}`
+          );
+        }
+        if (draftCount > 0) {
+          parts.push(`${draftCount} draft${draftCount !== 1 ? "s" : ""}`);
+        }
+        const message =
+          parts.length > 0 ? `Hidden: ${parts.join(", ")}` : "No PRs to hide";
 
         uiManager.showFeedback(message);
       }
