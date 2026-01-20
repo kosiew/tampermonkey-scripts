@@ -135,19 +135,26 @@
       const diff = expected - actual;
       const absDiff = Math.abs(diff).toFixed(2);
 
+      // Calculate days equivalent
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const daysEquivalent = ((Math.abs(diff) / 100) * daysInMonth).toFixed(2);
+
       if (diff >= 0) {
         // We are using less than expected (excess available)
-        showUsageAlert(`Surplus: ${absDiff}%`, true);
+        showUsageAlert(`Surplus: ${absDiff}% (${daysEquivalent} days)`, true);
       } else {
         // We are using more than expected (deficit)
-        showUsageAlert(`Deficit: ${absDiff}%`, false);
+        showUsageAlert(`Deficit: ${absDiff}% (${daysEquivalent} days)`, false);
       }
 
       // In-page optional notification (preferred to GM_notification)
       showStatusWidget(
         diff >= 0
-          ? `Copilot: used ${absDiff}% less than expected month-to-date.`
-          : `Copilot: used ${absDiff}% more than expected month-to-date.`,
+          ? `Copilot: used ${absDiff}% less than expected month-to-date (${daysEquivalent} days).`
+          : `Copilot: used ${absDiff}% more than expected month-to-date (${daysEquivalent} days).`,
         { duration: 5000 }
       );
     } catch (err) {
