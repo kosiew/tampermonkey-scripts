@@ -376,7 +376,7 @@
 
     const message = `${sign}: ${
       result.status === "surplus" ? "+" : "-"
-    }${dailyDiffAbs} day. Days remaining: ${result.daysRemaining}, used: ${result.usedPercent}%`;
+    }${dailyDiffAbs} ${Number(dailyDiffAbs) >= 2 ? "days" : "day"}. Days remaining: ${result.daysRemaining}, used: ${result.usedPercent}%`;
 
     console.log("[Codex Usage]", message, result);
     showStatusWidget(message);
