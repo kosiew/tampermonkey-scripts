@@ -81,7 +81,7 @@
     const todayMid = new Date(
       today.getFullYear(),
       today.getMonth(),
-      today.getDate()
+      today.getDate(),
     );
     const daysRemaining = daysBetweenIgnoreTime(todayMid, resetDate);
 
@@ -170,7 +170,7 @@
     const fallbackWaitForCondition = (
       conditionFn,
       interval = 200,
-      timeout = 5000
+      timeout = 5000,
     ) => {
       return new Promise((resolve) => {
         const start = Date.now();
@@ -195,7 +195,7 @@
       ? await waitFn(
           () => !!window.TampermonkeyUtils.extractElementsContaining,
           200,
-          MAX_UTILS_WAIT_MS
+          MAX_UTILS_WAIT_MS,
         )
       : false;
 
@@ -226,7 +226,7 @@
         fallbackExtractElementsContaining;
       if (extractFn === fallbackExtractElementsContaining)
         console.warn(
-          "TampermonkeyUtils.extractElementsContaining not available; using fallback search."
+          "TampermonkeyUtils.extractElementsContaining not available; using fallback search.",
         );
     } else {
       console.warn("TampermonkeyUtils not present; using fallback search.");
@@ -238,7 +238,7 @@
       const results = [];
       try {
         const nodes = document.querySelectorAll(
-          selector || "article, section, div"
+          selector || "article, section, div",
         );
         nodes.forEach((n) => {
           const text = n.textContent || "";
@@ -279,12 +279,12 @@
     // If not found, wait using polling wait function for up to MAX_FIND_WAIT_MS
     if (!matches || matches.length === 0) {
       console.debug(
-        'Did not find "Weekly usage limit" quickly; waiting up to 10s for the element to appear.'
+        'Did not find "Weekly usage limit" quickly; waiting up to 10s for the element to appear.',
       );
       const foundWithinWait = await waitFn(
         () => findWeeklyUsage().length > 0,
         200,
-        MAX_FIND_WAIT_MS
+        MAX_FIND_WAIT_MS,
       );
       if (foundWithinWait) {
         matches = findWeeklyUsage();
@@ -294,7 +294,7 @@
     // If still not found, observe DOM mutations to catch when the site inserts new content
     if (!matches || matches.length === 0) {
       console.debug(
-        'Starting MutationObserver to catch dynamic insertion of "Weekly usage limit" for up to 10s'
+        'Starting MutationObserver to catch dynamic insertion of "Weekly usage limit" for up to 10s',
       );
       matches = await new Promise((resolve) => {
         const timeout = setTimeout(() => {
@@ -365,7 +365,7 @@
     const result = computeSurplusOrDeficit(remainingPercent, resetDate);
     if (!result || !result.ok) {
       showStatusWidget(
-        "Codex Usage: cannot compute — reset day is today or in the past"
+        "Codex Usage: cannot compute — reset day is today or in the past",
       );
       console.info("Compute result:", result);
       return;
@@ -376,8 +376,7 @@
 
     const message = `${sign}: ${
       result.status === "surplus" ? "+" : "-"
-    }${dailyDiffAbs}% (daily)
-Days remaining: ${result.daysRemaining}, used: ${result.usedPercent}%`;
+    }${dailyDiffAbs} day. Days remaining: ${result.daysRemaining}, used: ${result.usedPercent}%`;
 
     console.log("[Codex Usage]", message, result);
     showStatusWidget(message);
