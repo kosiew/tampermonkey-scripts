@@ -60,7 +60,7 @@
    */
   function showUsageAlert(message, isExcess) {
     const container = document.querySelector(
-      "#copilot-overages-usage > div > div"
+      "#copilot-overages-usage > div > div",
     );
     if (!container) return;
 
@@ -123,7 +123,7 @@
   function checkCopilotUsage() {
     try {
       const usageEl = document.querySelector(
-        "#copilot-overages-usage > div > div > div"
+        "#copilot-overages-usage > div > div > div",
       );
       if (!usageEl) return;
 
@@ -155,7 +155,7 @@
         diff >= 0
           ? `Copilot: used ${absDiff}% less than expected month-to-date (${daysEquivalent} days).`
           : `Copilot: used ${absDiff}% more than expected month-to-date (${daysEquivalent} days).`,
-        { duration: 5000 }
+        { duration: 5000 },
       );
     } catch (err) {
       console.error("Copilot Usage Alert error:", err);
