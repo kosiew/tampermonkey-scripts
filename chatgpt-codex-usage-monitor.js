@@ -18,12 +18,17 @@
   const REQUIRE_TAMPERMONKEY_UTILS = true;
   // Allow overriding the constant by setting `window.REQUIRE_TAMPERMONKEY_UTILS = true|false` before the script runs
   const REQUIRE_UTILS =
-    (typeof window !== "undefined" && typeof window.REQUIRE_TAMPERMONKEY_UTILS === "boolean")
+    typeof window !== "undefined" &&
+    typeof window.REQUIRE_TAMPERMONKEY_UTILS === "boolean"
       ? window.REQUIRE_TAMPERMONKEY_UTILS
       : REQUIRE_TAMPERMONKEY_UTILS;
 
   // Whether to show the equivalent buffer in days (can be overridden via `window.SHOW_EQUIVALENT_BUFFER = true|false`)
   const SHOW_EQUIVALENT_BUFFER = true;
+
+  // Standard average daily quota (percent per day) = 100% over 7 days
+  // Can be overridden via `window.QUOTA_PER_DAY = <number>` if desired
+  const QUOTA_PER_DAY = 100 / 7;
 
   // NOTE: This script optionally depends on `tampermonkey-utils.js` for shared utilities
   // (extractElementsContaining). A fallback search will be used if the utility library is
@@ -75,8 +80,13 @@
   }
 
   // Compute surplus/deficit
-  // Accept optional `todayParam` to make function testable and deterministic.
-  function computeSurplusOrDeficit(remainingPercent, resetDate, todayParam) {
+  // Accept optional `todayParam` to make function testable and deterministic. Also accepts optional `quotaPerDayParam`.
+  function computeSurplusOrDeficit(
+    remainingPercent,
+    resetDate,
+    todayParam,
+    quotaPerDayParam,
+  ) {
     if (remainingPercent == null || !resetDate) return null;
 
     // Use a 7-day week
@@ -113,9 +123,22 @@
     // - `equivalentDaysTotal` = how many days the remaining percent can sustain current average usage
     // - `equivalentBufferDays` = equivalentDaysTotal - daysRemaining (positive means extra days beyond reset)
     const equivalentDaysTotal =
-      averageUsedPerDaySoFar > 0 ? remainingPercent / averageUsedPerDaySoFar : null;
+      averageUsedPerDaySoFar > 0
+        ? remainingPercent / averageUsedPerDaySoFar
+        : null;
     const equivalentBufferDays =
       equivalentDaysTotal != null ? equivalentDaysTotal - daysRemaining : null;
+
+    // Quota-based calculations: allow override, otherwise use configured QUOTA_PER_DAY
+    const quotaPerDay =
+      typeof quotaPerDayParam === "number"
+        ? quotaPerDayParam
+        : typeof window !== "undefined" &&
+            typeof window.QUOTA_PER_DAY === "number"
+          ? window.QUOTA_PER_DAY
+          : QUOTA_PER_DAY;
+    const daysFromQuota =
+      quotaPerDay > 0 ? remainingPercent / quotaPerDay : null;
 
     return {
       ok: true,
@@ -128,6 +151,8 @@
       dailyDiff,
       equivalentDaysTotal,
       equivalentBufferDays,
+      quotaPerDay,
+      daysFromQuota,
       status: dailyDiff >= 0 ? "surplus" : "deficit",
     };
   }
@@ -395,7 +420,8 @@
 
     // Determine whether to include our equivalent-days buffer info (override via `window.SHOW_EQUIVALENT_BUFFER`)
     const showEquivalent =
-      typeof window !== "undefined" && typeof window.SHOW_EQUIVALENT_BUFFER === "boolean"
+      typeof window !== "undefined" &&
+      typeof window.SHOW_EQUIVALENT_BUFFER === "boolean"
         ? window.SHOW_EQUIVALENT_BUFFER
         : SHOW_EQUIVALENT_BUFFER;
 
@@ -405,7 +431,9 @@
       const equivTotal =
         result.equivalentDaysTotal != null ? result.equivalentDaysTotal : null;
       const equivBuffer =
-        result.equivalentBufferDays != null ? result.equivalentBufferDays : null;
+        result.equivalentBufferDays != null
+          ? result.equivalentBufferDays
+          : null;
 
       if (equivTotal != null && equivBuffer != null) {
         const totalStr = `${equivTotal.toFixed(2)} day${Math.abs(equivTotal) === 1 ? "" : "s"}`;
@@ -414,6 +442,15 @@
         message += ` — Would last ~${totalStr} at current usage (≈${bufferStr} beyond reset)`;
       } else {
         message += ` — Equivalent buffer: N/A`;
+      }
+
+      // Quota-based days using standard quota (100/7 % per day); override via `window.QUOTA_PER_DAY`
+      if (result.daysFromQuota != null && result.quotaPerDay != null) {
+        const quotaDaysStr = `${result.daysFromQuota.toFixed(2)} day${Math.abs(result.daysFromQuota) === 1 ? "" : "s"}`;
+        const quotaRateStr = `${result.quotaPerDay.toFixed(2)}%/day`;
+        message += `; Based on standard quota (${quotaRateStr}) this is ~${quotaDaysStr}`;
+      } else {
+        message += `; Quota-based days: N/A`;
       }
     }
 
