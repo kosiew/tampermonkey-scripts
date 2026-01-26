@@ -140,6 +140,9 @@
     const daysFromQuota =
       quotaPerDay > 0 ? remainingPercent / quotaPerDay : null;
 
+    const quotaBufferDays =
+      daysFromQuota != null ? daysFromQuota - daysRemaining : null;
+
     return {
       ok: true,
       daysRemaining,
@@ -153,6 +156,7 @@
       equivalentBufferDays,
       quotaPerDay,
       daysFromQuota,
+      quotaBufferDays,
       status: dailyDiff >= 0 ? "surplus" : "deficit",
     };
   }
@@ -410,9 +414,9 @@
       return;
     }
 
-    // Simplified widget: show only the surplus/deficit equivalent in days
+    // Simplified widget: show only the quota-based surplus/deficit in days
     const sign = result.status === "surplus" ? "✅ Surplus" : "⚠️ Deficit";
-    const buffer = result.equivalentBufferDays;
+    const buffer = result.quotaBufferDays;
 
     let message;
     if (buffer == null) {

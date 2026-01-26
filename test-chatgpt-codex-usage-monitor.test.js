@@ -25,6 +25,8 @@ function approxEqual(actual, expected, tol = 1e-2) {
   // quota-based days: quota ~= 100/7 %/day -> daysFromQuota = remaining / (100/7) = remaining * 7 / 100
   assert(approxEqual(r.quotaPerDay, 100 / 7));
   assert(approxEqual(r.daysFromQuota, (56 * 7) / 100));
+  // quota-based buffer = daysFromQuota - daysRemaining (3)
+  assert(approxEqual(r.quotaBufferDays, (56 * 7) / 100 - 3));
   console.log("testExampleSurplus passed");
 })();
 
