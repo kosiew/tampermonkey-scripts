@@ -18,9 +18,12 @@
   const REQUIRE_TAMPERMONKEY_UTILS = true;
   // Allow overriding the constant by setting `window.REQUIRE_TAMPERMONKEY_UTILS = true|false` before the script runs
   const REQUIRE_UTILS =
-    typeof window.REQUIRE_TAMPERMONKEY_UTILS === "boolean"
+    (typeof window !== "undefined" && typeof window.REQUIRE_TAMPERMONKEY_UTILS === "boolean")
       ? window.REQUIRE_TAMPERMONKEY_UTILS
       : REQUIRE_TAMPERMONKEY_UTILS;
+
+  // Whether to show the equivalent buffer in days (can be overridden via `window.SHOW_EQUIVALENT_BUFFER = true|false`)
+  const SHOW_EQUIVALENT_BUFFER = true;
 
   // NOTE: This script optionally depends on `tampermonkey-utils.js` for shared utilities
   // (extractElementsContaining). A fallback search will be used if the utility library is
@@ -72,12 +75,13 @@
   }
 
   // Compute surplus/deficit
-  function computeSurplusOrDeficit(remainingPercent, resetDate) {
+  // Accept optional `todayParam` to make function testable and deterministic.
+  function computeSurplusOrDeficit(remainingPercent, resetDate, todayParam) {
     if (remainingPercent == null || !resetDate) return null;
 
     // Use a 7-day week
     const totalDays = 7;
-    const today = new Date();
+    const today = todayParam || new Date();
     const todayMid = new Date(
       today.getFullYear(),
       today.getMonth(),
@@ -105,6 +109,14 @@
 
     const dailyDiff = remainingAveragePerDay - averageUsedPerDaySoFar;
 
+    // Compute an intuitive "equivalent days" measure:
+    // - `equivalentDaysTotal` = how many days the remaining percent can sustain current average usage
+    // - `equivalentBufferDays` = equivalentDaysTotal - daysRemaining (positive means extra days beyond reset)
+    const equivalentDaysTotal =
+      averageUsedPerDaySoFar > 0 ? remainingPercent / averageUsedPerDaySoFar : null;
+    const equivalentBufferDays =
+      equivalentDaysTotal != null ? equivalentDaysTotal - daysRemaining : null;
+
     return {
       ok: true,
       daysRemaining,
@@ -114,6 +126,8 @@
       averageUsedPerDaySoFar,
       remainingAveragePerDay,
       dailyDiff,
+      equivalentDaysTotal,
+      equivalentBufferDays,
       status: dailyDiff >= 0 ? "surplus" : "deficit",
     };
   }
@@ -374,21 +388,58 @@
     const sign = result.status === "surplus" ? "✅ Surplus" : "⚠️ Deficit";
     const dailyDiffAbs = Math.abs(result.dailyDiff).toFixed(2);
 
-    const message = `${sign}: ${
-      result.status === "surplus" ? "+" : "-"
-    }${dailyDiffAbs} ${Number(dailyDiffAbs) >= 2 ? "days" : "day"}. Days remaining: ${result.daysRemaining}, used: ${result.usedPercent}%`;
+    // Note: `dailyDiff` is measured in percentage points per day (e.g., 7.67 means 7.67%/day).
+    // Previously the code displayed this value as "days", which produced impossible results
+    // like "+7.67 days". Display the correct unit (%/day) and include the raw result in the console.
+    const unit = "%/day";
+
+    // Determine whether to include our equivalent-days buffer info (override via `window.SHOW_EQUIVALENT_BUFFER`)
+    const showEquivalent =
+      typeof window !== "undefined" && typeof window.SHOW_EQUIVALENT_BUFFER === "boolean"
+        ? window.SHOW_EQUIVALENT_BUFFER
+        : SHOW_EQUIVALENT_BUFFER;
+
+    let message = `${sign}: ${result.status === "surplus" ? "+" : "-"}${dailyDiffAbs}${unit}. Days remaining: ${result.daysRemaining}, used: ${result.usedPercent}%`;
+
+    if (showEquivalent) {
+      const equivTotal =
+        result.equivalentDaysTotal != null ? result.equivalentDaysTotal : null;
+      const equivBuffer =
+        result.equivalentBufferDays != null ? result.equivalentBufferDays : null;
+
+      if (equivTotal != null && equivBuffer != null) {
+        const totalStr = `${equivTotal.toFixed(2)} day${Math.abs(equivTotal) === 1 ? "" : "s"}`;
+        const bufferSign = equivBuffer >= 0 ? "+" : "-";
+        const bufferStr = `${bufferSign}${Math.abs(equivBuffer).toFixed(2)} day${Math.abs(equivBuffer) === 1 ? "" : "s"}`;
+        message += ` — Would last ~${totalStr} at current usage (≈${bufferStr} beyond reset)`;
+      } else {
+        message += ` — Equivalent buffer: N/A`;
+      }
+    }
 
     console.log("[Codex Usage]", message, result);
     showStatusWidget(message);
   }
 
-  // Run main once DOM is loaded
-  if (
-    document.readyState === "complete" ||
-    document.readyState === "interactive"
-  ) {
-    main();
-  } else {
-    document.addEventListener("DOMContentLoaded", main);
+  // Run main once DOM is loaded (guard for non-browser environments like Node)
+  if (typeof document !== "undefined") {
+    if (
+      document.readyState === "complete" ||
+      document.readyState === "interactive"
+    ) {
+      main();
+    } else {
+      document.addEventListener("DOMContentLoaded", main);
+    }
+  }
+
+  // Export functions for Node-based tests (when running under Node)
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = {
+      computeSurplusOrDeficit,
+      parsePercent,
+      parseResetDate,
+      daysBetweenIgnoreTime,
+    };
   }
 })();
