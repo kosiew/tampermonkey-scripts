@@ -53,21 +53,52 @@
     if (!m) return null;
     // Removing trailing/leading whitespace
     const dateStr = m[1].trim();
-    // Try a natural date first
+
+    // If the string is time-only (eg. "3:18 PM" or "15:18"), parse the time and return today's date at that time
+    const timeOnlyRe = /^(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])?$/;
+    const timeOnlyMatch = dateStr.match(timeOnlyRe);
+    if (timeOnlyMatch) {
+      const today = new Date();
+      let hours = parseInt(timeOnlyMatch[1], 10);
+      const minutes = timeOnlyMatch[2] ? parseInt(timeOnlyMatch[2], 10) : 0;
+      const ampm = timeOnlyMatch[3];
+      if (ampm) {
+        if (/pm/i.test(ampm) && hours !== 12) hours += 12;
+        if (/am/i.test(ampm) && hours === 12) hours = 0;
+      }
+      return new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate(),
+        hours,
+        minutes,
+        0,
+        0,
+      );
+    }
+
+    // Try a natural date next
     let d = new Date(dateStr);
     if (isNaN(d)) {
-      // If the text contains only a time (eg. "3:18 PM" or "15:18"), assume it's resetting today.
-      // We ignore the time portion for calculations, so return today's date at midnight.
-      const timeOnly = /^\d{1,2}(:\d{2})?(\s*[AaPp][Mm])?$/.test(dateStr);
-      if (timeOnly) {
-        const today = new Date();
-        return new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      }
-      // Try to parse without time (ignore time as instructed)
-      // Date constructor may be sensitive; return null on failure
+      // Try to parse without time (fail gracefully)
       return null;
     }
-    // Ignore time portion per requirements - set to midnight local
+
+    // If the parsed string included an explicit time ("3:18 PM" or contains ':' or AM/PM), preserve it.
+    const hasTimePart = /(:\d{2})|([AaPp][Mm])/.test(dateStr);
+    if (hasTimePart) {
+      return new Date(
+        d.getFullYear(),
+        d.getMonth(),
+        d.getDate(),
+        d.getHours(),
+        d.getMinutes(),
+        d.getSeconds(),
+        0,
+      );
+    }
+
+    // Otherwise return midnight local for the parsed date
     return new Date(d.getFullYear(), d.getMonth(), d.getDate());
   }
 
@@ -91,16 +122,13 @@
 
     // Use a 7-day week
     const totalDays = 7;
-    const today = todayParam || new Date();
-    const todayMid = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate(),
-    );
-    const daysRemaining = daysBetweenIgnoreTime(todayMid, resetDate);
+    const now = todayParam || new Date();
+    const msPerDay = 24 * 60 * 60 * 1000;
+    // Compute fractional days remaining (can be <1 when reset is later today)
+    const daysRemaining = (resetDate.getTime() - now.getTime()) / msPerDay;
 
     if (daysRemaining <= 0) {
-      // If reset day is today or in the past, we can't compute effective remaining days.
+      // If reset time is now or in the past, we can't compute effective remaining days.
       return {
         ok: false,
         reason: "reset_today_or_past",

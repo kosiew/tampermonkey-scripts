@@ -59,4 +59,15 @@ function approxEqual(actual, expected, tol = 1e-2) {
   console.log("testDeficit passed");
 })();
 
+// Test 4: time-only reset later today -> fractional daysRemaining
+(function testTimeOnlyResetFractional() {
+  const today = new Date(2026, 0, 1, 4, 0); // Jan 1, 04:00
+  const resetDate = new Date(2026, 0, 1, 12, 0); // Jan 1, 12:00 -> 8 hours -> 0.33333 days
+  const remaining = 50;
+  const r = computeSurplusOrDeficit(remaining, resetDate, today);
+  assert(r && r.ok, "Result should be ok");
+  assert(approxEqual(r.daysRemaining, 8 / 24));
+  console.log("testTimeOnlyResetFractional passed");
+})();
+
 console.log("All tests passed");
