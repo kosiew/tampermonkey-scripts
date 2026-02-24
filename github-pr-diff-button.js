@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitHub PR Diff Button
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  Adds a button to view PR diff in new tab
 // @author       Siew Kam Onn
 // @match        https://github.com/*/pull/*
@@ -17,8 +17,12 @@
    * @returns {void}
    */
   function addDiffButton() {
+    console.log("[PR Diff] addDiffButton running");
     // avoid adding the button twice
-    if (document.querySelector(".diff-view-button")) return;
+    if (document.querySelector(".diff-view-button")) {
+      console.log("[PR Diff] button already present, skipping");
+      return;
+    }
 
     // helper to build the button
     const createButton = () => {
@@ -34,7 +38,10 @@
           const basePrUrl = match ? match[0] : currentUrl;
           GM.openInTab(`${basePrUrl}.diff`, true);
         } catch (error) {
-          console.error("GitHub PR Diff Button: Error opening diff view", error);
+          console.error(
+            "GitHub PR Diff Button: Error opening diff view",
+            error,
+          );
           GM.openInTab(`${window.location.href}.diff`, true);
         }
       };
@@ -44,25 +51,40 @@
     // try to locate the repository "Code" clone/dropdown button
     let container = null;
     const codeButton = document.querySelector(
-      "get-repo details summary span.Button-content span.Button-label"
+      "get-repo details summary span.Button-content span.Button-label",
     );
     if (codeButton && codeButton.textContent === "Code") {
       container = codeButton.closest("get-repo")?.parentElement || null;
+      console.log("[PR Diff] found code button container", container);
     }
 
     // if we didn't find it (e.g. on PR pages the clone box isn't shown),
     // fall back to adding the button near the PR header/title area
     if (!container) {
-      // GitHub uses `.gh-header-actions` for the action buttons on PRs
-      container = document.querySelector(".gh-header-actions");
-      if (!container) {
+      const headerActions = document.querySelector(".gh-header-actions");
+      console.log("[PR Diff] gh-header-actions element", headerActions);
+      if (headerActions) {
+        container = headerActions;
+      } else {
         // last resort: put it next to the title
         const title = document.querySelector(".js-issue-title");
+        console.log("[PR Diff] title element", title);
         container = title ? title.parentElement : null;
       }
     }
 
-    if (!container) return;
+    if (!container) {
+      console.warn(
+        "[PR Diff] no container found, falling back to fixed-position button",
+      );
+      const floatBtn = createButton();
+      floatBtn.style.position = "fixed";
+      floatBtn.style.top = "10px";
+      floatBtn.style.right = "10px";
+      floatBtn.style.zIndex = 9999;
+      document.body.appendChild(floatBtn);
+      return;
+    }
 
     const diffButton = createButton();
     container.appendChild(diffButton);
@@ -76,7 +98,7 @@
   // Initial setup
   observer.observe(document.body, {
     childList: true,
-    subtree: true
+    subtree: true,
   });
 
   // Run on page load
