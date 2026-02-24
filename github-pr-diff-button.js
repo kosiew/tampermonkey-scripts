@@ -17,40 +17,54 @@
    * @returns {void}
    */
   function addDiffButton() {
-    // Find the Code button
+    // avoid adding the button twice
+    if (document.querySelector(".diff-view-button")) return;
+
+    // helper to build the button
+    const createButton = () => {
+      const b = document.createElement("button");
+      b.className = "btn btn-sm diff-view-button ml-2";
+      b.textContent = "View Diff";
+      b.onclick = () => {
+        try {
+          const currentUrl = window.location.href;
+          const match = currentUrl
+            .split("#")[0]
+            .match(/https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+/);
+          const basePrUrl = match ? match[0] : currentUrl;
+          GM.openInTab(`${basePrUrl}.diff`, true);
+        } catch (error) {
+          console.error("GitHub PR Diff Button: Error opening diff view", error);
+          GM.openInTab(`${window.location.href}.diff`, true);
+        }
+      };
+      return b;
+    };
+
+    // try to locate the repository "Code" clone/dropdown button
+    let container = null;
     const codeButton = document.querySelector(
       "get-repo details summary span.Button-content span.Button-label"
     );
-    if (!codeButton || codeButton.textContent !== "Code") return;
+    if (codeButton && codeButton.textContent === "Code") {
+      container = codeButton.closest("get-repo")?.parentElement || null;
+    }
 
-    // Get the container (details element's parent)
-    const container = codeButton.closest("get-repo").parentElement;
+    // if we didn't find it (e.g. on PR pages the clone box isn't shown),
+    // fall back to adding the button near the PR header/title area
+    if (!container) {
+      // GitHub uses `.gh-header-actions` for the action buttons on PRs
+      container = document.querySelector(".gh-header-actions");
+      if (!container) {
+        // last resort: put it next to the title
+        const title = document.querySelector(".js-issue-title");
+        container = title ? title.parentElement : null;
+      }
+    }
+
     if (!container) return;
 
-    // Check if our button already exists
-    if (container.querySelector(".diff-view-button")) return;
-
-    // Create new button
-    const diffButton = document.createElement("button");
-    diffButton.className = "btn btn-sm diff-view-button ml-2";
-    diffButton.innerHTML = "View Diff";
-    diffButton.onclick = () => {
-      try {
-        const currentUrl = window.location.href;
-        // Extract the base PR URL (remove hash fragments and extra paths after the PR number)
-        const match = currentUrl
-          .split("#")[0]
-          .match(/https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+/);
-        const basePrUrl = match ? match[0] : currentUrl;
-        GM.openInTab(`${basePrUrl}.diff`, true);
-      } catch (error) {
-        console.error("GitHub PR Diff Button: Error opening diff view", error);
-        // Fall back to current URL if parsing fails
-        GM.openInTab(`${window.location.href}.diff`, true);
-      }
-    };
-
-    // Insert after the details element
+    const diffButton = createButton();
     container.appendChild(diffButton);
   }
 
