@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         GitHub PR Diff Button
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  Adds a button to view PR diff in new tab
 // @author       Siew Kam Onn
 // @match        https://github.com/*/pull/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
+// @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js
 // @grant        GM.openInTab
 // ==/UserScript==
 
@@ -13,81 +14,48 @@
   "use strict";
 
   /**
-   * Adds a "View Diff" button next to the Code button in GitHub PR pages
+   * Adds a "View Diff" button inside the shared tm-scripts-container
+   * supplied by the Tampermonkey UI library.  Falls back gracefully if the
+   * library isn't available.
    * @returns {void}
    */
   function addDiffButton() {
     console.log("[PR Diff] addDiffButton running");
-    // avoid adding the button twice
-    if (document.querySelector(".diff-view-button")) {
-      console.log("[PR Diff] button already present, skipping");
-      return;
-    }
+    // don't add twice
+    if (document.getElementById("tm-diff-button")) return;
 
-    // helper to build the button
-    const createButton = () => {
-      const b = document.createElement("button");
-      b.className = "btn btn-sm diff-view-button ml-2";
-      b.textContent = "View Diff";
-      b.onclick = () => {
-        try {
-          const currentUrl = window.location.href;
-          const match = currentUrl
-            .split("#")[0]
-            .match(/https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+/);
-          const basePrUrl = match ? match[0] : currentUrl;
-          GM.openInTab(`${basePrUrl}.diff`, true);
-        } catch (error) {
-          console.error(
-            "GitHub PR Diff Button: Error opening diff view",
-            error,
-          );
-          GM.openInTab(`${window.location.href}.diff`, true);
-        }
-      };
-      return b;
-    };
-
-    // try to locate the repository "Code" clone/dropdown button
-    let container = null;
-    const codeButton = document.querySelector(
-      "get-repo details summary span.Button-content span.Button-label",
-    );
-    if (codeButton && codeButton.textContent === "Code") {
-      container = codeButton.closest("get-repo")?.parentElement || null;
-      console.log("[PR Diff] found code button container", container);
-    }
-
-    // if we didn't find it (e.g. on PR pages the clone box isn't shown),
-    // fall back to adding the button near the PR header/title area
-    if (!container) {
-      const headerActions = document.querySelector(".gh-header-actions");
-      console.log("[PR Diff] gh-header-actions element", headerActions);
-      if (headerActions) {
-        container = headerActions;
-      } else {
-        // last resort: put it next to the title
-        const title = document.querySelector(".js-issue-title");
-        console.log("[PR Diff] title element", title);
-        container = title ? title.parentElement : null;
+    // open diff helper
+    function openDiff() {
+      try {
+        const currentUrl = window.location.href;
+        const match = currentUrl
+          .split("#")[0]
+          .match(/https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+/);
+        const basePrUrl = match ? match[0] : currentUrl;
+        GM.openInTab(`${basePrUrl}.diff`, true);
+      } catch (error) {
+        console.error("GitHub PR Diff Button: Error opening diff view", error);
+        GM.openInTab(`${window.location.href}.diff`, true);
       }
     }
 
-    if (!container) {
-      console.warn(
-        "[PR Diff] no container found, falling back to fixed-position button",
-      );
-      const floatBtn = createButton();
-      floatBtn.style.position = "fixed";
-      floatBtn.style.top = "10px";
-      floatBtn.style.right = "10px";
-      floatBtn.style.zIndex = 9999;
-      document.body.appendChild(floatBtn);
-      return;
-    }
+    // use shared UI container if available
+    const addViaUI = () => {
+      if (!window.TampermonkeyUI) {
+        // try again soon
+        setTimeout(addViaUI, 50);
+        return;
+      }
+      const ui = new window.TampermonkeyUI();
+      ui.addButton({
+        id: "tm-diff-button",
+        text: "View Diff",
+        title: "Open PR diff in new tab",
+        onClick: openDiff,
+      });
+    };
 
-    const diffButton = createButton();
-    container.appendChild(diffButton);
+    addViaUI();
   }
 
   // Handle dynamic page updates
