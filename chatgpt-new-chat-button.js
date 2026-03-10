@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT New Chat Floating Button
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Adds a floating New Chat button on GPT pages and triggers the native New chat action.
 // @author       You
 // @match        https://chatgpt.com/g/*
@@ -12,7 +12,83 @@
   "use strict";
 
   const FLOATING_BUTTON_ID = "tm-new-chat-floating-button";
-  const MENU_TRIGGER_SELECTOR = 'div[id^="radix_-r"][type="button"]';
+  const MENU_TRIGGER_SELECTORS = [
+    'div[id^="radix_-r"][type="button"]',
+    'div[id^="radix-"][type="button"]',
+    'button[id^="radix_-r"]',
+    'button[id^="radix-"]',
+    '[id^="radix_-r"][role="button"]',
+    '[id^="radix-"][role="button"]',
+  ];
+
+  /**
+   * @param {Element | null} element
+   * @returns {boolean}
+   */
+  function isVisible(element) {
+    if (!element) {
+      return false;
+    }
+
+    const rect = element.getBoundingClientRect();
+    const style = window.getComputedStyle(element);
+    return (
+      rect.width > 0 &&
+      rect.height > 0 &&
+      style.display !== "none" &&
+      style.visibility !== "hidden"
+    );
+  }
+
+  /**
+   * Tries to click obvious New chat controls that already exist in the page.
+   * @returns {boolean}
+   */
+  function clickDirectNewChatControl() {
+    const directSelectors = [
+      'a[aria-label="New chat"]',
+      'button[aria-label="New chat"]',
+      'a[href="/"]',
+      '[data-testid*="new-chat"]',
+      '[data-testid*="new_chat"]',
+      '[data-testid*="create-new-chat"]',
+      '[data-testid*="newConversation"]',
+    ];
+
+    for (const selector of directSelectors) {
+      const candidates = document.querySelectorAll(selector);
+      for (const element of candidates) {
+        const text = (element.textContent || "").trim().toLowerCase();
+        const ariaLabel = (element.getAttribute("aria-label") || "")
+          .trim()
+          .toLowerCase();
+
+        if (
+          isVisible(element) &&
+          (text.includes("new chat") ||
+            ariaLabel.includes("new chat") ||
+            selector === 'a[href="/"]')
+        ) {
+          element.click();
+          return true;
+        }
+      }
+    }
+
+    const textCandidates = document.querySelectorAll(
+      'button, a, div[role="button"], [type="button"]',
+    );
+
+    for (const element of textCandidates) {
+      const text = (element.textContent || "").trim().toLowerCase();
+      if (isVisible(element) && text === "new chat") {
+        element.click();
+        return true;
+      }
+    }
+
+    return false;
+  }
 
   /**
    * Finds and clicks a visible element whose text content matches "New chat".
@@ -47,14 +123,30 @@
    * Attempts to open each Radix trigger and click the "New chat" menu item.
    */
   async function triggerNewChat() {
-    const triggers = document.querySelectorAll(MENU_TRIGGER_SELECTOR);
+    if (clickDirectNewChatControl()) {
+      return;
+    }
+
+    const triggers = [];
+    for (const selector of MENU_TRIGGER_SELECTORS) {
+      const found = document.querySelectorAll(selector);
+      for (const element of found) {
+        if (isVisible(element)) {
+          triggers.push(element);
+        }
+      }
+    }
 
     if (!triggers.length) {
       console.warn(
-        "[ChatGPT New Chat Floating Button] No matching triggers found.",
+        "[ChatGPT New Chat Floating Button] No direct New chat control or Radix trigger was found.",
       );
       return;
     }
+
+    console.log(
+      `[ChatGPT New Chat Floating Button] Found ${triggers.length} trigger candidate(s).`,
+    );
 
     for (const trigger of triggers) {
       trigger.click();
