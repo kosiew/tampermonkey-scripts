@@ -38,11 +38,11 @@
       // when present.  e.g. '/g/xyz/c/abc' -> '/g/xyz/'.
       const origin = window.location.origin;
       let path = window.location.pathname;
-      if (path.includes('/c/')) {
-        path = path.split('/c/')[0] + '/';
+      if (path.includes("/c/")) {
+        path = path.split("/c/")[0] + "/";
       } else {
         // ensure trailing slash for consistency
-        if (!path.endsWith('/')) path += '/';
+        if (!path.endsWith("/")) path += "/";
       }
       window.location.href = origin + path;
     });
