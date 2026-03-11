@@ -119,7 +119,10 @@
       'button, div[role="menuitem"], a, [type="button"]',
     );
     for (const element of candidates) {
-      if (element.closest('aside') || element.hasAttribute('data-sidebar-item')) {
+      if (
+        element.closest("aside") ||
+        element.hasAttribute("data-sidebar-item")
+      ) {
         continue;
       }
       const text = (element.textContent || "").trim().toLowerCase();
