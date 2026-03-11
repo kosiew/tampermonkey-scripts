@@ -14,7 +14,14 @@
   const FLOATING_BUTTON_ID = "tm-new-chat-floating-button";
 
   function ensureFloatingButton() {
-    if (document.getElementById(FLOATING_BUTTON_ID)) return;
+    const path = window.location.pathname;
+    const existing = document.getElementById(FLOATING_BUTTON_ID);
+    // only show the button on chat URLs that include '/c/'
+    if (!path.includes("/c/")) {
+      if (existing) existing.remove();
+      return;
+    }
+    if (existing) return;
     const button = document.createElement("button");
     button.id = FLOATING_BUTTON_ID;
     button.type = "button";
