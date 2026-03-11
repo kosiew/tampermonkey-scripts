@@ -147,7 +147,27 @@
   /**
    * Attempts to open each Radix trigger and click the "New chat" menu item.
    */
+  // click the first visible div whose text equals "Solis V" (model header); this
+  // is the element the user indicated should be clicked to open the menu.
+  function clickFirstSolisV() {
+    const candidates = Array.from(document.querySelectorAll("div")).filter(
+      (el) => isVisible(el) && el.textContent.trim() === "Solis V",
+    );
+    if (candidates.length) {
+      candidates[0].click();
+      return true;
+    }
+    return false;
+  }
+
   async function triggerNewChat() {
+    if (clickFirstSolisV()) {
+      // wait for menu to open before trying to select the new chat item
+      await sleep(120);
+      clickNewChatMenuItem();
+      return;
+    }
+
     if (clickDirectNewChatControl()) {
       return;
     }
