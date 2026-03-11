@@ -150,11 +150,20 @@
   // click the first visible div whose text equals "Solis V" (model header); this
   // is the element the user indicated should be clicked to open the menu.
   function clickFirstSolisV() {
-    const candidates = Array.from(document.querySelectorAll("div")).filter(
-      (el) => isVisible(el) && el.textContent.trim() === "Solis V",
-    );
+    // grab all visible dropdown buttons that start with "Solis V"; there are
+    // sometimes duplicates in the page, and the user wants the one that actually
+    // opens the model menu, which appears later in the DOM.  We'll click the
+    // *last* candidate therefore.
+    const candidates = Array.from(
+      document.querySelectorAll('div[type="button"][aria-haspopup="menu"]'),
+    ).filter((el) => {
+      if (!isVisible(el)) return false;
+      const text = el.textContent.trim();
+      return text.startsWith("Solis V");
+    });
+
     if (candidates.length) {
-      candidates[0].click();
+      candidates[candidates.length - 1].click();
       return true;
     }
     return false;
