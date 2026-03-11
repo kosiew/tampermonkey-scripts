@@ -12,13 +12,17 @@
   "use strict";
 
   const FLOATING_BUTTON_ID = "tm-new-chat-floating-button";
+  // menu triggers are Radix elements that open the GPT dropdown (e.g. the "Auto" model selector)
+  // the markup can change frequently so keep these patterns broad; we also fall back to
+  // any element with aria-haspopup="menu" in triggerNewChat().
   const MENU_TRIGGER_SELECTORS = [
-    'div[id^="radix_-r"][type="button"]',
-    'div[id^="radix-"][type="button"]',
+    'div[id^="radix_-r"]',
+    'div[id^="radix-"]',
     'button[id^="radix_-r"]',
     'button[id^="radix-"]',
     '[id^="radix_-r"][role="button"]',
     '[id^="radix-"][role="button"]',
+    '[aria-haspopup="menu"]',
   ];
 
   /**
@@ -45,10 +49,14 @@
    * @returns {boolean}
    */
   function clickDirectNewChatControl() {
+    // look for any element that clearly represents a "new chat" action; avoid
+    // blindly clicking the homepage link (`a[href="/"]`) because that often
+    // just reloads the page and prevents us from opening the dropdown menu.
     const directSelectors = [
       'a[aria-label="New chat"]',
       'button[aria-label="New chat"]',
-      'a[href="/"]',
+      // intentionally omit `a[href="/"]` to keep the logic focused on actual
+      // new‑chat controls that contain the text or aria-label.
       '[data-testid*="new-chat"]',
       '[data-testid*="new_chat"]',
       '[data-testid*="create-new-chat"]',
@@ -65,9 +73,7 @@
 
         if (
           isVisible(element) &&
-          (text.includes("new chat") ||
-            ariaLabel.includes("new chat") ||
-            selector === 'a[href="/"]')
+          (text.includes("new chat") || ariaLabel.includes("new chat"))
         ) {
           element.click();
           return true;
@@ -134,6 +140,19 @@
         if (isVisible(element)) {
           triggers.push(element);
         }
+      }
+    }
+
+    if (!triggers.length) {
+      // try a last–ditch search for the model selector button itself (text = "Auto" /
+      // "GPT-4", etc.) in case our generic selectors missed it.
+      const autoButtons = Array.from(
+        document.querySelectorAll('div[role="button"], button, a'),
+      ).filter(
+        (el) => isVisible(el) && el.textContent.trim().toLowerCase() === "auto",
+      );
+      if (autoButtons.length) {
+        triggers.push(...autoButtons);
       }
     }
 
