@@ -101,13 +101,29 @@
    * @returns {boolean}
    */
   function clickNewChatMenuItem() {
+    // prefer items that are part of an open "menu" (radix dropdowns use role=menu)
+    const menuCandidates = document.querySelectorAll(
+      '[role="menu"] [role="menuitem"], [role="menu"] button, [role="menu"] a',
+    );
+    for (const element of menuCandidates) {
+      const text = (element.textContent || "").trim().toLowerCase();
+      if (text === "new chat") {
+        element.click();
+        return true;
+      }
+    }
+
+    // fallback to global search but explicitly ignore sidebar links that are always
+    // present and not part of the dropdown we just opened
     const candidates = document.querySelectorAll(
       'button, div[role="menuitem"], a, [type="button"]',
     );
-
     for (const element of candidates) {
+      if (element.closest('aside') || element.hasAttribute('data-sidebar-item')) {
+        continue;
+      }
       const text = (element.textContent || "").trim().toLowerCase();
-      if (text === "new chat") {
+      if (isVisible(element) && text === "new chat") {
         element.click();
         return true;
       }
