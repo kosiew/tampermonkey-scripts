@@ -157,7 +157,10 @@
 
       // Calculate days equivalent
       const utcMonthDurationDays = getCurrentUtcMonthDurationDays();
-      const daysEquivalent = ((Math.abs(diff) / 100) * utcMonthDurationDays).toFixed(2);
+      const daysEquivalent = (
+        (Math.abs(diff) / 100) *
+        utcMonthDurationDays
+      ).toFixed(2);
 
       if (diff >= 0) {
         // We are using less than expected (excess available)
