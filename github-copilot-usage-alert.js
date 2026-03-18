@@ -41,16 +41,36 @@
   }
 
   /**
-   * Computes the expected percentage of the month that has elapsed.
+   * Computes the expected percentage of the UTC month that has elapsed.
+   * GitHub resets Copilot usage at 00:00 UTC on the first day of each month,
+   * so pacing must be calculated against UTC time rather than local calendar days.
    * @returns {number} Expected percentage (0-100)
    */
   function getExpectedPercent() {
     const now = new Date();
-    const day = now.getDate();
-    const year = now.getFullYear();
-    const month = now.getMonth(); // zero-based
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    return (day / daysInMonth) * 100;
+    const year = now.getUTCFullYear();
+    const month = now.getUTCMonth();
+    const monthStart = Date.UTC(year, month, 1, 0, 0, 0, 0);
+    const nextMonthStart = Date.UTC(year, month + 1, 1, 0, 0, 0, 0);
+    const elapsedMs = now.getTime() - monthStart;
+    const monthDurationMs = nextMonthStart - monthStart;
+
+    return (elapsedMs / monthDurationMs) * 100;
+  }
+
+  /**
+   * Returns the duration of the current UTC month in days.
+   * @returns {number} UTC month duration in days
+   */
+  function getCurrentUtcMonthDurationDays() {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = now.getUTCMonth();
+    const monthStart = Date.UTC(year, month, 1, 0, 0, 0, 0);
+    const nextMonthStart = Date.UTC(year, month + 1, 1, 0, 0, 0, 0);
+    const millisecondsPerDay = 24 * 60 * 60 * 1000;
+
+    return (nextMonthStart - monthStart) / millisecondsPerDay;
   }
 
   /**
@@ -136,11 +156,8 @@
       const absDiff = Math.abs(diff).toFixed(2);
 
       // Calculate days equivalent
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = now.getMonth();
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      const daysEquivalent = ((Math.abs(diff) / 100) * daysInMonth).toFixed(2);
+      const utcMonthDurationDays = getCurrentUtcMonthDurationDays();
+      const daysEquivalent = ((Math.abs(diff) / 100) * utcMonthDurationDays).toFixed(2);
 
       if (diff >= 0) {
         // We are using less than expected (excess available)
