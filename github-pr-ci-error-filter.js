@@ -2,7 +2,7 @@
 // @name         GitHub PR CI Error Filter
 // @namespace    http://tampermonkey.net/
 // @version      1.0
-// @description  Adds a floating button to hide/show GitHub PRs with CI errors and Draft PRs
+// @description  Adds a floating button to hide/show GitHub PRs with CI errors, Draft PRs, and PRs with many comments
 // @author       You
 // @match        https://github.com/*/*/pulls*
 // @icon         https://github.githubassets.com/favicons/favicon.svg
@@ -20,12 +20,15 @@
     buttonId: "tm-hide-ci-errors-button",
     hiddenClass: "tm-hidden-pr",
     storageKey: "github-pr-hide-ci-errors",
+    commentThreshold: 3,
     selectors: {
       prList: ".js-issue-row",
       // More specific selector for CI error status
       errorIndicator: ".color-fg-danger .octicon-x",
       // Selector for merge status links (we'll check text content)
       mergeStatusLink: 'a.Link--muted[href*="#partial-pull-merging"]',
+      // Selector for comment count elements in PR list rows
+      commentCount: "a.Link--muted",
     },
   };
 
@@ -101,8 +104,9 @@
     // Add button
     const button = uiManager.addButton({
       id: CONFIG.buttonId,
-      text: shouldHide ? "Show CI/Draft" : "Hide CI/Draft",
-      title: "Toggle visibility of PRs with CI errors and Draft PRs",
+      text: shouldHide ? "Show CI/Draft/Heavy" : "Hide CI/Draft/Heavy",
+      title:
+        "Toggle visibility of PRs with CI errors, Draft PRs, and comment-heavy PRs",
       onClick: toggleErrorPRs,
       active: shouldHide,
     });
@@ -140,7 +144,7 @@
 
     // Start observing
     const prListContainer = document.querySelector(
-      ".js-active-navigation-container"
+      ".js-active-navigation-container",
     );
     if (prListContainer) {
       observer.observe(prListContainer, { childList: true, subtree: true });
@@ -163,18 +167,68 @@
    */
   function isDraft(prElement) {
     const mergeStatusLink = prElement.querySelector(
-      CONFIG.selectors.mergeStatusLink
+      CONFIG.selectors.mergeStatusLink,
     );
     return mergeStatusLink && mergeStatusLink.textContent.trim() === "Draft";
   }
 
   /**
-   * Checks if a PR should be hidden (has CI errors or is a draft)
+   * Gets comment count in a PR row
+   * @param {HTMLElement} prElement - The PR element to check
+   * @returns {number} Number of comments in the PR row
+   */
+  function getCommentCount(prElement) {
+    const commentLink = Array.from(
+      prElement.querySelectorAll(CONFIG.selectors.commentCount),
+    ).find((link) => {
+      const label = (link.getAttribute("aria-label") || "").trim();
+      const text = link.textContent.trim();
+      return /comment(s)?/i.test(label) || /comment(s)?/i.test(text);
+    });
+
+    if (!commentLink) {
+      return 0;
+    }
+
+    // Prefer aria-label like "4 comments"; fallback to visible text number.
+    const ariaLabel = (commentLink.getAttribute("aria-label") || "").trim();
+    const ariaMatch = ariaLabel.match(/^(\d+)/);
+    if (ariaMatch) {
+      return parseInt(ariaMatch[1], 10);
+    }
+
+    const textSpan = commentLink.querySelector("span.text-small.text-bold");
+    if (textSpan) {
+      const spanText = textSpan.textContent.trim();
+      const spanMatch = spanText.match(/^(\d+)/);
+      if (spanMatch) {
+        return parseInt(spanMatch[1], 10);
+      }
+    }
+
+    const countText = commentLink.textContent.trim();
+    const countMatch = countText.match(/^(\d+)/);
+    return countMatch ? parseInt(countMatch[1], 10) : 0;
+  }
+
+  /**
+   * Checks if a PR is comment-heavy (more than the threshold)
+   * @param {HTMLElement} prElement - The PR element to check
+   * @returns {boolean} True if the PR has more than the threshold comments
+   */
+  function hasManyComments(prElement) {
+    return getCommentCount(prElement) > CONFIG.commentThreshold;
+  }
+
+  /**
+   * Checks if a PR should be hidden (has CI errors, is a draft, or is comment-heavy)
    * @param {HTMLElement} prElement - The PR element to check
    * @returns {boolean} True if the PR should be hidden
    */
   function shouldHidePR(prElement) {
-    return hasCIErrors(prElement) || isDraft(prElement);
+    return (
+      hasCIErrors(prElement) || isDraft(prElement) || hasManyComments(prElement)
+    );
   }
 
   /**
@@ -188,21 +242,25 @@
 
       // Update button state
       button.classList.toggle("active");
-      button.textContent = isHiding ? "Show CI/Draft" : "Hide CI/Draft";
+      button.textContent = isHiding
+        ? "Show CI/Draft/Heavy"
+        : "Hide CI/Draft/Heavy";
 
       // Find all PRs
       const allPRs = document.querySelectorAll(CONFIG.selectors.prList);
 
       let ciErrorCount = 0;
       let draftCount = 0;
+      let commentHeavyCount = 0;
 
-      // Toggle visibility for PRs with errors or drafts
+      // Toggle visibility for PRs with errors, drafts, or many comments
       allPRs.forEach((pr) => {
         if (shouldHidePR(pr)) {
           pr.classList.toggle(CONFIG.hiddenClass, isHiding);
           if (isHiding) {
             if (hasCIErrors(pr)) ciErrorCount++;
             if (isDraft(pr)) draftCount++;
+            if (hasManyComments(pr)) commentHeavyCount++;
           }
         }
       });
@@ -215,11 +273,18 @@
         const parts = [];
         if (ciErrorCount > 0) {
           parts.push(
-            `${ciErrorCount} CI error${ciErrorCount !== 1 ? "s" : ""}`
+            `${ciErrorCount} CI error${ciErrorCount !== 1 ? "s" : ""}`,
           );
         }
         if (draftCount > 0) {
           parts.push(`${draftCount} draft${draftCount !== 1 ? "s" : ""}`);
+        }
+        if (commentHeavyCount > 0) {
+          parts.push(
+            `${commentHeavyCount} comment-heavy PR${
+              commentHeavyCount !== 1 ? "s" : ""
+            }`,
+          );
         }
         const message =
           parts.length > 0 ? `Hidden: ${parts.join(", ")}` : "No PRs to hide";
@@ -234,7 +299,7 @@
   // Start initialization by waiting for the UI library
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () =>
-      uiManager.waitForUILibrary(initializeScript)
+      uiManager.waitForUILibrary(initializeScript),
     );
   } else {
     uiManager.waitForUILibrary(initializeScript);
