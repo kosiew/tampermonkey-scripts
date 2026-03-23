@@ -21,6 +21,10 @@
     hiddenClass: "tm-hidden-pr",
     storageKey: "github-pr-hide-ci-errors",
     commentThreshold: 3,
+    buttonText: {
+      show: "Show CI/Draft/Heavy",
+      hide: "Hide CI/Draft/Heavy",
+    },
     selectors: {
       prList: ".js-issue-row",
       // More specific selector for CI error status
@@ -104,7 +108,7 @@
     // Add button
     const button = uiManager.addButton({
       id: CONFIG.buttonId,
-      text: shouldHide ? "Show CI/Draft/Heavy" : "Hide CI/Draft/Heavy",
+      text: shouldHide ? CONFIG.buttonText.show : CONFIG.buttonText.hide,
       title:
         "Toggle visibility of PRs with CI errors, Draft PRs, and comment-heavy PRs",
       onClick: toggleErrorPRs,
@@ -243,8 +247,8 @@
       // Update button state
       button.classList.toggle("active");
       button.textContent = isHiding
-        ? "Show CI/Draft/Heavy"
-        : "Hide CI/Draft/Heavy";
+        ? CONFIG.buttonText.show
+        : CONFIG.buttonText.hide;
 
       // Find all PRs
       const allPRs = document.querySelectorAll(CONFIG.selectors.prList);
