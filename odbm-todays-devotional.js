@@ -18,27 +18,78 @@
 
   function waitForDevotionalAnchor(timeout = WAIT_TIMEOUT) {
     return new Promise((resolve) => {
+      const normalizeText = (text) =>
+        text.replace(/[’‘]/g, "'").replace(/\s+/g, " ").trim().toUpperCase();
+
+      const matchText = normalizeText(SEARCH_TEXT);
+
       const findAnchor = () => {
-        const divs = document.querySelectorAll("div");
-        for (const div of divs) {
+        const anchorCandidates = Array.from(
+          document.querySelectorAll(
+            "a[href*='/en-GB/devotional'], a[href*='/devotional/']",
+          ),
+        );
+
+        console.log(
+          "[ODBM Devotional] anchor candidates by devotional href:",
+          anchorCandidates.length,
+        );
+
+        for (const anchor of anchorCandidates) {
+          const container = anchor.closest("div") || anchor;
+          const containerText = normalizeText(container.textContent || "");
+          const anchorText = normalizeText(anchor.textContent || "");
+
+          console.log(
+            "[ODBM Devotional] candidate anchor",
+            anchor.href,
+            "containerText snippet",
+            containerText.slice(0, 120),
+          );
+
           if (
-            div.textContent &&
-            div.textContent.toUpperCase().includes(SEARCH_TEXT)
+            containerText.includes(matchText) ||
+            anchorText.includes(matchText) ||
+            normalizeText(
+              (anchor.closest("div") || document.body).textContent || "",
+            ).includes(matchText)
           ) {
-            const anchor = div.querySelector("a");
-            console.log(
-              "[ODBM Devotional] matched div text snippet:",
-              div.textContent.trim().slice(0, 120),
-            );
-            console.log(
-              "[ODBM Devotional] anchor found in matched div:",
-              anchor,
-            );
-            if (anchor) {
-              return anchor;
-            }
+            return anchor;
           }
         }
+
+        const textElements = Array.from(
+          document.querySelectorAll("span,div,p,h1,h2,h3"),
+        ).filter((el) => {
+          const text = normalizeText(el.textContent || "");
+          return text === matchText || text.includes(matchText);
+        });
+
+        console.log(
+          "[ODBM Devotional] text elements matching devotional label:",
+          textElements.length,
+        );
+
+        for (const element of textElements) {
+          const anchor =
+            element.closest("a") ||
+            element
+              .closest("div")
+              ?.querySelector(
+                "a[href*='/en-GB/devotional'], a[href*='/devotional/']",
+              ) ||
+            element.closest("div")?.querySelector("a");
+          console.log(
+            "[ODBM Devotional] devotional label element found, candidate anchor:",
+            anchor,
+            "element snippet",
+            normalizeText(element.textContent || "").slice(0, 120),
+          );
+          if (anchor) {
+            return anchor;
+          }
+        }
+
         return null;
       };
 
@@ -83,7 +134,9 @@
   async function clickTodaysDevotional() {
     console.log("[ODBM Devotional] clickTodaysDevotional started");
     if (hasClickedDevotional) {
-      console.log("[ODBM Devotional] already clicked in this page load, skipping");
+      console.log(
+        "[ODBM Devotional] already clicked in this page load, skipping",
+      );
       return;
     }
 
@@ -93,7 +146,10 @@
       return;
     }
 
-    console.log("[ODBM Devotional] clicking devotional anchor", anchor.href || anchor);
+    console.log(
+      "[ODBM Devotional] clicking devotional anchor",
+      anchor.href || anchor,
+    );
     hasClickedDevotional = true;
 
     if (typeof anchor.click === "function") {
