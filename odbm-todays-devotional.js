@@ -11,6 +11,7 @@
 (function () {
   "use strict";
 
+  console.log("[ODBM Devotional] script loaded", window.location.href);
   const SESSION_KEY = "odbm-todays-devotional-clicked";
   const SEARCH_TEXT = "TODAY'S DEVOTIONAL";
   const WAIT_TIMEOUT = 15000;
@@ -25,6 +26,11 @@
             div.textContent.toUpperCase().includes(SEARCH_TEXT)
           ) {
             const anchor = div.querySelector("a");
+            console.log(
+              "[ODBM Devotional] matched div text snippet:",
+              div.textContent.trim().slice(0, 120)
+            );
+            console.log("[ODBM Devotional] anchor found in matched div:", anchor);
             if (anchor) {
               return anchor;
             }
@@ -33,15 +39,23 @@
         return null;
       };
 
+      console.log("[ODBM Devotional] waiting for devotional anchor...");
       const anchor = findAnchor();
       if (anchor) {
+        console.log("[ODBM Devotional] devotional anchor found immediately", anchor);
         resolve(anchor);
         return;
       }
 
-      const observer = new MutationObserver(() => {
+      const observer = new MutationObserver((mutations) => {
+        console.log(
+          "[ODBM Devotional] mutation observer triggered",
+          mutations.length,
+          "mutations"
+        );
         const found = findAnchor();
         if (found) {
+          console.log("[ODBM Devotional] devotional anchor found by observer", found);
           observer.disconnect();
           resolve(found);
         }
@@ -50,6 +64,7 @@
       observer.observe(document.body, { childList: true, subtree: true });
 
       setTimeout(() => {
+        console.log("[ODBM Devotional] wait timeout reached, no anchor found");
         observer.disconnect();
         resolve(null);
       }, timeout);
@@ -57,15 +72,19 @@
   }
 
   async function clickTodaysDevotional() {
+    console.log("[ODBM Devotional] clickTodaysDevotional started");
     if (sessionStorage.getItem(SESSION_KEY)) {
+      console.log("[ODBM Devotional] already executed in this session, skipping");
       return;
     }
 
     const anchor = await waitForDevotionalAnchor();
     if (!anchor) {
+      console.warn("[ODBM Devotional] no devotional anchor was found");
       return;
     }
 
+    console.log("[ODBM Devotional] clicking devotional anchor", anchor.href || anchor);
     sessionStorage.setItem(SESSION_KEY, "true");
 
     if (typeof anchor.click === "function") {
@@ -76,8 +95,12 @@
   }
 
   function init() {
+    console.log("[ODBM Devotional] init(), document.readyState=", document.readyState);
     if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", clickTodaysDevotional);
+      document.addEventListener("DOMContentLoaded", () => {
+        console.log("[ODBM Devotional] DOMContentLoaded");
+        clickTodaysDevotional();
+      });
     } else {
       clickTodaysDevotional();
     }
