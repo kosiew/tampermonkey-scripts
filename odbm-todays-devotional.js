@@ -12,7 +12,7 @@
   "use strict";
 
   console.log("[ODBM Devotional] script loaded", window.location.href);
-  const SESSION_KEY = "odbm-todays-devotional-clicked";
+  let hasClickedDevotional = false;
   const SEARCH_TEXT = "TODAY'S DEVOTIONAL";
   const WAIT_TIMEOUT = 15000;
 
@@ -28,9 +28,12 @@
             const anchor = div.querySelector("a");
             console.log(
               "[ODBM Devotional] matched div text snippet:",
-              div.textContent.trim().slice(0, 120)
+              div.textContent.trim().slice(0, 120),
             );
-            console.log("[ODBM Devotional] anchor found in matched div:", anchor);
+            console.log(
+              "[ODBM Devotional] anchor found in matched div:",
+              anchor,
+            );
             if (anchor) {
               return anchor;
             }
@@ -42,7 +45,10 @@
       console.log("[ODBM Devotional] waiting for devotional anchor...");
       const anchor = findAnchor();
       if (anchor) {
-        console.log("[ODBM Devotional] devotional anchor found immediately", anchor);
+        console.log(
+          "[ODBM Devotional] devotional anchor found immediately",
+          anchor,
+        );
         resolve(anchor);
         return;
       }
@@ -51,11 +57,14 @@
         console.log(
           "[ODBM Devotional] mutation observer triggered",
           mutations.length,
-          "mutations"
+          "mutations",
         );
         const found = findAnchor();
         if (found) {
-          console.log("[ODBM Devotional] devotional anchor found by observer", found);
+          console.log(
+            "[ODBM Devotional] devotional anchor found by observer",
+            found,
+          );
           observer.disconnect();
           resolve(found);
         }
@@ -73,8 +82,8 @@
 
   async function clickTodaysDevotional() {
     console.log("[ODBM Devotional] clickTodaysDevotional started");
-    if (sessionStorage.getItem(SESSION_KEY)) {
-      console.log("[ODBM Devotional] already executed in this session, skipping");
+    if (hasClickedDevotional) {
+      console.log("[ODBM Devotional] already clicked in this page load, skipping");
       return;
     }
 
@@ -85,7 +94,7 @@
     }
 
     console.log("[ODBM Devotional] clicking devotional anchor", anchor.href || anchor);
-    sessionStorage.setItem(SESSION_KEY, "true");
+    hasClickedDevotional = true;
 
     if (typeof anchor.click === "function") {
       anchor.click();
@@ -95,7 +104,10 @@
   }
 
   function init() {
-    console.log("[ODBM Devotional] init(), document.readyState=", document.readyState);
+    console.log(
+      "[ODBM Devotional] init(), document.readyState=",
+      document.readyState,
+    );
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", () => {
         console.log("[ODBM Devotional] DOMContentLoaded");
