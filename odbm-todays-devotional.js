@@ -38,6 +38,43 @@
     }
   }
 
+  function clearLastClickDate() {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      console.log("[ODBM Devotional] cleared last click date from storage");
+      showToast("ODBM devotional cache cleared");
+    } catch (error) {
+      console.warn("[ODBM Devotional] unable to clear last click date", error);
+    }
+  }
+
+  function showToast(message, duration = 3000) {
+    const toastId = "odbm-devotional-clear-toast";
+    let toast = document.getElementById(toastId);
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = toastId;
+      toast.style.position = "fixed";
+      toast.style.bottom = "90px";
+      toast.style.right = "20px";
+      toast.style.padding = "10px 14px";
+      toast.style.background = "rgba(0, 0, 0, 0.85)";
+      toast.style.color = "#fff";
+      toast.style.borderRadius = "6px";
+      toast.style.fontSize = "13px";
+      toast.style.zIndex = "10001";
+      toast.style.boxShadow = "0 3px 12px rgba(0,0,0,0.25)";
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.style.opacity = "1";
+    window.clearTimeout(toast.dismissTimeout);
+    toast.dismissTimeout = window.setTimeout(() => {
+      toast.style.transition = "opacity 0.3s ease";
+      toast.style.opacity = "0";
+    }, duration);
+  }
+
   function waitForSelector(selector, timeout = WAIT_TIMEOUT) {
     return new Promise((resolve) => {
       const element = document.querySelector(selector);
@@ -120,6 +157,37 @@
     console.warn("[ODBM Devotional] no devotional result anchor was found");
   }
 
+  function createClearStorageButton() {
+    const buttonId = "odbm-devotional-clear-button";
+    if (document.getElementById(buttonId)) {
+      return;
+    }
+
+    const button = document.createElement("button");
+    button.id = buttonId;
+    button.type = "button";
+    button.textContent = "Clear devotional cache";
+    button.style.position = "fixed";
+    button.style.bottom = "20px";
+    button.style.right = "20px";
+    button.style.padding = "10px 14px";
+    button.style.backgroundColor = "#1a73e8";
+    button.style.color = "#fff";
+    button.style.border = "none";
+    button.style.borderRadius = "8px";
+    button.style.cursor = "pointer";
+    button.style.fontSize = "13px";
+    button.style.zIndex = "10000";
+    button.style.boxShadow = "0 4px 14px rgba(0,0,0,0.2)";
+    button.style.opacity = "0.95";
+
+    button.addEventListener("click", () => {
+      clearLastClickDate();
+    });
+
+    document.body.appendChild(button);
+  }
+
   function init() {
     console.log(
       "[ODBM Devotional] init(), document.readyState=",
@@ -129,9 +197,11 @@
       document.addEventListener("DOMContentLoaded", () => {
         console.log("[ODBM Devotional] DOMContentLoaded");
         clickTodaysDevotional();
+        createClearStorageButton();
       });
     } else {
       clickTodaysDevotional();
+      createClearStorageButton();
     }
   }
 
