@@ -193,15 +193,21 @@
       "[ODBM Devotional] init(), document.readyState=",
       document.readyState,
     );
+    const shouldShowClearButton = getLastClickDate() !== null;
+
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", () => {
         console.log("[ODBM Devotional] DOMContentLoaded");
         clickTodaysDevotional();
-        createClearStorageButton();
+        if (shouldShowClearButton) {
+          createClearStorageButton();
+        }
       });
     } else {
       clickTodaysDevotional();
-      createClearStorageButton();
+      if (shouldShowClearButton) {
+        createClearStorageButton();
+      }
     }
   }
 
