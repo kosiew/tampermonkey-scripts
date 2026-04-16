@@ -42,6 +42,10 @@
     try {
       localStorage.removeItem(STORAGE_KEY);
       console.log("[ODBM Devotional] cleared last click date from storage");
+      const button = document.getElementById("odbm-devotional-clear-button");
+      if (button && button.parentNode) {
+        button.parentNode.removeChild(button);
+      }
       showToast("ODBM devotional cache cleared");
     } catch (error) {
       console.warn("[ODBM Devotional] unable to clear last click date", error);
