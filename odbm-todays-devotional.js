@@ -40,8 +40,8 @@
     });
   }
 
-  async function clickFirstDevotionalResult() {
-    const selector = "#results-section > ul > li:nth-child(1) a";
+  async function clickTodaysDevotional() {
+    const selector = "#results-section > section > a";
     console.log(
       "[ODBM Devotional] waiting for devotional results selector:",
       selector,
@@ -76,7 +76,7 @@
       return;
     }
 
-    const clicked = await clickFirstDevotionalResult();
+    const clicked = await clickTodaysDevotional();
     if (clicked) {
       hasClickedDevotional = true;
       return;
