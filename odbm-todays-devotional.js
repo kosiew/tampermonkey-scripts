@@ -14,6 +14,29 @@
   console.log("[ODBM Devotional] script loaded", window.location.href);
   let hasClickedDevotional = false;
   const WAIT_TIMEOUT = 15000;
+  const STORAGE_KEY = "odbm-todays-devotional-last-click-date";
+
+  function getTodayDateString() {
+    const date = new Date();
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  }
+
+  function getLastClickDate() {
+    try {
+      return localStorage.getItem(STORAGE_KEY);
+    } catch (error) {
+      console.warn("[ODBM Devotional] unable to read last click date", error);
+      return null;
+    }
+  }
+
+  function setLastClickDate(dateString) {
+    try {
+      localStorage.setItem(STORAGE_KEY, dateString);
+    } catch (error) {
+      console.warn("[ODBM Devotional] unable to save last click date", error);
+    }
+  }
 
   function waitForSelector(selector, timeout = WAIT_TIMEOUT) {
     return new Promise((resolve) => {
@@ -76,9 +99,21 @@
       return;
     }
 
+    const today = getTodayDateString();
+    const lastClickDate = getLastClickDate();
+    if (lastClickDate === today) {
+      console.log(
+        "[ODBM Devotional] already clicked today, skipping auto-click",
+        today,
+      );
+      hasClickedDevotional = true;
+      return;
+    }
+
     const clicked = await findAndClickTodaysDevotional();
     if (clicked) {
       hasClickedDevotional = true;
+      setLastClickDate(today);
       return;
     }
 
