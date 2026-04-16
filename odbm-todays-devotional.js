@@ -11,10 +11,24 @@
 (function () {
   "use strict";
 
-  console.log("[ODBM Devotional] script loaded", window.location.href);
-  let hasClickedDevotional = false;
+  const LOG_PREFIX = "[ODBM Devotional]";
   const WAIT_TIMEOUT = 15000;
   const STORAGE_KEY = "odbm-todays-devotional-last-click-date";
+  const CLEAR_BUTTON_ID = "odbm-devotional-clear-button";
+  const TOAST_ID = "odbm-devotional-clear-toast";
+  const DEVOTIONAL_SELECTOR = "#results-section > section > a";
+
+  let hasClickedDevotional = false;
+
+  console.log(LOG_PREFIX, "script loaded", window.location.href);
+
+  function logInfo(...args) {
+    console.log(LOG_PREFIX, ...args);
+  }
+
+  function logWarn(...args) {
+    console.warn(LOG_PREFIX, ...args);
+  }
 
   function getTodayDateString() {
     const date = new Date();
@@ -25,7 +39,7 @@
     try {
       return localStorage.getItem(STORAGE_KEY);
     } catch (error) {
-      console.warn("[ODBM Devotional] unable to read last click date", error);
+      logWarn("unable to read last click date", error);
       return null;
     }
   }
@@ -34,30 +48,33 @@
     try {
       localStorage.setItem(STORAGE_KEY, dateString);
     } catch (error) {
-      console.warn("[ODBM Devotional] unable to save last click date", error);
+      logWarn("unable to save last click date", error);
+    }
+  }
+
+  function removeElementById(elementId) {
+    const element = document.getElementById(elementId);
+    if (element && element.parentNode) {
+      element.parentNode.removeChild(element);
     }
   }
 
   function clearLastClickDate() {
     try {
       localStorage.removeItem(STORAGE_KEY);
-      console.log("[ODBM Devotional] cleared last click date from storage");
-      const button = document.getElementById("odbm-devotional-clear-button");
-      if (button && button.parentNode) {
-        button.parentNode.removeChild(button);
-      }
+      logInfo("cleared last click date from storage");
+      removeElementById(CLEAR_BUTTON_ID);
       showToast("ODBM devotional cache cleared");
     } catch (error) {
-      console.warn("[ODBM Devotional] unable to clear last click date", error);
+      logWarn("unable to clear last click date", error);
     }
   }
 
   function showToast(message, duration = 3000) {
-    const toastId = "odbm-devotional-clear-toast";
-    let toast = document.getElementById(toastId);
+    let toast = document.getElementById(TOAST_ID);
     if (!toast) {
       toast = document.createElement("div");
-      toast.id = toastId;
+      toast.id = TOAST_ID;
       toast.style.position = "fixed";
       toast.style.bottom = "90px";
       toast.style.right = "20px";
@@ -70,10 +87,16 @@
       toast.style.boxShadow = "0 3px 12px rgba(0,0,0,0.25)";
       document.body.appendChild(toast);
     }
+
     toast.textContent = message;
+    toast.style.transition = "";
     toast.style.opacity = "1";
-    window.clearTimeout(toast.dismissTimeout);
-    toast.dismissTimeout = window.setTimeout(() => {
+
+    if (toast.dismissTimeoutId) {
+      window.clearTimeout(toast.dismissTimeoutId);
+    }
+
+    toast.dismissTimeoutId = window.setTimeout(() => {
       toast.style.transition = "opacity 0.3s ease";
       toast.style.opacity = "0";
     }, duration);
@@ -104,71 +127,65 @@
     });
   }
 
-  async function findAndClickTodaysDevotional() {
-    const selector = "#results-section > section > a";
-    console.log(
-      "[ODBM Devotional] waiting for devotional results selector:",
-      selector,
-    );
-    const anchor = await waitForSelector(selector);
+  async function clickFirstDevotionalResult() {
+    logInfo("waiting for devotional results selector:", DEVOTIONAL_SELECTOR);
+    const anchor = await waitForSelector(DEVOTIONAL_SELECTOR);
     if (!anchor) {
-      console.warn(
-        "[ODBM Devotional] no result anchor found for selector",
-        selector,
-      );
+      logWarn("no result anchor found for selector", DEVOTIONAL_SELECTOR);
       return false;
     }
 
-    console.log(
-      "[ODBM Devotional] clicking first devotional result anchor",
-      anchor.href || anchor,
-    );
+    logInfo("clicking first devotional result anchor", anchor.href || anchor);
     if (typeof anchor.click === "function") {
       anchor.click();
     } else if (anchor.href) {
       window.location.href = anchor.href;
     }
+
     return true;
   }
 
+  function ensureClearStorageButton() {
+    if (getLastClickDate() !== null) {
+      createClearStorageButton();
+    }
+  }
+
   async function clickTodaysDevotional() {
-    console.log("[ODBM Devotional] clickTodaysDevotional started");
+    logInfo("clickTodaysDevotional started");
     if (hasClickedDevotional) {
-      console.log(
-        "[ODBM Devotional] already clicked in this page load, skipping",
-      );
+      logInfo("already clicked in this page load, skipping");
       return;
     }
 
     const today = getTodayDateString();
     const lastClickDate = getLastClickDate();
+
     if (lastClickDate === today) {
-      console.log(
-        "[ODBM Devotional] already clicked today, skipping auto-click",
-        today,
-      );
+      logInfo("already clicked today, skipping auto-click", today);
       hasClickedDevotional = true;
+      ensureClearStorageButton();
       return;
     }
 
-    const clicked = await findAndClickTodaysDevotional();
+    const clicked = await clickFirstDevotionalResult();
     if (clicked) {
       hasClickedDevotional = true;
       setLastClickDate(today);
+      ensureClearStorageButton();
       return;
     }
 
-    console.warn("[ODBM Devotional] no devotional result anchor was found");
+    logWarn("no devotional result anchor was found");
   }
 
   function createClearStorageButton() {
-    const buttonId = "odbm-devotional-clear-button";
-    if (document.getElementById(buttonId)) {
+    if (document.getElementById(CLEAR_BUTTON_ID)) {
       return;
     }
 
     const button = document.createElement("button");
-    button.id = buttonId;
+    button.id = CLEAR_BUTTON_ID;
     button.type = "button";
     button.textContent = "Clear devotional cache";
     button.style.position = "fixed";
@@ -193,25 +210,17 @@
   }
 
   function init() {
-    console.log(
-      "[ODBM Devotional] init(), document.readyState=",
-      document.readyState,
-    );
-    const shouldShowClearButton = getLastClickDate() !== null;
+    logInfo("init(), document.readyState=", document.readyState);
 
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", () => {
-        console.log("[ODBM Devotional] DOMContentLoaded");
+        logInfo("DOMContentLoaded");
         clickTodaysDevotional();
-        if (shouldShowClearButton) {
-          createClearStorageButton();
-        }
+        ensureClearStorageButton();
       });
     } else {
       clickTodaysDevotional();
-      if (shouldShowClearButton) {
-        createClearStorageButton();
-      }
+      ensureClearStorageButton();
     }
   }
 
