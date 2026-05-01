@@ -67,8 +67,8 @@
     const summaryCount = children.reduce((count, child) => {
       const hasSummary = Boolean(
         child.querySelector("summary") ||
-          child.querySelector(".flex-auto summary") ||
-          child.querySelector("div.flex-auto details summary")
+        child.querySelector(".flex-auto summary") ||
+        child.querySelector("div.flex-auto details summary"),
       );
       return count + (hasSummary ? 1 : 0);
     }, 0);
@@ -84,16 +84,16 @@
     const repo = getRepoNameFromItem(el) || "";
 
     const draft = Boolean(
-      el.querySelector('span[aria-label="Draft Pull Request"]')
+      el.querySelector('span[aria-label="Draft Pull Request"]'),
     );
 
     // Enhanced error detection - use conservative checks
     const method1 = Boolean(
-      el.querySelector('.color-fg-danger, [class*="color-fg-danger"]')
+      el.querySelector('.color-fg-danger, [class*="color-fg-danger"]'),
     );
     const method2 = Boolean(el.querySelector(".State--error, .State--failure"));
     const method3 = Boolean(
-      el.querySelector(".octicon-x, .octicon-alert, .octicon-stop")
+      el.querySelector(".octicon-x, .octicon-alert, .octicon-stop"),
     );
     const error = method1 || method2 || method3;
 
@@ -156,9 +156,12 @@
         frag.appendChild(createRepoDivider());
       }
 
-      // Insert per-item counter before the target inner element, idempotent
+      // Insert per-item counter before the repo link or other stable inner element.
       try {
-        const target = it.el.querySelector(".flex-shrink-0.pt-2.pl-3");
+        const target =
+          it.el.querySelector(REPO_LINK_SELECTOR) ||
+          it.el.querySelector(".flex-shrink-0.pt-2.pl-3") ||
+          it.el.firstElementChild;
         if (target) {
           let counter = it.el.querySelector(".pr-counter");
           const label = String(repoCounts[repo]);
@@ -167,7 +170,7 @@
             counter.className = "pr-counter";
             counter.style.display = "inline-block";
             counter.style.marginRight = "8px";
-            counter.style.marginTop = "8px";
+            counter.style.marginTop = "4px";
             counter.style.fontSize = "13px";
             counter.style.fontWeight = "600";
             counter.style.borderRadius = "999px";
