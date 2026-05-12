@@ -31,6 +31,15 @@
   // Can be overridden via `window.QUOTA_PER_DAY = <number>` if desired
   const QUOTA_PER_DAY = 100 / 7;
 
+  // Reload the page every x minutes while the tab is active.
+  // Can be overridden via `window.REFRESH_INTERVAL_MINUTES = <number>`.
+  const REFRESH_INTERVAL_MINUTES =
+    typeof window !== "undefined" &&
+    typeof window.REFRESH_INTERVAL_MINUTES === "number"
+      ? window.REFRESH_INTERVAL_MINUTES
+      : 5;
+  const REFRESH_INTERVAL_MS = REFRESH_INTERVAL_MINUTES * 60 * 1000;
+
   // NOTE: This script optionally depends on `tampermonkey-utils.js` for shared utilities
   // (extractElementsContaining). A fallback search will be used if the utility library is
   // not present. To load the shared utilities automatically, include the following @require
@@ -460,6 +469,22 @@
     showStatusWidget(message);
   }
 
+  function reloadIfTabIsActive() {
+    if (typeof document === "undefined") return;
+    if (document.visibilityState !== "visible" || !document.hasFocus()) return;
+    window.location.reload();
+  }
+
+  function scheduleReload() {
+    if (typeof window === "undefined" || REFRESH_INTERVAL_MS <= 0) return;
+    setInterval(reloadIfTabIsActive, REFRESH_INTERVAL_MS);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        reloadIfTabIsActive();
+      }
+    });
+  }
+
   // Run main once DOM is loaded (guard for non-browser environments like Node)
   if (typeof document !== "undefined") {
     if (
@@ -467,8 +492,12 @@
       document.readyState === "interactive"
     ) {
       main();
+      scheduleReload();
     } else {
-      document.addEventListener("DOMContentLoaded", main);
+      document.addEventListener("DOMContentLoaded", () => {
+        main();
+        scheduleReload();
+      });
     }
   }
 
