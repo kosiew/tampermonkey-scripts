@@ -31,16 +31,6 @@
   // Can be overridden via `window.QUOTA_PER_DAY = <number>` if desired
   const QUOTA_PER_DAY = 100 / 7;
 
-  // Refresh every x minutes while the tab is active.
-  // Can be overridden via `window.REFRESH_INTERVAL_MINUTES = <number>`.
-  const REFRESH_INTERVAL_MINUTES =
-    typeof window !== "undefined" &&
-    typeof window.REFRESH_INTERVAL_MINUTES === "number"
-      ? window.REFRESH_INTERVAL_MINUTES
-      : 5;
-  const REFRESH_INTERVAL_MS = REFRESH_INTERVAL_MINUTES * 60 * 1000;
-  let refreshInProgress = false;
-
   // NOTE: This script optionally depends on `tampermonkey-utils.js` for shared utilities
   // (extractElementsContaining). A fallback search will be used if the utility library is
   // not present. To load the shared utilities automatically, include the following @require
@@ -470,39 +460,6 @@
     showStatusWidget(message);
   }
 
-  function runIfActive() {
-    if (refreshInProgress) return;
-    if (
-      typeof document === "undefined" ||
-      document.visibilityState !== "visible" ||
-      !document.hasFocus()
-    ) {
-      return;
-    }
-
-    refreshInProgress = true;
-    Promise.resolve()
-      .then(main)
-      .catch((err) => console.error("Codex Usage refresh failed:", err))
-      .finally(() => {
-        refreshInProgress = false;
-      });
-  }
-
-  function scheduleRefresh() {
-    if (typeof window === "undefined" || REFRESH_INTERVAL_MS <= 0) return;
-
-    setInterval(() => {
-      runIfActive();
-    }, REFRESH_INTERVAL_MS);
-
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") {
-        runIfActive();
-      }
-    });
-  }
-
   // Run main once DOM is loaded (guard for non-browser environments like Node)
   if (typeof document !== "undefined") {
     if (
@@ -510,12 +467,8 @@
       document.readyState === "interactive"
     ) {
       main();
-      scheduleRefresh();
     } else {
-      document.addEventListener("DOMContentLoaded", () => {
-        main();
-        scheduleRefresh();
-      });
+      document.addEventListener("DOMContentLoaded", main);
     }
   }
 
