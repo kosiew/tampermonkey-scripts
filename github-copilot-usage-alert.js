@@ -12,6 +12,9 @@
 (function () {
   "use strict";
 
+  // Reload interval in minutes when the tab is active.
+  const reloadIntervalMinutes = 5;
+
   // Styles for the alert message
   const styleContent = `
         .copilot-usage-alert {
@@ -194,6 +197,19 @@
       setTimeout(initialize, 300);
     }
   }
+
+  function reloadIfActive() {
+    if (document.visibilityState === "visible") {
+      window.location.reload();
+    }
+  }
+
+  setInterval(reloadIfActive, reloadIntervalMinutes * 60 * 1000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      reloadIfActive();
+    }
+  });
 
   // Run on initial load
   if (document.readyState === "loading") {
