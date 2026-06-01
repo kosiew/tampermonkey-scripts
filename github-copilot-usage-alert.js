@@ -44,6 +44,26 @@
   }
 
   /**
+   * Parses usage text like "0 / 1,500 AI credits" and returns percentage used.
+   * @param {string} text - The usage text to parse
+   * @returns {number|null} Percentage used or null if invalid
+   */
+  function parseCreditsUsagePercentage(text) {
+    const match = text
+      .trim()
+      .match(/([0-9][0-9,]*(?:\.[0-9]+)?)\s*\/\s*([0-9][0-9,]*(?:\.[0-9]+)?)/i);
+    if (!match) return null;
+
+    const used = parseFloat(match[1].replace(/,/g, ""));
+    const total = parseFloat(match[2].replace(/,/g, ""));
+    if (!Number.isFinite(used) || !Number.isFinite(total) || total <= 0) {
+      return null;
+    }
+
+    return (used / total) * 100;
+  }
+
+  /**
    * Computes the expected percentage of the UTC month that has elapsed.
    * GitHub resets Copilot usage at 00:00 UTC on the first day of each month,
    * so pacing must be calculated against UTC time rather than local calendar days.
@@ -145,13 +165,29 @@
    */
   function checkCopilotUsage() {
     try {
-      const usageEl = document.querySelector(
-        "#copilot-overages-usage > div > div > div",
-      );
-      if (!usageEl) return;
+      const root = document.querySelector("#copilot-overages-usage");
+      if (!root) return;
 
-      const percentText = usageEl.textContent || "";
-      const actual = parsePercentage(percentText);
+      // New layout example: "0 / 1,500 AI credits"
+      const creditsEl = Array.from(root.querySelectorAll("span")).find((el) =>
+        /AI\s+credits/i.test(el.textContent || ""),
+      );
+
+      let actual = null;
+      if (creditsEl) {
+        actual = parseCreditsUsagePercentage(creditsEl.textContent || "");
+      }
+
+      // Legacy fallback: percentage text node, e.g. "45%"
+      if (actual === null) {
+        const legacyUsageEl = document.querySelector(
+          "#copilot-overages-usage > div > div > div",
+        );
+        if (legacyUsageEl) {
+          actual = parsePercentage(legacyUsageEl.textContent || "");
+        }
+      }
+
       if (actual === null) return;
 
       const expected = getExpectedPercent();
