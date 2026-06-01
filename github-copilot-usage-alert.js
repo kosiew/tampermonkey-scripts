@@ -97,14 +97,49 @@
   }
 
   /**
+   * Finds the element containing "used / total AI credits" in the current page.
+   * @returns {HTMLElement|null} The credits element when found
+   */
+  function findCreditsUsageElement() {
+    const candidates = Array.from(document.querySelectorAll("span"));
+    return (
+      candidates.find((el) =>
+        /[0-9][0-9,]*(?:\.[0-9]+)?\s*\/\s*[0-9][0-9,]*(?:\.[0-9]+)?\s*AI\s+credits/i.test(
+          el.textContent || "",
+        ),
+      ) || null
+    );
+  }
+
+  /**
+   * Finds an appropriate container where the usage alert can be inserted.
+   * @param {HTMLElement|null} creditsEl - Element containing credits usage text
+   * @returns {HTMLElement|null} Container for the alert
+   */
+  function findUsageAlertContainer(creditsEl) {
+    const legacyContainer = document.querySelector(
+      "#copilot-overages-usage > div > div",
+    );
+    if (legacyContainer) return legacyContainer;
+
+    if (!creditsEl) return null;
+
+    const usageRow = creditsEl.closest("div.d-flex.flex-justify-between");
+    if (usageRow) {
+      const leftColumn = usageRow.querySelector("div.d-flex.flex-column.flex-1");
+      if (leftColumn) return leftColumn;
+      return usageRow;
+    }
+
+    return creditsEl.parentElement;
+  }
+
+  /**
    * Inserts the usage alert element into the page.
    * @param {string} message - The alert message text
    * @param {boolean} isExcess - True if excess usage (behind expected), false if deficit (ahead)
    */
-  function showUsageAlert(message, isExcess) {
-    const container = document.querySelector(
-      "#copilot-overages-usage > div > div",
-    );
+  function showUsageAlert(message, isExcess, container) {
     if (!container) return;
 
     // Remove any existing alert
@@ -165,13 +200,8 @@
    */
   function checkCopilotUsage() {
     try {
-      const root = document.querySelector("#copilot-overages-usage");
-      if (!root) return;
-
       // New layout example: "0 / 1,500 AI credits"
-      const creditsEl = Array.from(root.querySelectorAll("span")).find((el) =>
-        /AI\s+credits/i.test(el.textContent || ""),
-      );
+      const creditsEl = findCreditsUsageElement();
 
       let actual = null;
       if (creditsEl) {
@@ -190,6 +220,9 @@
 
       if (actual === null) return;
 
+      const alertContainer = findUsageAlertContainer(creditsEl);
+      if (!alertContainer) return;
+
       const expected = getExpectedPercent();
       const diff = expected - actual;
       const absDiff = Math.abs(diff).toFixed(2);
@@ -203,10 +236,18 @@
 
       if (diff >= 0) {
         // We are using less than expected (excess available)
-        showUsageAlert(`Surplus: ${absDiff}% (${daysEquivalent} days)`, true);
+        showUsageAlert(
+          `Surplus: ${absDiff}% (${daysEquivalent} days)`,
+          true,
+          alertContainer,
+        );
       } else {
         // We are using more than expected (deficit)
-        showUsageAlert(`Deficit: ${absDiff}% (${daysEquivalent} days)`, false);
+        showUsageAlert(
+          `Deficit: ${absDiff}% (${daysEquivalent} days)`,
+          false,
+          alertContainer,
+        );
       }
 
       // In-page optional notification (preferred to GM_notification)
@@ -225,8 +266,10 @@
    * Initializes the script when the target container becomes available.
    */
   function initialize() {
-    const container = document.querySelector("#copilot-overages-usage");
-    if (container) {
+    const hasLegacyContainer = !!document.querySelector("#copilot-overages-usage");
+    const creditsEl = findCreditsUsageElement();
+
+    if (hasLegacyContainer || creditsEl) {
       checkCopilotUsage();
     } else {
       // Retry if container not yet loaded
