@@ -22,6 +22,7 @@
     // ignore in environments where document.head isn't available yet
   }
 
+  const DEBUG = true;
   const CONTAINER_SELECTORS = [
     "#js-issues-toolbar > div.js-navigation-container.js-active-navigation-container",
     "#js-issues-toolbar div.js-navigation-container.js-active-navigation-container",
@@ -36,11 +37,20 @@
   let debounceTimer = null;
 
   function getContainer() {
-    return (
-      CONTAINER_SELECTORS.map((selector) =>
-        document.querySelector(selector),
-      ).find(Boolean) || null
-    );
+    for (const selector of CONTAINER_SELECTORS) {
+      const container = document.querySelector(selector);
+      if (container) {
+        if (DEBUG) {
+          console.log("[github-pulls] getContainer found", selector, container);
+        }
+        return container;
+      }
+    }
+
+    if (DEBUG) {
+      console.log("[github-pulls] getContainer: no container found");
+    }
+    return null;
   }
 
   function getRepoNameFromItem(item) {
@@ -52,20 +62,44 @@
           .split("/")
           .map((s) => s.trim())
           .filter(Boolean);
-        return parts.length > 1 ? parts[parts.length - 1] : rawText;
+        const repoName = parts.length > 1 ? parts[parts.length - 1] : rawText;
+        if (DEBUG) {
+          console.log(
+            "[github-pulls] repo from hovercard anchor",
+            rawText,
+            "=>",
+            repoName,
+          );
+        }
+        return repoName;
       }
 
       const prLink = item.querySelector('a[href*="/pull/"]');
       if (prLink && prLink.href) {
-        const pathname = new URL(prLink.href).pathname;
+        const pathname = new URL(prLink.href, document.baseURI).pathname;
         const parts = pathname.split("/").filter(Boolean);
         if (parts.length >= 3) {
-          return parts[1];
+          const repoName = parts[1];
+          if (DEBUG) {
+            console.log(
+              "[github-pulls] repo from PR URL",
+              prLink.href,
+              "=>",
+              repoName,
+            );
+          }
+          return repoName;
         }
       }
 
+      if (DEBUG) {
+        console.log("[github-pulls] getRepoNameFromItem: no repo found", item);
+      }
       return null;
     } catch (e) {
+      if (DEBUG) {
+        console.error("[github-pulls] getRepoNameFromItem error", e, item);
+      }
       return null;
     }
   }
@@ -83,6 +117,10 @@
         n.classList.contains("repo-divider")
       );
     });
+  }
+
+  function needsCounters(children) {
+    return children.some((el) => !el.querySelector(".pr-counter"));
   }
 
   /**
@@ -230,12 +268,30 @@
   function sortContainerByRepo() {
     try {
       const container = getContainer();
-      if (!container) return;
+      if (!container) {
+        if (DEBUG) {
+          console.log("[github-pulls] sortContainerByRepo: no container");
+        }
+        return;
+      }
 
       const children = filterOutDividers(Array.from(container.children));
-      if (children.length <= 1) return;
+      if (children.length <= 1) {
+        if (DEBUG) {
+          console.log(
+            "[github-pulls] sortContainerByRepo: insufficient children",
+            children.length,
+          );
+        }
+        return;
+      }
 
       if (!areItemsReady(children)) {
+        if (DEBUG) {
+          console.log(
+            "[github-pulls] sortContainerByRepo: items not ready yet",
+          );
+        }
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(sortContainerByRepo, 1000);
         return;
@@ -243,13 +299,40 @@
 
       const items = children.map((el, idx) => createItemFromElement(el, idx));
       const anyRepo = items.some((it) => it.repo !== "");
-      if (!anyRepo) return;
+      if (!anyRepo) {
+        if (DEBUG) {
+          console.log(
+            "[github-pulls] sortContainerByRepo: no repo names found",
+            items.map((it) => it.repo),
+          );
+        }
+        return;
+      }
 
+      const beforeRepos = items.map((it) => it.repo);
       sortItems(items);
+      const afterRepos = items.map((it) => it.repo);
 
       const alreadyOrdered = items.every((it, i) => children[i] === it.el);
-      if (alreadyOrdered) return;
+      const counterMissing = needsCounters(children);
+      if (alreadyOrdered && !counterMissing) {
+        if (DEBUG) {
+          console.log(
+            "[github-pulls] sortContainerByRepo: already ordered and counters present",
+            {beforeRepos, afterRepos},
+          );
+        }
+        return;
+      }
 
+      if (DEBUG) {
+        console.log("[github-pulls] sortContainerByRepo: rebuilding list", {
+          beforeRepos,
+          afterRepos,
+          alreadyOrdered,
+          counterMissing,
+        });
+      }
       const frag = buildFragmentFromItems(items);
 
       container.innerHTML = "";
