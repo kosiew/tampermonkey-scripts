@@ -26,7 +26,9 @@
     "#js-issues-toolbar > div.js-navigation-container.js-active-navigation-container",
     "#js-issues-toolbar div.js-navigation-container.js-active-navigation-container",
     'div[aria-label="Issues"] .js-navigation-container.js-active-navigation-container',
+    'div[aria-label="Pull requests"] .js-navigation-container.js-active-navigation-container',
     "div.js-navigation-container.js-active-navigation-container",
+    "div.js-navigation-container",
   ];
   const REPO_LINK_SELECTOR = 'a[data-hovercard-type="repository"]';
 
@@ -44,8 +46,25 @@
   function getRepoNameFromItem(item) {
     try {
       const anchor = item.querySelector(REPO_LINK_SELECTOR);
-      if (!anchor) return null;
-      return anchor.textContent.trim();
+      if (anchor) {
+        const rawText = anchor.textContent.trim();
+        const parts = rawText
+          .split("/")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        return parts.length > 1 ? parts[parts.length - 1] : rawText;
+      }
+
+      const prLink = item.querySelector('a[href*="/pull/"]');
+      if (prLink && prLink.href) {
+        const pathname = new URL(prLink.href).pathname;
+        const parts = pathname.split("/").filter(Boolean);
+        if (parts.length >= 3) {
+          return parts[1];
+        }
+      }
+
+      return null;
     } catch (e) {
       return null;
     }
