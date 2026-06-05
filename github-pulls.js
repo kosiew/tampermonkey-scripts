@@ -22,15 +22,23 @@
     // ignore in environments where document.head isn't available yet
   }
 
-  const CONTAINER_SELECTOR =
-    "#js-issues-toolbar > div.js-navigation-container.js-active-navigation-container";
+  const CONTAINER_SELECTORS = [
+    "#js-issues-toolbar > div.js-navigation-container.js-active-navigation-container",
+    "#js-issues-toolbar div.js-navigation-container.js-active-navigation-container",
+    'div[aria-label="Issues"] .js-navigation-container.js-active-navigation-container',
+    "div.js-navigation-container.js-active-navigation-container",
+  ];
   const REPO_LINK_SELECTOR = 'a[data-hovercard-type="repository"]';
 
   let observer = null;
   let debounceTimer = null;
 
   function getContainer() {
-    return document.querySelector(CONTAINER_SELECTOR);
+    return (
+      CONTAINER_SELECTORS.map((selector) =>
+        document.querySelector(selector),
+      ).find(Boolean) || null
+    );
   }
 
   function getRepoNameFromItem(item) {
@@ -63,16 +71,8 @@
    * @param {HTMLElement[]} children
    * @returns {number}
    */
-  function computeSummaryLoadingRatio(children) {
-    const summaryCount = children.reduce((count, child) => {
-      const hasSummary = Boolean(
-        child.querySelector("summary") ||
-        child.querySelector(".flex-auto summary") ||
-        child.querySelector("div.flex-auto details summary"),
-      );
-      return count + (hasSummary ? 1 : 0);
-    }, 0);
-    return summaryCount / (children.length || 1);
+  function areItemsReady(children) {
+    return children.length > 0;
   }
 
   /**
@@ -216,8 +216,7 @@
       const children = filterOutDividers(Array.from(container.children));
       if (children.length <= 1) return;
 
-      const ratio = computeSummaryLoadingRatio(children);
-      if (ratio < 0.8) {
+      if (!areItemsReady(children)) {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(sortContainerByRepo, 1000);
         return;
