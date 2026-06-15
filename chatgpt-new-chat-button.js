@@ -39,8 +39,12 @@
     button.style.cursor = "pointer";
     button.style.zIndex = "2147483647";
     button.style.boxShadow = "0 6px 18px rgba(0, 0, 0, 0.2)";
+    button.style.transition = "background 0.12s ease, transform 0.12s ease";
 
     button.addEventListener("click", () => {
+      button.style.background = "#2563eb";
+      button.style.transform = "scale(0.98)";
+
       // navigate to the base GPT page by removing the '/c/...' suffix
       // when present.  e.g. '/g/xyz/c/abc' -> '/g/xyz/'.
       const origin = window.location.origin;
@@ -51,7 +55,10 @@
         // ensure trailing slash for consistency
         if (!path.endsWith("/")) path += "/";
       }
-      window.location.href = origin + path;
+
+      setTimeout(() => {
+        window.location.href = origin + path;
+      }, 120);
     });
 
     document.body.appendChild(button);
