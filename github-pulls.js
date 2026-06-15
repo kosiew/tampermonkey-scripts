@@ -319,7 +319,7 @@
         if (DEBUG) {
           console.log(
             "[github-pulls] sortContainerByRepo: already ordered and counters present",
-            {beforeRepos, afterRepos},
+            { beforeRepos, afterRepos },
           );
         }
         return;
