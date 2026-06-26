@@ -9,7 +9,7 @@
 // ==/UserScript==
 
 (function () {
-  ("use strict");
+  "use strict";
 
   // Wait for the page to load fully
   function waitForElement(selector, callback, interval = 100, timeout = 10000) {
@@ -22,7 +22,7 @@
       } else if (Date.now() - start > timeout) {
         clearInterval(check);
         console.error(
-          `Timeout: Could not find element with selector ${selector}`
+          `Timeout: Could not find element with selector ${selector}`,
         );
       }
     }, interval);
@@ -33,24 +33,26 @@
   // <input type="reset" class="btn btn-warning" value="Clear">
   // </div>
   function addFilterButton() {
-    waitForElement(".btn-warning", (clearButton) => {
-      // get the div that contains the clear button
-      const clearButtonDiv = clearButton.parentElement;
+    // KLSE updated Clear from input.btn-warning to button[type=reset].
+    const clearSelector =
+      "button[type='reset'], input[type='reset'], .btn-warning";
 
-      const filterButton = document.createElement("input");
-      // enclose the button in a div
-      const filterDiv = document.createElement("div");
-      filterDiv.className = "form-group";
-      filterDiv.appendChild(filterButton);
+    waitForElement(clearSelector, (clearButton) => {
+      if (document.getElementById("tm-apply-filters-btn")) {
+        return;
+      }
 
+      const filterButton = document.createElement("button");
+      filterButton.id = "tm-apply-filters-btn";
       filterButton.type = "button";
-      filterButton.value = "Apply Filters";
-      filterButton.className = "btn btn-primary";
+      filterButton.textContent = "Apply Filters";
+      filterButton.className = "btn btn-primary btn-sm rounded-pill py-0 px-2";
+      filterButton.style.fontSize = "0.7rem";
+      filterButton.style.height = "22px";
+      filterButton.style.borderWidth = "1px";
       filterButton.addEventListener("click", setFilterValues);
 
-      // place the div before the clear button div
-
-      clearButtonDiv.insertAdjacentElement("beforebegin", filterDiv);
+      clearButton.insertAdjacentElement("beforebegin", filterButton);
     });
   }
 
@@ -65,7 +67,7 @@
       document.querySelector("input[name='min_volume']").value = "100";
 
       const profitableTypeSelect = document.querySelector(
-        "select[name='profitable_type']"
+        "select[name='profitable_type']",
       );
       if (profitableTypeSelect) {
         profitableTypeSelect.value = "years";
@@ -75,7 +77,7 @@
 
       // Set "Continuous Profitable for" to "5 years"
       const profitableYearsSelect = document.querySelector(
-        "select[name='profitable_years']"
+        "select[name='profitable_years']",
       );
       if (profitableYearsSelect) {
         profitableYearsSelect.value = "5";
@@ -85,7 +87,7 @@
 
       // Enable "Strict Mode" checkbox
       const strictModeCheckbox = document.querySelector(
-        "input[name='profitable_strict']"
+        "input[name='profitable_strict']",
       );
       if (strictModeCheckbox && !strictModeCheckbox.checked) {
         strictModeCheckbox.click();
@@ -104,7 +106,7 @@
       }
 
       const debtToEquityInput = document.querySelector(
-        "input[name='debt_to_equity_max']"
+        "input[name='debt_to_equity_max']",
       );
 
       // Check if the input exists
