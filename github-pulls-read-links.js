@@ -5,16 +5,47 @@
 // @description  Open PR links in new tabs and mark visited PRs as read for 2 weeks.
 // @author       You
 // @match        https://github.com/*/*/pulls*
-// @grant        none
+// @grant        GM_getValue
+// @grant        GM_setValue
 // ==/UserScript==
 
 (function () {
   "use strict";
 
   const STORAGE_KEY = "tm_github_pulls_read_links_v1";
+  // Switch storage backend here: "gmStorage" or "localStorage".
+  const STORAGE_BACKEND = "localStorage";
   const TTL_MS = 14 * 24 * 60 * 60 * 1000;
   const LINK_ID_REGEX = /^issue_(\d+)_link$/;
   const READ_CLASS = "tm-pulls-read-link";
+
+  const StorageStrategies = {
+    localStorage: {
+      read(key) {
+        return window.localStorage.getItem(key);
+      },
+      write(key, raw) {
+        window.localStorage.setItem(key, raw);
+      },
+    },
+    gmStorage: {
+      read(key) {
+        if (typeof GM_getValue !== "function") {
+          return null;
+        }
+        return GM_getValue(key, null);
+      },
+      write(key, raw) {
+        if (typeof GM_setValue !== "function") {
+          return;
+        }
+        GM_setValue(key, raw);
+      },
+    },
+  };
+
+  const storageStrategy =
+    StorageStrategies[STORAGE_BACKEND] || StorageStrategies.localStorage;
 
   function getRepoKey() {
     const parts = window.location.pathname.split("/").filter(Boolean);
@@ -26,11 +57,11 @@
 
   function loadStore() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = storageStrategy.read(STORAGE_KEY);
       if (!raw) {
         return {};
       }
-      const parsed = JSON.parse(raw);
+      const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
       if (!parsed || typeof parsed !== "object") {
         return {};
       }
@@ -42,7 +73,7 @@
 
   function saveStore(store) {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+      storageStrategy.write(STORAGE_KEY, JSON.stringify(store));
     } catch (error) {
       // Ignore storage write failures.
     }
