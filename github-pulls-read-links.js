@@ -2,7 +2,7 @@
 // @name         GitHub Pulls Read Links
 // @namespace    http://tampermonkey.net/
 // @version      1.0
-// @description  Open PR links in new tabs and mark visited PRs as read for 2 weeks.
+// @description  Open PR links in new tabs and mark visited PRs as read for 30 days.
 // @author       You
 // @match        https://github.com/*/*/pulls*
 // @grant        GM_getValue
@@ -15,7 +15,8 @@
   const STORAGE_KEY = "tm_github_pulls_read_links_v1";
   // Switch storage backend here: "gmStorage" or "localStorage".
   const STORAGE_BACKEND = "gmStorage";
-  const TTL_MS = 14 * 24 * 60 * 60 * 1000;
+  const STORAGE_DAYS = 30; // Number of days to keep read links.
+  const TTL_MS = STORAGE_DAYS * 24 * 60 * 60 * 1000;
   const LINK_ID_REGEX = /^issue_(\d+)_link$/;
   const READ_CLASS = "tm-pulls-read-link";
 
