@@ -21,9 +21,10 @@
     hiddenClass: "tm-hidden-pr",
     storageKey: "github-pr-hide-ci-errors",
     commentThreshold: 3,
+    hideDependabotPRs: true,
     buttonText: {
-      show: "Show CI/Draft/Heavy",
-      hide: "Hide CI/Draft/Heavy",
+      show: "Show CI/Draft/Heavy/Deps",
+      hide: "Hide CI/Draft/Heavy/Deps",
     },
     selectors: {
       prList: ".js-issue-row",
@@ -33,6 +34,8 @@
       mergeStatusLink: 'a.Link--muted[href*="#partial-pull-merging"]',
       // Selector for comment count elements in PR list rows
       commentCount: "a.Link--muted",
+      // Selector for user links in PR list rows
+      authorLink: 'a[data-hovercard-type="user"]',
     },
   };
 
@@ -110,7 +113,7 @@
       id: CONFIG.buttonId,
       text: shouldHide ? CONFIG.buttonText.show : CONFIG.buttonText.hide,
       title:
-        "Toggle visibility of PRs with CI errors, Draft PRs, and comment-heavy PRs",
+        "Toggle visibility of PRs with CI errors, Draft PRs, comment-heavy PRs, and Dependabot PRs",
       onClick: toggleErrorPRs,
       active: shouldHide,
     });
@@ -225,18 +228,46 @@
   }
 
   /**
-   * Checks if a PR should be hidden (has CI errors, is a draft, or is comment-heavy)
+   * Checks if a PR is authored by Dependabot
+   * @param {HTMLElement} prElement - The PR element to check
+   * @returns {boolean} True if the PR is authored by Dependabot
+   */
+  function isDependabotPR(prElement) {
+    const authorLinks = prElement.querySelectorAll(CONFIG.selectors.authorLink);
+    for (const link of authorLinks) {
+      const author = (link.textContent || "").trim().toLowerCase();
+      const href = (link.getAttribute("href") || "").toLowerCase();
+      if (
+        author === "dependabot[bot]" ||
+        author === "dependabot-preview[bot]" ||
+        href.endsWith("/dependabot[bot]") ||
+        href.endsWith("/dependabot-preview[bot]") ||
+        href.includes("/apps/dependabot")
+      ) {
+        return true;
+      }
+    }
+
+    const rowText = (prElement.textContent || "").toLowerCase();
+    return /\bdependabot(?:-preview)?(?:\[bot\])?\b/.test(rowText);
+  }
+
+  /**
+   * Checks if a PR should be hidden (has CI errors, is a draft, is comment-heavy, or is Dependabot-authored)
    * @param {HTMLElement} prElement - The PR element to check
    * @returns {boolean} True if the PR should be hidden
    */
   function shouldHidePR(prElement) {
     return (
-      hasCIErrors(prElement) || isDraft(prElement) || hasManyComments(prElement)
+      hasCIErrors(prElement) ||
+      isDraft(prElement) ||
+      hasManyComments(prElement) ||
+      (CONFIG.hideDependabotPRs && isDependabotPR(prElement))
     );
   }
 
   /**
-   * Toggles the visibility of PRs with CI errors and Draft PRs
+   * Toggles the visibility of PRs with CI errors, Draft PRs, comment-heavy PRs, and Dependabot PRs
    * @returns {void}
    */
   function toggleErrorPRs() {
@@ -256,8 +287,9 @@
       let ciErrorCount = 0;
       let draftCount = 0;
       let commentHeavyCount = 0;
+      let dependabotCount = 0;
 
-      // Toggle visibility for PRs with errors, drafts, or many comments
+      // Toggle visibility for PRs with errors, drafts, many comments, or Dependabot authorship
       allPRs.forEach((pr) => {
         if (shouldHidePR(pr)) {
           pr.classList.toggle(CONFIG.hiddenClass, isHiding);
@@ -265,6 +297,8 @@
             if (hasCIErrors(pr)) ciErrorCount++;
             if (isDraft(pr)) draftCount++;
             if (hasManyComments(pr)) commentHeavyCount++;
+            if (CONFIG.hideDependabotPRs && isDependabotPR(pr))
+              dependabotCount++;
           }
         }
       });
@@ -288,6 +322,11 @@
             `${commentHeavyCount} comment-heavy PR${
               commentHeavyCount !== 1 ? "s" : ""
             }`,
+          );
+        }
+        if (dependabotCount > 0) {
+          parts.push(
+            `${dependabotCount} Dependabot PR${dependabotCount !== 1 ? "s" : ""}`,
           );
         }
         const message =
