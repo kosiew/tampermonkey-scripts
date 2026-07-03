@@ -14,7 +14,7 @@
 
   const STORAGE_KEY = "tm_github_pulls_read_links_v1";
   // Switch storage backend here: "gmStorage" or "localStorage".
-  const STORAGE_BACKEND = "localStorage";
+  const STORAGE_BACKEND = "gmStorage";
   const TTL_MS = 14 * 24 * 60 * 60 * 1000;
   const LINK_ID_REGEX = /^issue_(\d+)_link$/;
   const READ_CLASS = "tm-pulls-read-link";
