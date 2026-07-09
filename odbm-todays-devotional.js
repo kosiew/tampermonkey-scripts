@@ -16,7 +16,10 @@
   const STORAGE_KEY = "odbm-todays-devotional-last-click-date";
   const CLEAR_BUTTON_ID = "odbm-devotional-clear-button";
   const TOAST_ID = "odbm-devotional-clear-toast";
-  const DEVOTIONAL_SELECTOR = "#results-section > section > a";
+  const DEVOTIONAL_SELECTOR =
+    "#results-section ul li:first-child a[href*='/devotional/devotional-category/']";
+  const DEVOTIONAL_FALLBACK_SELECTOR =
+    "#results-section a[href*='/devotional/devotional-category/']";
 
   let hasClickedDevotional = false;
 
@@ -129,9 +132,21 @@
 
   async function clickFirstDevotionalResult() {
     logInfo("waiting for devotional results selector:", DEVOTIONAL_SELECTOR);
-    const anchor = await waitForSelector(DEVOTIONAL_SELECTOR);
+    let anchor = await waitForSelector(DEVOTIONAL_SELECTOR);
     if (!anchor) {
-      logWarn("no result anchor found for selector", DEVOTIONAL_SELECTOR);
+      logWarn(
+        "primary selector did not match, trying fallback selector",
+        DEVOTIONAL_FALLBACK_SELECTOR,
+      );
+      anchor = await waitForSelector(DEVOTIONAL_FALLBACK_SELECTOR);
+    }
+
+    if (!anchor) {
+      logWarn(
+        "no result anchor found for selectors",
+        DEVOTIONAL_SELECTOR,
+        DEVOTIONAL_FALLBACK_SELECTOR,
+      );
       return false;
     }
 
