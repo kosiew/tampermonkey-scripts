@@ -26,8 +26,8 @@
         'li.ListItem-module__listItem__wBJcm, [data-testid="issue-row"], [data-testid="issues-list-row"]',
       issueListContainer: 'main ul, main [role="list"]',
       issueLink: 'a[href*="/issues/"]',
-      pullRequestLink:
-        'a[data-component="Link"][href*="/pull/"], a[href*="/pull/"]',
+      linkedPullRequestIndicator:
+        '[aria-label*="linked PR"], svg.octicon-git-pull-request',
       assigneeAvatar:
         'img[data-component="Avatar"][src*="avatars.githubusercontent.com"], img.avatar[src*="avatars.githubusercontent.com"]',
     },
@@ -113,9 +113,9 @@
    * @returns {HTMLElement[]}
    */
   function getIssueRows() {
-    return Array.from(document.querySelectorAll(CONFIG.selectors.issueRow)).filter(
-      isIssueRow,
-    );
+    return Array.from(
+      document.querySelectorAll(CONFIG.selectors.issueRow),
+    ).filter(isIssueRow);
   }
 
   /**
@@ -134,7 +134,9 @@
    */
   function hasPullRequest(issueElement) {
     return (
-      issueElement.querySelector(CONFIG.selectors.pullRequestLink) !== null
+      issueElement.querySelector(
+        CONFIG.selectors.linkedPullRequestIndicator,
+      ) !== null
     );
   }
 
