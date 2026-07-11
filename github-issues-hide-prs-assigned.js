@@ -22,9 +22,12 @@
       hide: "Hide Assigned/PR",
     },
     selectors: {
-      issueRow: ".js-issue-row",
-      issueListContainer: ".js-navigation-container",
-      pullRequestLink: 'a[data-component="Link"][href*="/pull/"], a[href*="/pull/"]',
+      issueRow:
+        'li.ListItem-module__listItem__wBJcm, [data-testid="issue-row"], [data-testid="issues-list-row"]',
+      issueListContainer: 'main ul, main [role="list"]',
+      issueLink: 'a[href*="/issues/"]',
+      pullRequestLink:
+        'a[data-component="Link"][href*="/pull/"], a[href*="/pull/"]',
       assigneeAvatar:
         'img[data-component="Avatar"][src*="avatars.githubusercontent.com"], img.avatar[src*="avatars.githubusercontent.com"]',
     },
@@ -110,7 +113,18 @@
    * @returns {HTMLElement[]}
    */
   function getIssueRows() {
-    return Array.from(document.querySelectorAll(CONFIG.selectors.issueRow));
+    return Array.from(document.querySelectorAll(CONFIG.selectors.issueRow)).filter(
+      isIssueRow,
+    );
+  }
+
+  /**
+   * Checks whether an element is an actual issue row and not some unrelated list item.
+   * @param {HTMLElement} issueElement The candidate row element.
+   * @returns {boolean}
+   */
+  function isIssueRow(issueElement) {
+    return issueElement.querySelector(CONFIG.selectors.issueLink) !== null;
   }
 
   /**
@@ -119,7 +133,9 @@
    * @returns {boolean}
    */
   function hasPullRequest(issueElement) {
-    return issueElement.querySelector(CONFIG.selectors.pullRequestLink) !== null;
+    return (
+      issueElement.querySelector(CONFIG.selectors.pullRequestLink) !== null
+    );
   }
 
   /**
@@ -184,7 +200,9 @@
    * @returns {void}
    */
   function observeIssueList(button) {
-    const listContainer = document.querySelector(CONFIG.selectors.issueListContainer);
+    const listContainer = Array.from(
+      document.querySelectorAll(CONFIG.selectors.issueListContainer),
+    ).find((candidate) => candidate.querySelector(CONFIG.selectors.issueRow));
     if (!listContainer) {
       return;
     }
@@ -205,14 +223,18 @@
             return;
           }
 
-          if (node.matches?.(CONFIG.selectors.issueRow) && shouldHideIssue(node)) {
+          if (
+            node.matches?.(CONFIG.selectors.issueRow) &&
+            isIssueRow(node) &&
+            shouldHideIssue(node)
+          ) {
             node.classList.add(CONFIG.hiddenClass);
           }
 
           node
             .querySelectorAll?.(CONFIG.selectors.issueRow)
             .forEach((issueRow) => {
-              if (shouldHideIssue(issueRow)) {
+              if (isIssueRow(issueRow) && shouldHideIssue(issueRow)) {
                 issueRow.classList.add(CONFIG.hiddenClass);
               }
             });
@@ -242,7 +264,8 @@
     const button = uiManager.addButton({
       id: CONFIG.buttonId,
       text: shouldHide ? CONFIG.buttonText.show : CONFIG.buttonText.hide,
-      title: "Toggle visibility of issues that already have a PR or an assignee",
+      title:
+        "Toggle visibility of issues that already have a PR or an assignee",
       active: shouldHide,
       onClick: () => {
         const nextShouldHide = !button.classList.contains("active");
