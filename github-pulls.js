@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         GitHub Pulls - Sort by Repository
 // @namespace    http://tampermonkey.net/
-// @version      0.5
+// @version      0.6
 // @description  Sort GitHub pull requests by repository name in repository view
 // @author       You
-// @match        https://github.com/pulls
+// @match        https://github.com/pulls/inbox
 // @match        https://github.com/pulls?*
 // @grant        none
 // ==/UserScript==
@@ -34,23 +34,66 @@
   const REPO_LINK_SELECTOR = 'a[data-hovercard-type="repository"]';
 
   let observer = null;
+  let bodyObserver = null;
   let debounceTimer = null;
 
-  function getContainer() {
+  /**
+   * Return true when an element looks like a PR list container.
+   * @param {HTMLElement} container
+   * @returns {boolean}
+   */
+  function isPullContainer(container) {
+    if (!container) return false;
+    const children = Array.from(container.children || []);
+    if (!children.length) return false;
+    return children.some(
+      (child) =>
+        child.nodeType === 1 && child.querySelector('a[href*="/pull/"]'),
+    );
+  }
+
+  /**
+   * Find all containers that hold PR rows for both classic and inbox layouts.
+   * @returns {HTMLElement[]}
+   */
+  function getContainers() {
+    const containers = [];
+    const seen = new Set();
+
     for (const selector of CONTAINER_SELECTORS) {
-      const container = document.querySelector(selector);
-      if (container) {
+      const matches = document.querySelectorAll(selector);
+      for (const container of matches) {
+        if (seen.has(container)) continue;
+        if (!isPullContainer(container)) continue;
+        seen.add(container);
+        containers.push(container);
         if (DEBUG) {
-          console.log("[github-pulls] getContainer found", selector, container);
+          console.log(
+            "[github-pulls] getContainers found",
+            selector,
+            container,
+          );
         }
-        return container;
       }
     }
 
-    if (DEBUG) {
-      console.log("[github-pulls] getContainer: no container found");
+    // Inbox view uses list containers per section.
+    const inboxLists = document.querySelectorAll('ul[role="list"]');
+    for (const list of inboxLists) {
+      if (seen.has(list)) continue;
+      if (!isPullContainer(list)) continue;
+      seen.add(list);
+      containers.push(list);
+      if (DEBUG) {
+        console.log("[github-pulls] getContainers found inbox list", list);
+      }
     }
-    return null;
+
+    if (DEBUG && !containers.length) {
+      console.log("[github-pulls] getContainers: no containers found");
+    }
+
+    return containers;
   }
 
   function getRepoNameFromItem(item) {
@@ -186,7 +229,24 @@
    * Create a HR divider used between repository groups.
    * @returns {HTMLElement}
    */
-  function createRepoDivider() {
+  function createRepoDivider(container) {
+    const tagName = (container.tagName || "").toUpperCase();
+
+    if (tagName === "UL" || tagName === "OL") {
+      const li = document.createElement("li");
+      li.className = "repo-divider";
+      li.style.listStyle = "none";
+      li.style.margin = "8px 0";
+      li.style.padding = "0";
+
+      const hr = document.createElement("hr");
+      hr.style.border = "0";
+      hr.style.borderTop = "1px solid #e1e4e8";
+      hr.style.margin = "0";
+      li.appendChild(hr);
+      return li;
+    }
+
     const hr = document.createElement("hr");
     hr.className = "repo-divider";
     hr.style.border = "0";
@@ -199,7 +259,7 @@
    * Build a document fragment from sorted items, inserting counters and dividers.
    * @param {Array} items
    */
-  function buildFragmentFromItems(items) {
+  function buildFragmentFromItems(items, container) {
     const frag = document.createDocumentFragment();
     let lastRepo = null;
     const repoCounts = {};
@@ -210,7 +270,7 @@
       repoCounts[repo]++;
 
       if (lastRepo !== null && repo !== lastRepo) {
-        frag.appendChild(createRepoDivider());
+        frag.appendChild(createRepoDivider(container));
       }
 
       // Insert per-item counter before the repo link or other stable inner element.
@@ -265,12 +325,13 @@
     return frag;
   }
 
-  function sortContainerByRepo() {
+  function sortContainerByRepo(container) {
     try {
-      const container = getContainer();
       if (!container) {
         if (DEBUG) {
-          console.log("[github-pulls] sortContainerByRepo: no container");
+          console.log(
+            "[github-pulls] sortContainerByRepo: no container argument",
+          );
         }
         return;
       }
@@ -333,7 +394,7 @@
           counterMissing,
         });
       }
-      const frag = buildFragmentFromItems(items);
+      const frag = buildFragmentFromItems(items, container);
 
       container.innerHTML = "";
       container.appendChild(frag);
@@ -342,14 +403,23 @@
     }
   }
 
-  function scheduleSort() {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(sortContainerByRepo, 150);
+  function sortAllContainers() {
+    const containers = getContainers();
+    if (!containers.length) return;
+    for (const container of containers) {
+      sortContainerByRepo(container);
+    }
   }
 
-  function observeContainer(container) {
-    if (!container) return;
+  function scheduleSort() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(sortAllContainers, 150);
+  }
+
+  function observeContainers(containers) {
+    if (!containers || !containers.length) return;
     if (observer) observer.disconnect();
+    if (bodyObserver) bodyObserver.disconnect();
 
     observer = new MutationObserver((mutations) => {
       for (const m of mutations) {
@@ -363,23 +433,25 @@
       }
     });
 
-    observer.observe(container, { childList: true, subtree: false });
+    for (const container of containers) {
+      observer.observe(container, { childList: true, subtree: false });
+    }
     scheduleSort();
   }
 
   function waitForContainerAndInit() {
-    const container = getContainer();
-    if (container) {
-      observeContainer(container);
+    const containers = getContainers();
+    if (containers.length) {
+      observeContainers(containers);
       return;
     }
 
     // If not present, monitor the page body for the container to appear (SPA navigation)
-    const bodyObserver = new MutationObserver((mutations, obs) => {
-      const c = getContainer();
-      if (c) {
+    bodyObserver = new MutationObserver((mutations, obs) => {
+      const currentContainers = getContainers();
+      if (currentContainers.length) {
         obs.disconnect();
-        observeContainer(c);
+        observeContainers(currentContainers);
       }
     });
 
