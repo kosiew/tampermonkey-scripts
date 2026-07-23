@@ -36,6 +36,22 @@
   let observer = null;
   let bodyObserver = null;
   let debounceTimer = null;
+  /** @type {HTMLElement[]} */
+  let observedContainers = [];
+
+  /**
+   * Compare two container arrays by reference and order.
+   * @param {HTMLElement[]} a
+   * @param {HTMLElement[]} b
+   * @returns {boolean}
+   */
+  function areSameContainers(a, b) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false;
+    }
+    return true;
+  }
 
   /**
    * Return true when an element looks like a PR list container.
@@ -354,7 +370,7 @@
           );
         }
         clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(sortContainerByRepo, 1000);
+        debounceTimer = setTimeout(() => sortContainerByRepo(container), 1000);
         return;
       }
 
@@ -404,7 +420,7 @@
   }
 
   function sortAllContainers() {
-    const containers = getContainers();
+    const containers = ensureObservedContainers();
     if (!containers.length) return;
     for (const container of containers) {
       sortContainerByRepo(container);
@@ -419,7 +435,6 @@
   function observeContainers(containers) {
     if (!containers || !containers.length) return;
     if (observer) observer.disconnect();
-    if (bodyObserver) bodyObserver.disconnect();
 
     observer = new MutationObserver((mutations) => {
       for (const m of mutations) {
@@ -436,26 +451,39 @@
     for (const container of containers) {
       observer.observe(container, { childList: true, subtree: false });
     }
-    scheduleSort();
+    observedContainers = containers.slice();
+  }
+
+  /**
+   * Keep observer targets in sync with currently available PR containers.
+   * @returns {HTMLElement[]}
+   */
+  function ensureObservedContainers() {
+    const containers = getContainers();
+    if (!containers.length) return [];
+
+    if (!areSameContainers(containers, observedContainers)) {
+      if (DEBUG) {
+        console.log("[github-pulls] ensureObservedContainers: refreshing", {
+          previous: observedContainers.length,
+          current: containers.length,
+        });
+      }
+      observeContainers(containers);
+    }
+
+    return containers;
   }
 
   function waitForContainerAndInit() {
-    const containers = getContainers();
-    if (containers.length) {
-      observeContainers(containers);
-      return;
-    }
-
-    // If not present, monitor the page body for the container to appear (SPA navigation)
-    bodyObserver = new MutationObserver((mutations, obs) => {
-      const currentContainers = getContainers();
-      if (currentContainers.length) {
-        obs.disconnect();
-        observeContainers(currentContainers);
-      }
+    // Monitor page body continuously because inbox sections/lists can load incrementally.
+    bodyObserver = new MutationObserver(() => {
+      ensureObservedContainers();
+      scheduleSort();
     });
 
     bodyObserver.observe(document.body, { childList: true, subtree: true });
+    scheduleSort();
   }
 
   if (document.readyState === "loading") {
