@@ -18,6 +18,7 @@
   "use strict";
 
   const STORAGE_KEY = "github_adhoc_anchors";
+  const PANEL_POSITION_KEY = "github_adhoc_anchors_panel_position";
   const GIST_ID_KEY = "github_adhoc_anchors_gist_id";
   const GITHUB_TOKEN_KEY = "github_adhoc_anchors_token";
   const USE_GIST_STORAGE_KEY = "github_adhoc_anchors_use_gist";
@@ -33,6 +34,7 @@
   let allAnchorData = {};
   let currentUrlKey = "";
   let lastHref = window.location.href;
+  let panelPosition = null;
 
   class GistManager {
     constructor(gistIdKey, githubTokenKey, useGistStorageKey, fileName) {
@@ -304,6 +306,121 @@
     `;
 
     document.head.appendChild(style);
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
+  }
+
+  async function loadPanelPosition() {
+    panelPosition = await GM.getValue(PANEL_POSITION_KEY, null);
+  }
+
+  function applyPanelPosition(panel) {
+    if (!panel) {
+      return;
+    }
+
+    if (
+      !panelPosition ||
+      !Number.isFinite(panelPosition.left) ||
+      !Number.isFinite(panelPosition.top)
+    ) {
+      panel.style.left = "";
+      panel.style.top = "";
+      panel.style.right = "14px";
+      panel.style.bottom = "14px";
+      return;
+    }
+
+    const maxLeft = Math.max(0, window.innerWidth - panel.offsetWidth);
+    const maxTop = Math.max(0, window.innerHeight - panel.offsetHeight);
+    const left = clamp(panelPosition.left, 0, maxLeft);
+    const top = clamp(panelPosition.top, 0, maxTop);
+
+    panel.style.left = `${left}px`;
+    panel.style.top = `${top}px`;
+    panel.style.right = "auto";
+    panel.style.bottom = "auto";
+  }
+
+  async function savePanelPosition(panel) {
+    const left = Math.round(panel.offsetLeft);
+    const top = Math.round(panel.offsetTop);
+    panelPosition = { left, top };
+    await GM.setValue(PANEL_POSITION_KEY, panelPosition);
+  }
+
+  function makePanelDraggable(panel) {
+    const header = panel.querySelector(".gh-anchor-header");
+    if (!header || header.dataset.dragEnabled === "true") {
+      return;
+    }
+
+    header.dataset.dragEnabled = "true";
+    header.style.cursor = "move";
+
+    let dragState = null;
+
+    const onPointerMove = (event) => {
+      if (!dragState) {
+        return;
+      }
+
+      const maxLeft = Math.max(0, window.innerWidth - panel.offsetWidth);
+      const maxTop = Math.max(0, window.innerHeight - panel.offsetHeight);
+      const nextLeft = clamp(event.clientX - dragState.offsetX, 0, maxLeft);
+      const nextTop = clamp(event.clientY - dragState.offsetY, 0, maxTop);
+
+      panel.style.left = `${Math.round(nextLeft)}px`;
+      panel.style.top = `${Math.round(nextTop)}px`;
+      panel.style.right = "auto";
+      panel.style.bottom = "auto";
+    };
+
+    const onPointerUp = async () => {
+      if (!dragState) {
+        return;
+      }
+
+      dragState = null;
+      document.body.style.userSelect = "";
+
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+
+      try {
+        await savePanelPosition(panel);
+      } catch (error) {
+        console.warn(
+          "[GitHub Adhoc Anchors] Failed to save panel position",
+          error,
+        );
+      }
+    };
+
+    header.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      if (event.target.closest("button")) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const panelRect = panel.getBoundingClientRect();
+      dragState = {
+        offsetX: event.clientX - panelRect.left,
+        offsetY: event.clientY - panelRect.top,
+      };
+
+      document.body.style.userSelect = "none";
+
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", onPointerUp, { once: true });
+    });
   }
 
   function fallbackSelector(element) {
@@ -640,6 +757,8 @@
     `;
 
     document.body.appendChild(panel);
+    applyPanelPosition(panel);
+    makePanelDraggable(panel);
 
     const addButton = panel.querySelector(`#${ADD_BUTTON_ID}`);
     addButton.addEventListener("click", () => setAddMode(!isAddMode));
@@ -718,6 +837,7 @@
     }
 
     addStyles();
+    await loadPanelPosition();
     createPanel();
 
     await loadData();
@@ -735,7 +855,13 @@
     );
 
     window.addEventListener("scroll", renderBadges, { passive: true });
-    window.addEventListener("resize", renderBadges);
+    window.addEventListener("resize", () => {
+      const panel = document.getElementById(PANEL_ID);
+      if (panel) {
+        applyPanelPosition(panel);
+      }
+      renderBadges();
+    });
 
     const observer = new MutationObserver(onPageMutation);
     observer.observe(document.body, { childList: true, subtree: true });
