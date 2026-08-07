@@ -10,8 +10,8 @@
 // @grant        GM.getValue
 // @grant        GM.setValue
 // @grant        GM.registerMenuCommand
-// @grant        GM_xmlhttpRequest
 // @grant        GM.notification
+// @grant        GM.setClipboard
 // ==/UserScript==
 
 (function () {
@@ -19,10 +19,6 @@
 
   const STORAGE_KEY = "github_adhoc_anchors";
   const PANEL_POSITION_KEY = "github_adhoc_anchors_panel_position";
-  const GIST_ID_KEY = "github_adhoc_anchors_gist_id";
-  const GITHUB_TOKEN_KEY = "github_adhoc_anchors_token";
-  const USE_GIST_STORAGE_KEY = "github_adhoc_anchors_use_gist";
-  const GIST_FILE_NAME = "gh-adhoc-anchors.json";
 
   const PANEL_ID = "gh-adhoc-anchors-panel";
   const LIST_ID = "gh-adhoc-anchors-list";
@@ -35,135 +31,6 @@
   let currentUrlKey = "";
   let lastHref = window.location.href;
   let panelPosition = null;
-
-  class GistManager {
-    constructor(gistIdKey, githubTokenKey, useGistStorageKey, fileName) {
-      this.gistIdKey = gistIdKey;
-      this.githubTokenKey = githubTokenKey;
-      this.useGistStorageKey = useGistStorageKey;
-      this.fileName = fileName;
-      this.useGistStorage = false;
-    }
-
-    async refreshSettings() {
-      this.useGistStorage = await GM.getValue(this.useGistStorageKey, false);
-      return this.useGistStorage;
-    }
-
-    async isEnabled() {
-      return this.refreshSettings();
-    }
-
-    async fetchFromGist() {
-      const gistId = await GM.getValue(this.gistIdKey, "");
-      const githubToken = await GM.getValue(this.githubTokenKey, "");
-
-      if (!gistId || !githubToken) {
-        throw new Error("Gist ID or GitHub token is missing");
-      }
-
-      return new Promise((resolve, reject) => {
-        GM_xmlhttpRequest({
-          method: "GET",
-          url: `https://api.github.com/gists/${gistId}`,
-          headers: {
-            Authorization: `token ${githubToken}`,
-            Accept: "application/vnd.github.v3+json",
-          },
-          onload: (response) => {
-            if (response.status !== 200) {
-              reject(new Error(`Failed to fetch gist (${response.status})`));
-              return;
-            }
-
-            const gist = JSON.parse(response.responseText);
-            const content = gist?.files?.[this.fileName]?.content;
-            if (!content) {
-              resolve({});
-              return;
-            }
-
-            try {
-              resolve(JSON.parse(content));
-            } catch (error) {
-              reject(new Error(`Invalid gist JSON: ${error.message}`));
-            }
-          },
-          onerror: () => reject(new Error("Network error fetching gist")),
-        });
-      });
-    }
-
-    async saveToGist(data) {
-      const gistId = await GM.getValue(this.gistIdKey, "");
-      const githubToken = await GM.getValue(this.githubTokenKey, "");
-
-      if (!gistId || !githubToken) {
-        throw new Error("Gist ID or GitHub token is missing");
-      }
-
-      return new Promise((resolve, reject) => {
-        GM_xmlhttpRequest({
-          method: "PATCH",
-          url: `https://api.github.com/gists/${gistId}`,
-          headers: {
-            Authorization: `token ${githubToken}`,
-            Accept: "application/vnd.github.v3+json",
-            "Content-Type": "application/json",
-          },
-          data: JSON.stringify({
-            files: {
-              [this.fileName]: {
-                content: JSON.stringify(data, null, 2),
-              },
-            },
-          }),
-          onload: (response) => {
-            if (response.status !== 200) {
-              reject(new Error(`Failed to update gist (${response.status})`));
-              return;
-            }
-            resolve(JSON.parse(response.responseText));
-          },
-          onerror: () => reject(new Error("Network error updating gist")),
-        });
-      });
-    }
-
-    async configureSettings() {
-      const currentGistId = await GM.getValue(this.gistIdKey, "");
-      const currentToken = await GM.getValue(this.githubTokenKey, "");
-
-      const gistId = prompt("Enter your Gist ID:", currentGistId);
-      if (gistId === null) {
-        return false;
-      }
-
-      const token = prompt(
-        "Enter your GitHub token (classic, gist scope):",
-        currentToken,
-      );
-      if (token === null) {
-        return false;
-      }
-
-      await GM.setValue(this.gistIdKey, gistId.trim());
-      await GM.setValue(this.githubTokenKey, token.trim());
-
-      const enableGist = confirm("Enable Gist synchronization for anchors?");
-      await GM.setValue(this.useGistStorageKey, enableGist);
-      this.useGistStorage = enableGist;
-
-      return true;
-    }
-  }
-
-  const gistManager = new GistManager(
-    GIST_ID_KEY,
-    GITHUB_TOKEN_KEY,
-    USE_GIST_STORAGE_KEY,
-    GIST_FILE_NAME,
-  );
 
   function isSupportedPage() {
     return PAGE_REGEX.test(window.location.pathname);
@@ -575,11 +442,102 @@
 
   async function persistAllData() {
     await GM.setValue(STORAGE_KEY, allAnchorData);
+  }
 
-    if (await gistManager.isEnabled()) {
-      await gistManager.saveToGist({
-        github_adhoc_anchors: allAnchorData,
+  function buildExportPayload() {
+    return {
+      format: "github_adhoc_anchors_v1",
+      exportedAt: new Date().toISOString(),
+      github_adhoc_anchors: allAnchorData,
+    };
+  }
+
+  function normalizeImportedData(rawData) {
+    if (!rawData || typeof rawData !== "object" || Array.isArray(rawData)) {
+      throw new Error("Imported data must be a JSON object");
+    }
+
+    const normalized = {};
+    for (const [url, entry] of Object.entries(rawData)) {
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+
+      const anchors = Array.isArray(entry.anchors) ? entry.anchors : [];
+      const validAnchors = anchors
+        .filter((anchor) => anchor && typeof anchor === "object")
+        .map((anchor, index) => ({
+          id:
+            typeof anchor.id === "string" && anchor.id
+              ? anchor.id
+              : `${Date.now()}-${index}`,
+          label:
+            typeof anchor.label === "string" && anchor.label.trim()
+              ? anchor.label.trim()
+              : `Anchor ${index + 1}`,
+          selector: typeof anchor.selector === "string" ? anchor.selector : "",
+          targetTop: Number.isFinite(anchor.targetTop) ? anchor.targetTop : 0,
+          clickPageY: Number.isFinite(anchor.clickPageY)
+            ? anchor.clickPageY
+            : 0,
+          deltaY: Number.isFinite(anchor.deltaY) ? anchor.deltaY : 0,
+          createdAt:
+            typeof anchor.createdAt === "string" && anchor.createdAt
+              ? anchor.createdAt
+              : new Date().toISOString(),
+        }));
+
+      normalized[url] = {
+        anchors: validAnchors,
+        updatedAt:
+          typeof entry.updatedAt === "string" && entry.updatedAt
+            ? entry.updatedAt
+            : new Date().toISOString(),
+      };
+    }
+
+    return normalized;
+  }
+
+  async function exportAnchorsForNotes() {
+    const payload = buildExportPayload();
+    const json = JSON.stringify(payload, null, 2);
+
+    GM.setClipboard(json, "text");
+
+    GM.notification({
+      title: "GitHub Adhoc Anchors",
+      text: "Anchors JSON copied. Paste into github-url-notes.",
+      timeout: 2500,
+    });
+  }
+
+  async function importAnchorsFromNotes() {
+    const raw = prompt(
+      "Paste exported anchors JSON from github-url-notes:",
+      "",
+    );
+
+    if (raw === null) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      const importedData =
+        parsed?.github_adhoc_anchors || parsed?.data || parsed;
+      allAnchorData = normalizeImportedData(importedData);
+
+      await persistAllData();
+      refreshCurrentPage();
+
+      GM.notification({
+        title: "GitHub Adhoc Anchors",
+        text: `Import complete. Pages: ${Object.keys(allAnchorData).length}`,
+        timeout: 2500,
       });
+    } catch (error) {
+      alert(`Failed to import anchors: ${error.message}`);
     }
   }
 
@@ -681,63 +639,6 @@
     renderList();
   }
 
-  async function syncWithGist() {
-    const enabled = await gistManager.isEnabled();
-    if (!enabled) {
-      const shouldConfigure = confirm(
-        "Gist sync is disabled. Configure and enable it now?",
-      );
-      if (!shouldConfigure) {
-        return;
-      }
-
-      const configured = await gistManager.configureSettings();
-      if (!configured) {
-        return;
-      }
-    }
-
-    const localData = await GM.getValue(STORAGE_KEY, {});
-    let gistData = {};
-
-    try {
-      gistData = await gistManager.fetchFromGist();
-    } catch (error) {
-      alert(`Failed to load from gist: ${error.message}`);
-      return;
-    }
-
-    const gistAnchors = gistData?.github_adhoc_anchors || {};
-    const merged = { ...gistAnchors };
-
-    for (const [url, localEntry] of Object.entries(localData)) {
-      const gistEntry = gistAnchors[url];
-      const localTime = new Date(localEntry?.updatedAt || 0).getTime();
-      const gistTime = new Date(gistEntry?.updatedAt || 0).getTime();
-      if (!gistEntry || localTime >= gistTime) {
-        merged[url] = localEntry;
-      }
-    }
-
-    allAnchorData = merged;
-    await GM.setValue(STORAGE_KEY, merged);
-
-    try {
-      await gistManager.saveToGist({ github_adhoc_anchors: merged });
-    } catch (error) {
-      alert(`Local sync complete, but saving to gist failed: ${error.message}`);
-      return;
-    }
-
-    refreshCurrentPage();
-
-    GM.notification({
-      title: "GitHub Adhoc Anchors",
-      text: `Sync complete. Pages: ${Object.keys(merged).length}`,
-      timeout: 2000,
-    });
-  }
-
   function createPanel() {
     if (document.getElementById(PANEL_ID)) {
       return;
@@ -786,28 +687,8 @@
 
   async function loadData() {
     const localData = await GM.getValue(STORAGE_KEY, {});
-    allAnchorData = localData;
-
-    if (await gistManager.isEnabled()) {
-      try {
-        const gistData = await gistManager.fetchFromGist();
-        const gistAnchors = gistData?.github_adhoc_anchors || {};
-
-        for (const [url, gistEntry] of Object.entries(gistAnchors)) {
-          const localEntry = allAnchorData[url];
-          const gistTime = new Date(gistEntry?.updatedAt || 0).getTime();
-          const localTime = new Date(localEntry?.updatedAt || 0).getTime();
-
-          if (!localEntry || gistTime > localTime) {
-            allAnchorData[url] = gistEntry;
-          }
-        }
-
-        await GM.setValue(STORAGE_KEY, allAnchorData);
-      } catch (error) {
-        console.warn("[GitHub Adhoc Anchors] Gist load skipped", error);
-      }
-    }
+    allAnchorData = normalizeImportedData(localData);
+    await GM.setValue(STORAGE_KEY, allAnchorData);
   }
 
   function onPageMutation() {
@@ -866,11 +747,11 @@
     const observer = new MutationObserver(onPageMutation);
     observer.observe(document.body, { childList: true, subtree: true });
 
-    GM.registerMenuCommand("Configure Anchor Gist Settings", async () => {
-      await gistManager.configureSettings();
+    GM.registerMenuCommand("Export Anchors JSON (for Notes)", async () => {
+      await exportAnchorsForNotes();
     });
-    GM.registerMenuCommand("Sync Anchors with Gist", async () => {
-      await syncWithGist();
+    GM.registerMenuCommand("Import Anchors JSON (from Notes)", async () => {
+      await importAnchorsFromNotes();
     });
     GM.registerMenuCommand("Clear Anchors for Current Page", async () => {
       await clearCurrentPageAnchors();
