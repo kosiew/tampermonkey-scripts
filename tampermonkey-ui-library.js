@@ -52,7 +52,7 @@
                     gap: 10px;
                     z-index: 100;
                     align-items: center;
-                    background-color: rgba(255, 255, 255, 0.8);
+                  background-color: rgba(255, 214, 102, 0.95);
                     padding: 5px;
                     border-radius: 6px;
             user-select: none;
