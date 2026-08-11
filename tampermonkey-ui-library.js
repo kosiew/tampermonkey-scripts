@@ -25,6 +25,7 @@
     constructor(options = {}) {
       this.containerClass = options.containerClass || "tm-scripts-container";
       this.containerParent = options.containerParent || ".Header";
+      this.dragHandleClass = `${this.containerClass}-drag-handle`;
       this.dragState = {
         active: false,
         pointerId: null,
@@ -54,14 +55,29 @@
                     background-color: rgba(255, 255, 255, 0.8);
                     padding: 5px;
                     border-radius: 6px;
-            cursor: grab;
             user-select: none;
-                    touch-action: none;
                 }
 
-          .${this.containerClass}.dragging {
-            cursor: grabbing;
-          }
+                .${this.dragHandleClass} {
+                  display: inline-flex;
+                  align-items: center;
+                  gap: 6px;
+                  padding: 6px 10px;
+                  border-radius: 6px;
+                  background: rgba(27, 31, 36, 0.08);
+                  color: #24292f;
+                  font-size: 12px;
+                  font-weight: 600;
+                  cursor: grab;
+                  touch-action: none;
+                  white-space: nowrap;
+                }
+
+                .${this.dragHandleClass}:hover,
+                .${this.dragHandleClass}.dragging {
+                  cursor: grabbing;
+                  background: rgba(27, 31, 36, 0.14);
+                }
                 
                 .${this.containerClass} button {
                     padding: 6px 12px;
@@ -91,7 +107,7 @@
                     background-color: #a40e26;
                 }
             `;
-            (document.head || document.documentElement).appendChild(styles);
+      (document.head || document.documentElement).appendChild(styles);
     }
 
     /**
@@ -106,6 +122,7 @@
         // Create new container
         container = document.createElement("div");
         container.className = this.containerClass;
+        container.dataset.tmHandleReady = "false";
 
         // Insert after parent element for better positioning
         const parent = document.querySelector(this.containerParent);
@@ -134,9 +151,17 @@
 
       container.dataset.tmDraggable = "true";
 
-      container.addEventListener("pointerdown", (event) => {
+      let handle = container.querySelector(`.${this.dragHandleClass}`);
+
+      if (!handle) {
+        handle = document.createElement("div");
+        handle.className = this.dragHandleClass;
+        handle.textContent = "Drag";
+        container.insertBefore(handle, container.firstChild);
+      }
+
+      handle.addEventListener("pointerdown", (event) => {
         if (event.button !== 0) return;
-        if (event.target.closest("button")) return;
 
         const rect = container.getBoundingClientRect();
 
@@ -150,7 +175,7 @@
         this.dragState.offsetX = event.clientX - rect.left;
         this.dragState.offsetY = event.clientY - rect.top;
         this.dragState.moved = false;
-        container.classList.add("dragging");
+        handle.classList.add("dragging");
 
         if (container.setPointerCapture) {
           container.setPointerCapture(event.pointerId);
@@ -160,7 +185,10 @@
       });
 
       window.addEventListener("pointermove", (event) => {
-        if (!this.dragState.active || event.pointerId !== this.dragState.pointerId) {
+        if (
+          !this.dragState.active ||
+          event.pointerId !== this.dragState.pointerId
+        ) {
           return;
         }
 
@@ -168,8 +196,14 @@
         const containerHeight = container.offsetHeight;
         const maxLeft = Math.max(0, window.innerWidth - containerWidth);
         const maxTop = Math.max(0, window.innerHeight - containerHeight);
-        const nextLeft = Math.min(Math.max(0, event.clientX - this.dragState.offsetX), maxLeft);
-        const nextTop = Math.min(Math.max(0, event.clientY - this.dragState.offsetY), maxTop);
+        const nextLeft = Math.min(
+          Math.max(0, event.clientX - this.dragState.offsetX),
+          maxLeft,
+        );
+        const nextTop = Math.min(
+          Math.max(0, event.clientY - this.dragState.offsetY),
+          maxTop,
+        );
 
         container.style.left = `${nextLeft}px`;
         container.style.top = `${nextTop}px`;
@@ -181,13 +215,16 @@
       });
 
       const endDrag = (event) => {
-        if (!this.dragState.active || event.pointerId !== this.dragState.pointerId) {
+        if (
+          !this.dragState.active ||
+          event.pointerId !== this.dragState.pointerId
+        ) {
           return;
         }
 
         this.dragState.active = false;
         this.dragState.pointerId = null;
-        container.classList.remove("dragging");
+        handle.classList.remove("dragging");
 
         if (this.dragState.moved) {
           container.dataset.tmManualPosition = "true";
