@@ -25,6 +25,12 @@
     constructor(options = {}) {
       this.containerClass = options.containerClass || "tm-scripts-container";
       this.containerParent = options.containerParent || ".Header";
+      this.dragState = {
+        active: false,
+        pointerId: null,
+        offsetX: 0,
+        offsetY: 0,
+      };
 
       // Initialize styles
       this.addStyles();
@@ -48,7 +54,14 @@
                     background-color: rgba(255, 255, 255, 0.8);
                     padding: 5px;
                     border-radius: 6px;
+            cursor: grab;
+            user-select: none;
+                    touch-action: none;
                 }
+
+          .${this.containerClass}.dragging {
+            cursor: grabbing;
+          }
                 
                 .${this.containerClass} button {
                     padding: 6px 12px;
@@ -78,7 +91,7 @@
                     background-color: #a40e26;
                 }
             `;
-      document.head.appendChild(styles);
+            (document.head || document.documentElement).appendChild(styles);
     }
 
     /**
@@ -104,7 +117,85 @@
         }
       }
 
+      this.makeDraggable(container);
+
       return container;
+    }
+
+    /**
+     * Makes the shared container draggable.
+     * @param {HTMLElement} container - The container element
+     * @returns {void}
+     */
+    makeDraggable(container) {
+      if (container.dataset.tmDraggable === "true") {
+        return;
+      }
+
+      container.dataset.tmDraggable = "true";
+
+      container.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0) return;
+        if (event.target.closest("button")) return;
+
+        const rect = container.getBoundingClientRect();
+
+        container.style.left = `${rect.left}px`;
+        container.style.top = `${rect.top}px`;
+        container.style.right = "auto";
+        container.style.bottom = "auto";
+
+        this.dragState.active = true;
+        this.dragState.pointerId = event.pointerId;
+        this.dragState.offsetX = event.clientX - rect.left;
+        this.dragState.offsetY = event.clientY - rect.top;
+        this.dragState.moved = false;
+        container.classList.add("dragging");
+
+        if (container.setPointerCapture) {
+          container.setPointerCapture(event.pointerId);
+        }
+
+        event.preventDefault();
+      });
+
+      window.addEventListener("pointermove", (event) => {
+        if (!this.dragState.active || event.pointerId !== this.dragState.pointerId) {
+          return;
+        }
+
+        const containerWidth = container.offsetWidth;
+        const containerHeight = container.offsetHeight;
+        const maxLeft = Math.max(0, window.innerWidth - containerWidth);
+        const maxTop = Math.max(0, window.innerHeight - containerHeight);
+        const nextLeft = Math.min(Math.max(0, event.clientX - this.dragState.offsetX), maxLeft);
+        const nextTop = Math.min(Math.max(0, event.clientY - this.dragState.offsetY), maxTop);
+
+        container.style.left = `${nextLeft}px`;
+        container.style.top = `${nextTop}px`;
+        container.style.right = "auto";
+        container.style.bottom = "auto";
+        this.dragState.moved = true;
+
+        event.preventDefault();
+      });
+
+      const endDrag = (event) => {
+        if (!this.dragState.active || event.pointerId !== this.dragState.pointerId) {
+          return;
+        }
+
+        this.dragState.active = false;
+        this.dragState.pointerId = null;
+        container.classList.remove("dragging");
+
+        if (this.dragState.moved) {
+          container.dataset.tmManualPosition = "true";
+        }
+      };
+
+      window.addEventListener("pointerup", endDrag);
+      window.addEventListener("pointercancel", endDrag);
     }
 
     /**
@@ -186,6 +277,10 @@
     updateContainerPosition() {
       const container = this.getContainer();
       if (!container) return;
+
+      if (container.dataset.tmManualPosition === "true") {
+        return;
+      }
 
       // Position the container below the GitHub header
       const header = document.querySelector(this.containerParent);
