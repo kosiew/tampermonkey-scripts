@@ -2,7 +2,7 @@
 // @name         GitHub PR successful checks monitor
 // @namespace    https://github.com/kosiew/tampermonkey-scripts
 // @version      0.2
-// @description  Watch GitHub PR pages and notify when the Discussion paragraph shows "N successful checks"
+// @description  Monitor GitHub PR checks and provide quick up/down page scrolling controls in the shared floating container
 // @author       auto-generated
 // @match        https://github.com/*/*/pull/*
 // @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js?v=20260811-1
