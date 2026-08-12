@@ -6,7 +6,7 @@
 // @author       You
 // @match        https://github.com/*/branches*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
-// @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js
+// @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js?v=20260811-1
 // @grant        GM.notification
 // ==/UserScript==
 
@@ -22,7 +22,14 @@
     const isGithub = window.location.hostname === "github.com";
     const hasBranches = window.location.pathname.includes("/branches");
     const hasPage = window.location.search.includes("page=");
-    console.log("[BulkDelete] isGithub:", isGithub, "hasBranches:", hasBranches, "hasPage:", hasPage);
+    console.log(
+      "[BulkDelete] isGithub:",
+      isGithub,
+      "hasBranches:",
+      hasBranches,
+      "hasPage:",
+      hasPage,
+    );
     return isGithub && hasBranches && hasPage;
   }
 
@@ -40,7 +47,13 @@
    * @returns {HTMLButtonElement|null} The delete button or null
    */
   function getDeleteButton(row) {
-    return row.querySelector('button[aria-label*="Delete branch"], button.octicon-trash, button svg.octicon-trash')?.closest('button') || null;
+    return (
+      row
+        .querySelector(
+          'button[aria-label*="Delete branch"], button.octicon-trash, button svg.octicon-trash',
+        )
+        ?.closest("button") || null
+    );
   }
 
   /**
@@ -49,7 +62,9 @@
    * @returns {string} The branch name
    */
   function getBranchName(row) {
-    const nameDiv = row.querySelector(".font-medium, .prc-BranchName-BranchName-jFtg-");
+    const nameDiv = row.querySelector(
+      ".font-medium, .prc-BranchName-BranchName-jFtg-",
+    );
     if (nameDiv) {
       return nameDiv.textContent.trim();
     }
@@ -64,14 +79,14 @@
   async function deleteAllBranches() {
     const rows = getBranchRows();
     // Filter out rows with unknown branch name
-    const validRows = rows.filter(row => getBranchName(row) !== "(unknown)");
+    const validRows = rows.filter((row) => getBranchName(row) !== "(unknown)");
     if (validRows.length === 0) {
       alert("No valid branches found on this page.");
       return;
     }
     const branchNames = validRows.map(getBranchName).join("\n");
     const confirmed = confirm(
-      `Are you sure you want to delete ALL branches on this page?\n\n${branchNames}`
+      `Are you sure you want to delete ALL branches on this page?\n\n${branchNames}`,
     );
     if (!confirmed) return;
 
@@ -89,13 +104,15 @@
           GM.notification({
             title: "Branch Deleted",
             text: name,
-            timeout: 2000
+            timeout: 2000,
           });
         }
         // Wait for modal/confirmation if needed
         await new Promise((r) => setTimeout(r, 500));
         // If a modal appears, auto-confirm
-        const confirmBtn = document.querySelector('button[data-testid="confirm-delete-branch-button"], button[name="verify_delete_branch"]');
+        const confirmBtn = document.querySelector(
+          'button[data-testid="confirm-delete-branch-button"], button[name="verify_delete_branch"]',
+        );
         if (confirmBtn) {
           confirmBtn.click();
           await new Promise((r) => setTimeout(r, 500));
@@ -114,8 +131,9 @@
       this.ui = null;
       this.options = {
         containerClass: "tm-scripts-container",
-        containerParent: ".Header, .AppHeader, .subnav, .Subnav, .Box-header, .d-flex.flex-justify-between",
-        ...options
+        containerParent:
+          ".Header, .AppHeader, .subnav, .Subnav, .Box-header, .d-flex.flex-justify-between",
+        ...options,
       };
     }
 
@@ -138,7 +156,9 @@
 
     addButton(options) {
       if (!this.ui) {
-        console.error("[BulkDelete] No UI instance available for button creation");
+        console.error(
+          "[BulkDelete] No UI instance available for button creation",
+        );
         return null;
       }
       try {
@@ -181,7 +201,9 @@
       return;
     }
     if (!uiManager.getUI()) {
-      console.error("[BulkDelete] No UI instance available, cannot create button");
+      console.error(
+        "[BulkDelete] No UI instance available, cannot create button",
+      );
       return;
     }
     const button = uiManager.addButton({
@@ -189,7 +211,7 @@
       text: "Delete ALL Branches on Page",
       title: "Bulk delete all branches on this page",
       className: "bulk-delete-branches-btn",
-      onClick: deleteAllBranches
+      onClick: deleteAllBranches,
     });
     if (button) {
       console.log("[BulkDelete] Bulk delete button added via UIManager.");

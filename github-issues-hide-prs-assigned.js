@@ -6,7 +6,7 @@
 // @author       You
 // @match        https://github.com/*/*/issues*
 // @icon         https://github.githubassets.com/favicons/favicon.svg
-// @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js
+// @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js?v=20260811-1
 // @grant        none
 // ==/UserScript==
 

@@ -6,7 +6,7 @@
 // @author       You
 // @match        https://github.com/notifications*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
-// @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js
+// @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js?v=20260811-1
 // @grant        GM.notification
 // ==/UserScript==
 
@@ -16,7 +16,7 @@
   console.log("==> GitHub CI Auto-Done script started");
 
   const CONFIG = {
-    buttonId: "gh-ci-autodone-button"
+    buttonId: "gh-ci-autodone-button",
   };
 
   /**
@@ -29,7 +29,7 @@
       this.options = {
         containerClass: "tm-scripts-container",
         containerParent: ".Header",
-        ...options
+        ...options,
       };
     }
 
@@ -39,7 +39,7 @@
      */
     waitForUILibrary(initFn) {
       console.log(
-        "==> waitForUILibrary called, checking for window.TampermonkeyUI"
+        "==> waitForUILibrary called, checking for window.TampermonkeyUI",
       );
       console.log("==> Current URL:", window.location.href);
       console.log("==> Document readyState:", document.readyState);
@@ -60,7 +60,7 @@
         console.log("==> TampermonkeyUI not found, retrying in 50ms");
         console.log(
           "==> Available window properties:",
-          Object.keys(window).filter((key) => key.includes("Tamper"))
+          Object.keys(window).filter((key) => key.includes("Tamper")),
         );
         // Retry after a short delay
         setTimeout(() => this.waitForUILibrary(initFn), 50);
@@ -160,7 +160,11 @@
       labelText === "ci activity" || ciText || checkSuiteText || workflowText;
 
     const hasFailureIcon = !!(
-      failedIcon || failedIconAlt || anyFailedIcon || xIcon || redIcon
+      failedIcon ||
+      failedIconAlt ||
+      anyFailedIcon ||
+      xIcon ||
+      redIcon
     );
 
     const hasStoppedIcon = !!stoppedIcon;
@@ -168,7 +172,7 @@
     return {
       isCIActivity,
       hasFailureIcon,
-      hasStoppedIcon
+      hasStoppedIcon,
     };
   }
 
@@ -185,16 +189,22 @@
       const details = extractRowDetails(row);
 
       if (matchCriteria(details)) {
-        console.log(`==> Row ${index + 1} matches criteria, looking for done button`);
+        console.log(
+          `==> Row ${index + 1} matches criteria, looking for done button`,
+        );
 
-        const doneButton = row.querySelector("button.js-mark-notification-as-read") ||
+        const doneButton =
+          row.querySelector("button.js-mark-notification-as-read") ||
           row.querySelector("button[title*='Done']") ||
           row.querySelector("button[aria-label*='Done']") ||
           row.querySelector("button[aria-label*='Mark as done']") ||
           row.querySelector("button[title*='Mark as done']");
 
         if (doneButton) {
-          console.log(`==> Clicking done button for row ${index + 1}:`, doneButton);
+          console.log(
+            `==> Clicking done button for row ${index + 1}:`,
+            doneButton,
+          );
           doneButton.click();
           processedCount++;
         } else {
@@ -250,7 +260,7 @@
     console.log("==> Current page URL:", window.location.href);
     console.log(
       "==> Is on notifications page:",
-      window.location.href.includes("/notifications")
+      window.location.href.includes("/notifications"),
     );
 
     // Check if we're on the right page
@@ -264,7 +274,7 @@
     if (existingButton) {
       console.log(
         "==> Button already exists, skipping creation. Existing button:",
-        existingButton
+        existingButton,
       );
       return;
     }
@@ -275,14 +285,14 @@
     if (header) {
       console.log(
         "==> Header innerHTML preview:",
-        header.innerHTML.substring(0, 200) + "..."
+        header.innerHTML.substring(0, 200) + "...",
       );
     }
 
     // Check UI manager state
     console.log("==> UI Manager state:", {
       hasUI: !!uiManager.getUI(),
-      uiInstance: uiManager.getUI()
+      uiInstance: uiManager.getUI(),
     });
 
     if (!uiManager.getUI()) {
@@ -316,7 +326,7 @@
             GM.notification({
               title: "GitHub CI Auto-Done",
               text: `Marked ${totalProcessed} CI notification(s) as done.`,
-              timeout: 3000
+              timeout: 3000,
             });
           } else {
             // Visual feedback for no items
@@ -328,22 +338,22 @@
             GM.notification({
               title: "GitHub CI Auto-Done",
               text: "No failed or stopped CI activity notifications found.",
-              timeout: 3000
+              timeout: 3000,
             });
           }
-        }
+        },
       });
 
       if (autoDoneButton) {
         console.log(
           "==> Button created successfully with ID:",
-          CONFIG.buttonId
+          CONFIG.buttonId,
         );
         console.log("==> Button element:", autoDoneButton);
         console.log("==> Button is in DOM:", document.contains(autoDoneButton));
         console.log(
           "==> Button visibility:",
-          window.getComputedStyle(autoDoneButton).display
+          window.getComputedStyle(autoDoneButton).display,
         );
       } else {
         console.error("==> Button creation returned null/undefined");

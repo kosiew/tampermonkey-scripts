@@ -6,7 +6,7 @@
 // @author       Siew Kam Onn
 // @match        https://github.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
-// @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js
+// @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js?v=20260811-1
 // @grant        GM.getValue
 // @grant        GM.setValue
 // @grant        GM.deleteValue
@@ -36,7 +36,7 @@
   const USE_GIST_STORAGE_KEY = "use_gist_storage";
 
   const CONFIG = {
-    buttonId: "gh-note-button"
+    buttonId: "gh-note-button",
   };
 
   /**
@@ -49,7 +49,7 @@
       this.options = {
         containerClass: "tm-scripts-container",
         containerParent: ".Header",
-        ...options
+        ...options,
       };
     }
 
@@ -59,7 +59,7 @@
      */
     waitForUILibrary(initFn) {
       console.log(
-        " ==> waitForUILibrary called, checking for window.TampermonkeyUI"
+        " ==> waitForUILibrary called, checking for window.TampermonkeyUI",
       );
       if (window.TampermonkeyUI) {
         console.log(" ==> TampermonkeyUI found, creating UI instance");
@@ -113,7 +113,7 @@
       gistIdKey,
       githubTokenKey,
       useGistStorageKey,
-      defaultFileName = "data.json"
+      defaultFileName = "data.json",
     ) {
       this.gistIdKey = gistIdKey;
       this.githubTokenKey = githubTokenKey;
@@ -157,7 +157,7 @@
           url: `https://api.github.com/gists/${gistId}`,
           headers: {
             Authorization: `token ${githubToken}`,
-            Accept: "application/vnd.github.v3+json"
+            Accept: "application/vnd.github.v3+json",
           },
           onload: function (response) {
             if (response.status === 200) {
@@ -180,7 +180,7 @@
           }.bind(this),
           onerror: function (error) {
             reject(new Error(`Network error fetching Gist: ${error}`));
-          }
+          },
         });
       });
     }
@@ -205,12 +205,12 @@
           headers: {
             Authorization: `token ${githubToken}`,
             Accept: "application/vnd.github.v3+json",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
           },
           data: JSON.stringify({
             files: {
-              [this.fileName]: { content: JSON.stringify(data, null, 2) }
-            }
+              [this.fileName]: { content: JSON.stringify(data, null, 2) },
+            },
           }),
           onload: function (response) {
             if (response.status === 200) {
@@ -224,7 +224,7 @@
           onerror: function (error) {
             console.error("❌ Network error:", error);
             reject(new Error(`Network error updating Gist: ${error}`));
-          }
+          },
         });
       });
     }
@@ -242,7 +242,7 @@
 
       const token = prompt(
         "Enter your GitHub token (with gist scope):",
-        currentToken
+        currentToken,
       );
       if (token === null) return false; // User cancelled
 
@@ -257,11 +257,11 @@
 
       if (enableGist) {
         alert(
-          "Gist synchronization is now enabled. Your data will be synced to your Gist."
+          "Gist synchronization is now enabled. Your data will be synced to your Gist.",
         );
       } else {
         alert(
-          "Gist synchronization is disabled. Your data will only be stored locally."
+          "Gist synchronization is disabled. Your data will only be stored locally.",
         );
       }
 
@@ -273,7 +273,7 @@
     GIST_ID_KEY,
     GITHUB_TOKEN_KEY,
     USE_GIST_STORAGE_KEY,
-    FILE_NAME
+    FILE_NAME,
   );
 
   // Get useGistStorage at the top level to avoid repeated async calls
@@ -402,7 +402,7 @@
     const url = normalizeUrl(window.location.href);
     notes[url] = {
       note,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
     await GM.setValue(NOTES_KEY, notes);
 
@@ -411,7 +411,7 @@
       try {
         // Create the nested structure with github_url_notes property
         const nestedNotes = {
-          github_url_notes: notes
+          github_url_notes: notes,
         };
 
         // Use the GistManager to save notes
@@ -423,7 +423,7 @@
     GM.notification({
       title: "GitHub Notes",
       text: "Note saved successfully!",
-      timeout: 2000
+      timeout: 2000,
     });
   }
 
@@ -446,7 +446,7 @@
         try {
           // Create the nested structure with github_url_notes property
           const nestedNotes = {
-            github_url_notes: notes
+            github_url_notes: notes,
           };
 
           // Use the GistManager to save notes
@@ -465,7 +465,7 @@
 
     if (!useGistStorage) {
       const enableGist = confirm(
-        "Gist synchronization is currently disabled. Would you like to enable it?"
+        "Gist synchronization is currently disabled. Would you like to enable it?",
       );
       if (enableGist) {
         await gistManager.configureSettings();
@@ -485,7 +485,7 @@
 
       if (!gistNotes) {
         alert(
-          "Failed to fetch notes from Gist. Please check your Gist ID and GitHub token."
+          "Failed to fetch notes from Gist. Please check your Gist ID and GitHub token.",
         );
         return;
       }
@@ -508,7 +508,7 @@
 
       // Create the nested structure with github_url_notes property
       const nestedNotes = {
-        github_url_notes: mergedNotes
+        github_url_notes: mergedNotes,
       };
 
       // Use the GistManager to save notes
@@ -517,7 +517,7 @@
       alert(
         `Successfully synced notes. Total notes: ${
           Object.keys(mergedNotes).length
-        }`
+        }`,
       );
     } catch (error) {
       console.error("Sync failed:", error);
@@ -595,7 +595,7 @@
   async function exportNotes() {
     const notes = await initNotes();
     const blob = new Blob([JSON.stringify(notes, null, 2)], {
-      type: "application/json"
+      type: "application/json",
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -630,7 +630,7 @@
                 alert("Notes imported successfully to local storage and Gist!");
               } catch (error) {
                 alert(
-                  "Notes imported to local storage but failed to update Gist"
+                  "Notes imported to local storage but failed to update Gist",
                 );
               }
             } else {
@@ -670,7 +670,7 @@
     if (useGistStorage) {
       // Create the nested structure with github_url_notes property
       const nestedNotes = {
-        github_url_notes: updatedNotes
+        github_url_notes: updatedNotes,
       };
 
       // Use the GistManager to save notes
@@ -681,7 +681,7 @@
       alert(
         `Deleted ${deletedCount} note${
           deletedCount === 1 ? "" : "s"
-        } older than 180 days.`
+        } older than 180 days.`,
       );
     } else {
       alert("No notes found older than 180 days.");
@@ -725,14 +725,14 @@
       id: CONFIG.buttonId,
       text: buttonText,
       title: "Add or edit a note for this GitHub url",
-      onClick: async () => {}
+      onClick: async () => {},
     });
 
     console.log(
       " ==> Button created with ID:",
       CONFIG.buttonId,
       "Element:",
-      mainButton
+      mainButton,
     );
 
     const modal = createNoteModal(mainButton);
@@ -763,7 +763,7 @@
   if (document.readyState === "loading") {
     console.log(" ==> Document still loading, waiting for DOMContentLoaded");
     document.addEventListener("DOMContentLoaded", () =>
-      uiManager.waitForUILibrary(initializeScript)
+      uiManager.waitForUILibrary(initializeScript),
     );
   } else {
     console.log(" ==> Document already loaded, waiting for UI library");
