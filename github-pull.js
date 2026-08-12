@@ -5,6 +5,7 @@
 // @description  Watch GitHub PR pages and notify when the Discussion paragraph shows "N successful checks"
 // @author       auto-generated
 // @match        https://github.com/*/*/pull/*
+// @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js?v=20260811-1
 // @grant        GM_notification
 // @grant        GM.notification
 // @run-at       document-idle
@@ -25,6 +26,80 @@
   // parse PR number from URL
   const prMatch = location.pathname.match(/\/pull\/(\d+)/);
   const prNumber = prMatch ? prMatch[1] : "unknown";
+
+  /**
+   * Class for managing the shared TampermonkeyUI container
+   */
+  class UIManager {
+    constructor(options = {}) {
+      this.ui = null;
+      this.options = {
+        containerClass: "tm-scripts-container",
+        containerParent: ".Header",
+        ...options,
+      };
+    }
+
+    /**
+     * Initializes the UI manager by waiting for the shared library to be available
+     * @param {Function} initFn - The initialization function to call when the UI is ready
+     */
+    waitForUILibrary(initFn) {
+      if (window.TampermonkeyUI) {
+        this.ui = new window.TampermonkeyUI(this.options);
+        initFn();
+      } else {
+        setTimeout(() => this.waitForUILibrary(initFn), 50);
+      }
+    }
+
+    /**
+     * Adds a button to the shared container
+     * @param {Object} options - Button configuration options
+     * @returns {HTMLElement} The created button
+     */
+    addButton(options) {
+      return this.ui.addButton(options);
+    }
+  }
+
+  const uiManager = new UIManager();
+
+  function scrollToBottom() {
+    window.scrollTo({
+      top: document.body.scrollHeight,
+      behavior: "smooth",
+    });
+  }
+
+  function initializeScrollButton() {
+    const buttonId = "tm-scroll-to-bottom-button";
+    if (document.getElementById(buttonId)) {
+      return;
+    }
+
+    uiManager.addButton({
+      id: buttonId,
+      text: "Scroll to Bottom",
+      title: "Scroll to the bottom of the PR page",
+      onClick: scrollToBottom,
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () =>
+      uiManager.waitForUILibrary(initializeScrollButton),
+    );
+  } else {
+    uiManager.waitForUILibrary(initializeScrollButton);
+  }
+
+  document.addEventListener("turbo:load", () => {
+    uiManager.waitForUILibrary(initializeScrollButton);
+  });
+  document.addEventListener("turbo:render", () => {
+    uiManager.waitForUILibrary(initializeScrollButton);
+  });
 
   /**
    * Send notification message
@@ -144,5 +219,4 @@
     });
     bodyObserver.observe(document.body, { childList: true, subtree: true });
   }
-
 })();
