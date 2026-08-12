@@ -65,6 +65,13 @@
 
   const uiManager = new UIManager();
 
+  function scrollToTop() {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }
+
   function scrollToBottom() {
     window.scrollTo({
       top: document.body.scrollHeight,
@@ -72,33 +79,42 @@
     });
   }
 
-  function initializeScrollButton() {
-    const buttonId = "tm-scroll-to-bottom-button";
-    if (document.getElementById(buttonId)) {
-      return;
+  function initializeScrollButtons() {
+    const topButtonId = "tm-scroll-to-top-button";
+    const bottomButtonId = "tm-scroll-to-bottom-button";
+
+    if (!document.getElementById(topButtonId)) {
+      uiManager.addButton({
+        id: topButtonId,
+        text: "↑",
+        title: "Scroll to the top of the PR page",
+        onClick: scrollToTop,
+      });
     }
 
-    uiManager.addButton({
-      id: buttonId,
-      text: "Scroll to Bottom",
-      title: "Scroll to the bottom of the PR page",
-      onClick: scrollToBottom,
-    });
+    if (!document.getElementById(bottomButtonId)) {
+      uiManager.addButton({
+        id: bottomButtonId,
+        text: "↓",
+        title: "Scroll to the bottom of the PR page",
+        onClick: scrollToBottom,
+      });
+    }
   }
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () =>
-      uiManager.waitForUILibrary(initializeScrollButton),
+      uiManager.waitForUILibrary(initializeScrollButtons),
     );
   } else {
-    uiManager.waitForUILibrary(initializeScrollButton);
+    uiManager.waitForUILibrary(initializeScrollButtons);
   }
 
   document.addEventListener("turbo:load", () => {
-    uiManager.waitForUILibrary(initializeScrollButton);
+    uiManager.waitForUILibrary(initializeScrollButtons);
   });
   document.addEventListener("turbo:render", () => {
-    uiManager.waitForUILibrary(initializeScrollButton);
+    uiManager.waitForUILibrary(initializeScrollButtons);
   });
 
   /**
