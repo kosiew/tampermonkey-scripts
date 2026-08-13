@@ -887,6 +887,20 @@
     trackedScrollRoot = null;
   }
 
+  function attachScrollListeners() {
+    if (trackedScrollRoot && trackedScrollRoot.removeEventListener) {
+      trackedScrollRoot.removeEventListener("scroll", renderBadges);
+    }
+
+    const scrollRoot = getScrollRoot();
+    if (scrollRoot && scrollRoot !== document.body) {
+      scrollRoot.addEventListener("scroll", renderBadges, { passive: true });
+      trackedScrollRoot = scrollRoot;
+    } else {
+      trackedScrollRoot = null;
+    }
+  }
+
   function refreshCurrentPage() {
     currentUrlKey = normalizeUrl(window.location.href);
 
@@ -898,6 +912,7 @@
     }
 
     syncScrollTracking();
+    attachScrollListeners();
     renderList();
   }
 
@@ -957,7 +972,7 @@
       if (panel) {
         applyPanelPosition(panel);
       }
-      syncScrollTracking();
+      attachScrollListeners();
       renderBadges();
     });
 
