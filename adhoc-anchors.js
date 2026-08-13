@@ -277,6 +277,10 @@
         cursor: pointer;
       }
 
+      .gh-adhoc-anchor-target {
+        position: relative !important;
+      }
+
       body.gh-adhoc-anchor-adding {
         cursor: crosshair !important;
       }
@@ -540,6 +544,10 @@
       badge.className = "gh-adhoc-anchor-badge";
       badge.textContent = `${index + 1}`;
       badge.title = `${anchor.label} (double click to remove)`;
+      badge.addEventListener("click", () => jumpToAnchor(anchor));
+      badge.addEventListener("dblclick", async () => {
+        await removeAnchor(anchor.id);
+      });
 
       const scrollRoot = getScrollRoot();
       const top = findAnchorTop(anchor);
@@ -556,30 +564,15 @@
           return;
         }
 
-        const isVisible =
-          rect.bottom >= -80 && rect.top <= window.innerHeight + 80;
-        if (!isVisible) {
-          badge.style.display = "none";
-          document.body.appendChild(badge);
-          return;
-        }
-
         badge.style.display = "block";
-        badge.style.position = "fixed";
-        badge.style.left = `${clamp(
-          rect.right + 10,
-          12,
-          Math.max(12, window.innerWidth - 28),
-        )}px`;
-        badge.style.top = `${clamp(
-          rect.top + 12,
-          12,
-          Math.max(12, window.innerHeight - 24),
-        )}px`;
-        badge.style.right = "auto";
+        badge.style.position = "absolute";
+        badge.style.left = "auto";
+        badge.style.top = "12px";
+        badge.style.right = "8px";
         badge.style.bottom = "auto";
         badge.style.transform = "none";
-        document.body.appendChild(badge);
+        element.classList.add("gh-adhoc-anchor-target");
+        element.appendChild(badge);
         return;
       } else if (
         scrollRoot &&
@@ -594,11 +587,6 @@
         badge.style.right = "8px";
         badge.style.top = `${Math.max(50, top)}px`;
       }
-
-      badge.addEventListener("click", () => jumpToAnchor(anchor));
-      badge.addEventListener("dblclick", async () => {
-        await removeAnchor(anchor.id);
-      });
 
       document.body.appendChild(badge);
     });
