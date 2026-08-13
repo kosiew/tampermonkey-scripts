@@ -567,7 +567,10 @@
         badge.style.display = "block";
         badge.style.position = "absolute";
         badge.style.left = "auto";
-        badge.style.top = "12px";
+        badge.style.top = `${Math.max(
+          12,
+          Number.isFinite(anchor.deltaY) ? anchor.deltaY : 12,
+        )}px`;
         badge.style.right = "8px";
         badge.style.bottom = "auto";
         badge.style.transform = "none";
