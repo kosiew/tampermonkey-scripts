@@ -1,11 +1,12 @@
 // ==UserScript==
-// @name         GitHub Adhoc Anchors
+// @name         GitHub + ChatGPT Adhoc Anchors
 // @namespace    http://tampermonkey.net/
 // @version      1.0
-// @description  Add temporary anchors on GitHub issue/PR pages with floating navigation and Gist sync
+// @description  Add temporary anchors on GitHub issue/PR pages and ChatGPT conversations
 // @author       Siew Kam Onn
 // @match        https://github.com/*/*/issues/*
 // @match        https://github.com/*/*/pull/*
+// @match        https://chatgpt.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
 // @grant        GM.getValue
 // @grant        GM.setValue
@@ -24,7 +25,7 @@
   const LIST_ID = "gh-adhoc-anchors-list";
   const ADD_BUTTON_ID = "gh-adhoc-anchor-add";
 
-  const PAGE_REGEX = /^\/[^/]+\/[^/]+\/(issues|pull)\/\d+/;
+  const GITHUB_PAGE_REGEX = /^\/[^/]+\/[^/]+\/(issues|pull)\/\d+/;
 
   let isAddMode = false;
   let allAnchorData = {};
@@ -33,7 +34,34 @@
   let panelPosition = null;
 
   function isSupportedPage() {
-    return PAGE_REGEX.test(window.location.pathname);
+    const hostname = window.location.hostname;
+
+    if (hostname === "github.com") {
+      return GITHUB_PAGE_REGEX.test(window.location.pathname);
+    }
+
+    if (hostname === "chatgpt.com") {
+      return true;
+    }
+
+    return false;
+  }
+
+  function getScrollRoot() {
+    if (window.location.hostname === "chatgpt.com") {
+      return (
+        document.querySelector(
+          'div[role="presentation"] div.overflow-y-auto',
+        ) ||
+        document.scrollingElement ||
+        document.documentElement ||
+        document.body
+      );
+    }
+
+    return (
+      document.scrollingElement || document.documentElement || document.body
+    );
   }
 
   function normalizeUrl(url) {
@@ -318,15 +346,36 @@
 
   function createAnchorDescriptor(target, clickPageY, label) {
     const preferred = target.closest(
-      "[id^='issuecomment-'], [id^='pullrequestreview-'], .js-timeline-item, .timeline-comment, [id]",
+      "[data-message-id], [id^='issuecomment-'], [id^='pullrequestreview-'], .js-timeline-item, .timeline-comment, [id]",
     );
 
     const anchorTarget = preferred || target;
     const rect = anchorTarget.getBoundingClientRect();
-    const targetTop = Math.round(window.scrollY + rect.top);
-    const selector = anchorTarget.id
-      ? `#${CSS.escape(anchorTarget.id)}`
-      : fallbackSelector(anchorTarget);
+    const scrollRoot = getScrollRoot();
+    const rootTop =
+      scrollRoot &&
+      scrollRoot !== document.body &&
+      scrollRoot !== document.documentElement
+        ? scrollRoot.getBoundingClientRect().top
+        : 0;
+    const targetTop = Math.round(
+      (scrollRoot &&
+      scrollRoot !== document.body &&
+      scrollRoot !== document.documentElement
+        ? scrollRoot.scrollTop
+        : window.scrollY) +
+        rect.top -
+        rootTop,
+    );
+
+    let selector = "";
+    if (anchorTarget.id) {
+      selector = `#${CSS.escape(anchorTarget.id)}`;
+    } else if (anchorTarget.dataset && anchorTarget.dataset.messageId) {
+      selector = `[data-message-id="${CSS.escape(anchorTarget.dataset.messageId)}"]`;
+    } else {
+      selector = fallbackSelector(anchorTarget);
+    }
 
     return {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -343,8 +392,21 @@
     if (anchor.selector) {
       const element = document.querySelector(anchor.selector);
       if (element) {
+        const scrollRoot = getScrollRoot();
+        const rootTop =
+          scrollRoot &&
+          scrollRoot !== document.body &&
+          scrollRoot !== document.documentElement
+            ? scrollRoot.getBoundingClientRect().top
+            : 0;
         const elementTop = Math.round(
-          window.scrollY + element.getBoundingClientRect().top,
+          (scrollRoot &&
+          scrollRoot !== document.body &&
+          scrollRoot !== document.documentElement
+            ? scrollRoot.scrollTop
+            : window.scrollY) +
+            element.getBoundingClientRect().top -
+            rootTop,
         );
         return (
           elementTop + (Number.isFinite(anchor.deltaY) ? anchor.deltaY : 0)
@@ -360,8 +422,20 @@
   }
 
   function jumpToAnchor(anchor) {
-    const top = Math.max(0, findAnchorTop(anchor) - 80);
-    window.scrollTo({ top, behavior: "smooth" });
+    const scrollRoot = getScrollRoot();
+    const targetTop = Math.max(0, findAnchorTop(anchor) - 80);
+
+    if (
+      scrollRoot &&
+      scrollRoot !== document.body &&
+      scrollRoot !== document.documentElement &&
+      typeof scrollRoot.scrollTo === "function"
+    ) {
+      scrollRoot.scrollTo({ top: targetTop, behavior: "smooth" });
+      return;
+    }
+
+    window.scrollTo({ top: targetTop, behavior: "smooth" });
   }
 
   function clearBadges() {
@@ -381,8 +455,22 @@
       badge.textContent = `${index + 1}`;
       badge.title = `${anchor.label} (double click to remove)`;
 
+      const scrollRoot = getScrollRoot();
       const top = findAnchorTop(anchor);
-      badge.style.top = `${Math.max(50, top)}px`;
+
+      if (
+        scrollRoot &&
+        scrollRoot !== document.body &&
+        scrollRoot !== document.documentElement
+      ) {
+        badge.style.position = "fixed";
+        badge.style.right = "8px";
+        badge.style.top = `${Math.max(20, top - scrollRoot.scrollTop)}px`;
+      } else {
+        badge.style.position = "absolute";
+        badge.style.right = "8px";
+        badge.style.top = `${Math.max(50, top)}px`;
+      }
 
       badge.addEventListener("click", () => jumpToAnchor(anchor));
       badge.addEventListener("dblclick", async () => {
