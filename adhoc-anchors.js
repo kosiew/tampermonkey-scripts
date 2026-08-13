@@ -34,6 +34,7 @@
   let panelPosition = null;
   let trackedScrollRoot = null;
   let badgeRenderFrame = null;
+  let pageAdapter = null;
 
   function createTimestamp() {
     return new Date().toISOString();
@@ -43,58 +44,13 @@
     GM.notification({ title, text, timeout });
   }
 
-  function isSupportedPage() {
-    const hostname = window.location.hostname;
-
-    if (hostname === "github.com") {
-      return GITHUB_PAGE_REGEX.test(window.location.pathname);
-    }
-
-    if (hostname === "chatgpt.com") {
-      return true;
-    }
-
-    return false;
-  }
-
-  function getScrollRoot() {
-    if (window.location.hostname === "chatgpt.com") {
-      const candidates = Array.from(
-        document.querySelectorAll(
-          '[data-scroll-root], [class*="scroll-root"], [data-testid="conversation-turn"], [data-message-id]',
-        ),
-      ).filter((node) => {
-        const style = window.getComputedStyle(node);
-        const overflowY = style.overflowY || style.overflow;
-        return (
-          node.scrollHeight > node.clientHeight + 10 &&
-          (overflowY.includes("auto") || overflowY.includes("scroll"))
-        );
-      });
-
-      if (candidates.length) {
-        candidates.sort((a, b) => b.scrollHeight - a.scrollHeight);
-        return candidates[0];
-      }
-
-      return (
-        document.scrollingElement || document.documentElement || document.body
-      );
-    }
-
+  function getDefaultScrollRoot() {
     return (
       document.scrollingElement || document.documentElement || document.body
     );
   }
 
-  function getPageScrollTop() {
-    const scrollRoot = getScrollRoot();
-    if (window.location.hostname === "chatgpt.com") {
-      return scrollRoot && scrollRoot !== document.body
-        ? scrollRoot.scrollTop
-        : window.scrollY || 0;
-    }
-
+  function getDefaultPageScrollTop(scrollRoot) {
     if (
       scrollRoot &&
       scrollRoot !== document.body &&
@@ -102,31 +58,15 @@
     ) {
       return scrollRoot.scrollTop;
     }
-    return window.scrollY;
+
+    return window.scrollY || 0;
   }
 
-  function getElementPageTop(element) {
+  function getDefaultElementPageTop(element, scrollRoot) {
     if (!element) {
       return 0;
     }
 
-    if (window.location.hostname === "chatgpt.com") {
-      const scrollRoot = getScrollRoot();
-      if (scrollRoot && scrollRoot !== document.body) {
-        const rootRect = scrollRoot.getBoundingClientRect();
-        return Math.max(
-          0,
-          Math.round(
-            scrollRoot.scrollTop +
-              element.getBoundingClientRect().top -
-              rootRect.top,
-          ),
-        );
-      }
-      return Math.round(window.scrollY + element.getBoundingClientRect().top);
-    }
-
-    const scrollRoot = getScrollRoot();
     const rootTop =
       scrollRoot &&
       scrollRoot !== document.body &&
@@ -135,23 +75,279 @@
         : 0;
 
     return Math.round(
-      getPageScrollTop() + element.getBoundingClientRect().top - rootTop,
+      getDefaultPageScrollTop(scrollRoot) +
+        element.getBoundingClientRect().top -
+        rootTop,
     );
   }
 
-  function findAnchorTarget(target) {
-    if (window.location.hostname === "chatgpt.com") {
-      const messageTarget = target.closest("[data-message-id]");
-      if (messageTarget) {
-        return messageTarget;
-      }
+  function getChatGPTScrollRoot() {
+    const candidates = Array.from(
+      document.querySelectorAll(
+        '[data-scroll-root], [class*="scroll-root"], [data-testid="conversation-turn"], [data-message-id]',
+      ),
+    ).filter((node) => {
+      const style = window.getComputedStyle(node);
+      const overflowY = style.overflowY || style.overflow;
+      return (
+        node.scrollHeight > node.clientHeight + 10 &&
+        (overflowY.includes("auto") || overflowY.includes("scroll"))
+      );
+    });
+
+    if (candidates.length) {
+      candidates.sort((a, b) => b.scrollHeight - a.scrollHeight);
+      return candidates[0];
     }
 
+    return getDefaultScrollRoot();
+  }
+
+  function getChatGPTPageScrollTop(scrollRoot) {
+    return scrollRoot && scrollRoot !== document.body
+      ? scrollRoot.scrollTop
+      : window.scrollY || 0;
+  }
+
+  function getChatGPTElementPageTop(element, scrollRoot) {
+    if (!element) {
+      return 0;
+    }
+
+    if (scrollRoot && scrollRoot !== document.body) {
+      const rootRect = scrollRoot.getBoundingClientRect();
+      return Math.max(
+        0,
+        Math.round(
+          scrollRoot.scrollTop +
+            element.getBoundingClientRect().top -
+            rootRect.top,
+        ),
+      );
+    }
+
+    return Math.round(window.scrollY + element.getBoundingClientRect().top);
+  }
+
+  function getDefaultAnchorTarget(target) {
     return (
       target.closest(
         "[id^='issuecomment-'], [id^='pullrequestreview-'], .js-timeline-item, .timeline-comment, [id]",
       ) || target
     );
+  }
+
+  function selectPageAdapter() {
+    switch (window.location.hostname) {
+      case "github.com":
+        return createGitHubAdapter();
+      case "chatgpt.com":
+        return createChatGPTAdapter();
+      default:
+        return null;
+    }
+  }
+
+  function getPageAdapter() {
+    if (!pageAdapter) {
+      pageAdapter = selectPageAdapter();
+    }
+
+    return pageAdapter;
+  }
+
+  function scrollToPageTop(targetTop, behavior = "smooth") {
+    const scrollRoot = getScrollRootListenerTarget();
+    if (
+      scrollRoot &&
+      scrollRoot !== document.body &&
+      typeof scrollRoot.scrollTo === "function"
+    ) {
+      scrollRoot.scrollTo({ top: targetTop, behavior });
+      return;
+    }
+
+    window.scrollTo({ top: targetTop, behavior });
+  }
+
+  function createGitHubAdapter() {
+    return {
+      isSupportedPage() {
+        return GITHUB_PAGE_REGEX.test(window.location.pathname);
+      },
+      getScrollRoot() {
+        return getDefaultScrollRoot();
+      },
+      getPageScrollTop() {
+        return getDefaultPageScrollTop(getDefaultScrollRoot());
+      },
+      getElementPageTop(element) {
+        return getDefaultElementPageTop(element, getDefaultScrollRoot());
+      },
+      findAnchorTarget(target) {
+        return getDefaultAnchorTarget(target);
+      },
+      getAnchorTop(anchor) {
+        if (anchor.selector) {
+          const element = document.querySelector(anchor.selector);
+          if (element) {
+            return getDefaultElementPageTop(element, getDefaultScrollRoot());
+          }
+        }
+
+        if (Number.isFinite(anchor.clickPageY)) {
+          return anchor.clickPageY;
+        }
+
+        return anchor.targetTop || 0;
+      },
+      jumpToAnchor(anchor) {
+        const targetTop = Math.max(0, findAnchorTop(anchor) - 80);
+        scrollToPageTop(targetTop, "smooth");
+      },
+      placeBadge(badge, anchor) {
+        const top = findAnchorTop(anchor);
+        const scrollRoot = getScrollRootListenerTarget();
+
+        if (scrollRoot) {
+          badge.style.position = "fixed";
+          badge.style.right = "8px";
+          badge.style.top = `${Math.max(20, top - getDefaultPageScrollTop(getDefaultScrollRoot()))}px`;
+        } else {
+          badge.style.position = "absolute";
+          badge.style.right = "8px";
+          badge.style.top = `${Math.max(50, top)}px`;
+        }
+
+        document.body.appendChild(badge);
+      },
+    };
+  }
+
+  function createChatGPTAdapter() {
+    return {
+      isSupportedPage() {
+        return true;
+      },
+      getScrollRoot() {
+        return getChatGPTScrollRoot();
+      },
+      getPageScrollTop() {
+        const scrollRoot = getChatGPTScrollRoot();
+        return getChatGPTPageScrollTop(scrollRoot);
+      },
+      getElementPageTop(element) {
+        const scrollRoot = getChatGPTScrollRoot();
+        return getChatGPTElementPageTop(element, scrollRoot);
+      },
+      findAnchorTarget(target) {
+        const messageTarget = target.closest("[data-message-id]");
+        if (messageTarget) {
+          return messageTarget;
+        }
+
+        return getDefaultAnchorTarget(target);
+      },
+      getAnchorTop(anchor) {
+        const scrollRoot = getChatGPTScrollRoot();
+
+        if (anchor.selector) {
+          const element = document.querySelector(anchor.selector);
+          if (element) {
+            return (
+              getChatGPTElementPageTop(element, scrollRoot) +
+              (Number.isFinite(anchor.deltaY) ? anchor.deltaY : 0)
+            );
+          }
+        }
+
+        if (Number.isFinite(anchor.clickPageY)) {
+          return anchor.clickPageY;
+        }
+
+        return anchor.targetTop || 0;
+      },
+      jumpToAnchor(anchor) {
+        const scrollRoot = getChatGPTScrollRoot();
+        const targetTop = Math.max(0, findAnchorTop(anchor) - 80);
+        const element = anchor.selector
+          ? document.querySelector(anchor.selector)
+          : null;
+
+        if (scrollRoot && scrollRoot !== document.body) {
+          scrollRoot.scrollTop = Math.max(0, targetTop);
+          requestAnimationFrame(() => renderBadges());
+          setTimeout(() => renderBadges(), 120);
+          return;
+        }
+
+        if (element) {
+          element.scrollIntoView({
+            behavior: "auto",
+            block: "center",
+            inline: "nearest",
+          });
+          requestAnimationFrame(() => renderBadges());
+          setTimeout(() => renderBadges(), 120);
+          return;
+        }
+
+        scrollToPageTop(targetTop, "smooth");
+      },
+      placeBadge(badge, anchor) {
+        const element = anchor.selector
+          ? document.querySelector(anchor.selector)
+          : null;
+
+        if (!element || !element.getBoundingClientRect()) {
+          badge.style.display = "none";
+          document.body.appendChild(badge);
+          return;
+        }
+
+        badge.style.display = "block";
+        badge.style.position = "absolute";
+        badge.style.left = "auto";
+        badge.style.top = `${Math.max(
+          12,
+          Number.isFinite(anchor.deltaY) ? anchor.deltaY : 12,
+        )}px`;
+        badge.style.right = "8px";
+        badge.style.bottom = "auto";
+        badge.style.transform = "none";
+        element.classList.add("gh-adhoc-anchor-target");
+        element.appendChild(badge);
+      },
+    };
+  }
+
+  function isSupportedPage() {
+    const adapter = getPageAdapter();
+    return Boolean(adapter && adapter.isSupportedPage());
+  }
+
+  function getScrollRoot() {
+    const adapter = getPageAdapter();
+    return adapter ? adapter.getScrollRoot() : getDefaultScrollRoot();
+  }
+
+  function getPageScrollTop() {
+    const adapter = getPageAdapter();
+    return adapter ? adapter.getPageScrollTop() : window.scrollY || 0;
+  }
+
+  function getElementPageTop(element) {
+    const adapter = getPageAdapter();
+    return adapter
+      ? adapter.getElementPageTop(element)
+      : getDefaultElementPageTop(element, getDefaultScrollRoot());
+  }
+
+  function findAnchorTarget(target) {
+    const adapter = getPageAdapter();
+    return adapter
+      ? adapter.findAnchorTarget(target)
+      : getDefaultAnchorTarget(target);
   }
 
   function normalizeUrl(url) {
@@ -485,66 +681,15 @@
   }
 
   function findAnchorTop(anchor) {
-    if (anchor.selector) {
-      const element = document.querySelector(anchor.selector);
-      if (element) {
-        if (window.location.hostname === "chatgpt.com") {
-          return (
-            getElementPageTop(element) +
-            (Number.isFinite(anchor.deltaY) ? anchor.deltaY : 0)
-          );
-        }
-
-        return getElementPageTop(element);
-      }
-    }
-
-    if (Number.isFinite(anchor.clickPageY)) {
-      return anchor.clickPageY;
-    }
-
-    return anchor.targetTop || 0;
+    const adapter = getPageAdapter();
+    return adapter ? adapter.getAnchorTop(anchor) : anchor.targetTop || 0;
   }
 
   function jumpToAnchor(anchor) {
-    const element = anchor.selector
-      ? document.querySelector(anchor.selector)
-      : null;
-
-    const targetTop = Math.max(0, findAnchorTop(anchor) - 80);
-
-    if (window.location.hostname === "chatgpt.com") {
-      const scrollRoot = getScrollRoot();
-      if (scrollRoot && scrollRoot !== document.body) {
-        scrollRoot.scrollTop = Math.max(0, targetTop);
-        requestAnimationFrame(() => renderBadges());
-        setTimeout(() => renderBadges(), 120);
-        return;
-      }
-
-      if (element) {
-        element.scrollIntoView({
-          behavior: "auto",
-          block: "center",
-          inline: "nearest",
-        });
-        requestAnimationFrame(() => renderBadges());
-        setTimeout(() => renderBadges(), 120);
-        return;
-      }
+    const adapter = getPageAdapter();
+    if (adapter) {
+      adapter.jumpToAnchor(anchor);
     }
-
-    const scrollRoot = getScrollRoot();
-    if (
-      scrollRoot &&
-      scrollRoot !== document.body &&
-      typeof scrollRoot.scrollTo === "function"
-    ) {
-      scrollRoot.scrollTo({ top: targetTop, behavior: "smooth" });
-      return;
-    }
-
-    window.scrollTo({ top: targetTop, behavior: "smooth" });
   }
 
   function clearBadges() {
@@ -576,31 +721,6 @@
     return button;
   }
 
-  function placeChatGPTBadge(badge, anchor) {
-    const element = anchor.selector
-      ? document.querySelector(anchor.selector)
-      : null;
-
-    if (!element || !element.getBoundingClientRect()) {
-      badge.style.display = "none";
-      document.body.appendChild(badge);
-      return;
-    }
-
-    badge.style.display = "block";
-    badge.style.position = "absolute";
-    badge.style.left = "auto";
-    badge.style.top = `${Math.max(
-      12,
-      Number.isFinite(anchor.deltaY) ? anchor.deltaY : 12,
-    )}px`;
-    badge.style.right = "8px";
-    badge.style.bottom = "auto";
-    badge.style.transform = "none";
-    element.classList.add("gh-adhoc-anchor-target");
-    element.appendChild(badge);
-  }
-
   function scheduleBadgeRender() {
     if (badgeRenderFrame !== null) {
       return;
@@ -618,22 +738,11 @@
     const anchors = getCurrentAnchors();
     anchors.forEach((anchor, index) => {
       const badge = createBadge(anchor, index);
-      const scrollRoot = getScrollRootListenerTarget();
-      const top = findAnchorTop(anchor);
+      const adapter = getPageAdapter();
 
-      if (window.location.hostname === "chatgpt.com") {
-        placeChatGPTBadge(badge, anchor);
+      if (adapter) {
+        adapter.placeBadge(badge, anchor);
         return;
-      }
-
-      if (scrollRoot) {
-        badge.style.position = "fixed";
-        badge.style.right = "8px";
-        badge.style.top = `${Math.max(20, top - getPageScrollTop())}px`;
-      } else {
-        badge.style.position = "absolute";
-        badge.style.right = "8px";
-        badge.style.top = `${Math.max(50, top)}px`;
       }
 
       document.body.appendChild(badge);
