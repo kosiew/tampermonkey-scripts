@@ -64,6 +64,49 @@
     );
   }
 
+  function getPageScrollTop() {
+    const scrollRoot = getScrollRoot();
+    if (
+      scrollRoot &&
+      scrollRoot !== document.body &&
+      scrollRoot !== document.documentElement
+    ) {
+      return scrollRoot.scrollTop;
+    }
+    return window.scrollY;
+  }
+
+  function getElementPageTop(element) {
+    const scrollRoot = getScrollRoot();
+    const rootTop =
+      scrollRoot &&
+      scrollRoot !== document.body &&
+      scrollRoot !== document.documentElement
+        ? scrollRoot.getBoundingClientRect().top
+        : 0;
+
+    return Math.round(
+      getPageScrollTop() + element.getBoundingClientRect().top - rootTop,
+    );
+  }
+
+  function findAnchorTarget(target) {
+    if (window.location.hostname === "chatgpt.com") {
+      const messageTarget = target.closest(
+        "[data-message-id], [data-message-author-role], [data-testid='conversation-turn']",
+      );
+      if (messageTarget) {
+        return messageTarget;
+      }
+    }
+
+    return (
+      target.closest(
+        "[id^='issuecomment-'], [id^='pullrequestreview-'], .js-timeline-item, .timeline-comment, [id]",
+      ) || target
+    );
+  }
+
   function normalizeUrl(url) {
     const parsed = new URL(url);
     parsed.hash = "";
@@ -345,28 +388,8 @@
   }
 
   function createAnchorDescriptor(target, clickPageY, label) {
-    const preferred = target.closest(
-      "[data-message-id], [id^='issuecomment-'], [id^='pullrequestreview-'], .js-timeline-item, .timeline-comment, [id]",
-    );
-
-    const anchorTarget = preferred || target;
-    const rect = anchorTarget.getBoundingClientRect();
-    const scrollRoot = getScrollRoot();
-    const rootTop =
-      scrollRoot &&
-      scrollRoot !== document.body &&
-      scrollRoot !== document.documentElement
-        ? scrollRoot.getBoundingClientRect().top
-        : 0;
-    const targetTop = Math.round(
-      (scrollRoot &&
-      scrollRoot !== document.body &&
-      scrollRoot !== document.documentElement
-        ? scrollRoot.scrollTop
-        : window.scrollY) +
-        rect.top -
-        rootTop,
-    );
+    const anchorTarget = findAnchorTarget(target);
+    const targetTop = getElementPageTop(anchorTarget);
 
     let selector = "";
     if (anchorTarget.id) {
@@ -392,24 +415,9 @@
     if (anchor.selector) {
       const element = document.querySelector(anchor.selector);
       if (element) {
-        const scrollRoot = getScrollRoot();
-        const rootTop =
-          scrollRoot &&
-          scrollRoot !== document.body &&
-          scrollRoot !== document.documentElement
-            ? scrollRoot.getBoundingClientRect().top
-            : 0;
-        const elementTop = Math.round(
-          (scrollRoot &&
-          scrollRoot !== document.body &&
-          scrollRoot !== document.documentElement
-            ? scrollRoot.scrollTop
-            : window.scrollY) +
-            element.getBoundingClientRect().top -
-            rootTop,
-        );
         return (
-          elementTop + (Number.isFinite(anchor.deltaY) ? anchor.deltaY : 0)
+          getElementPageTop(element) +
+          (Number.isFinite(anchor.deltaY) ? anchor.deltaY : 0)
         );
       }
     }
@@ -465,7 +473,7 @@
       ) {
         badge.style.position = "fixed";
         badge.style.right = "8px";
-        badge.style.top = `${Math.max(20, top - scrollRoot.scrollTop)}px`;
+        badge.style.top = `${Math.max(20, top - getPageScrollTop())}px`;
       } else {
         badge.style.position = "absolute";
         badge.style.right = "8px";
@@ -684,7 +692,7 @@
       return;
     }
 
-    const clickPageY = Math.round(window.scrollY + event.clientY);
+    const clickPageY = Math.round(getPageScrollTop() + event.clientY);
     const newAnchor = createAnchorDescriptor(
       event.target,
       clickPageY,
