@@ -569,6 +569,16 @@
     return badge;
   }
 
+  function createListButton(className, text, title, onClick) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = className;
+    button.textContent = text;
+    button.title = title;
+    button.addEventListener("click", onClick);
+    return button;
+  }
+
   function placeChatGPTBadge(badge, anchor) {
     const element = anchor.selector
       ? document.querySelector(anchor.selector)
@@ -656,21 +666,26 @@
     anchors.forEach((anchor, index) => {
       const item = document.createElement("li");
 
-      const jump = document.createElement("button");
-      jump.type = "button";
-      jump.className = "jump";
-      jump.textContent = `${index + 1}. ${anchor.label}`;
-      jump.title = `Jump to ${anchor.label}`;
-      jump.addEventListener("click", () => jumpToAnchor(anchor));
+      const jump = createListButton(
+        "jump",
+        `${index + 1}. ${anchor.label}`,
+        `Jump to ${anchor.label}`,
+        () => jumpToAnchor(anchor),
+      );
 
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "remove";
-      remove.textContent = "Remove";
-      remove.title = `Remove ${anchor.label}`;
-      remove.addEventListener("click", async () => {
-        await removeAnchor(anchor.id);
-      });
+      const remove = createListButton(
+        "remove",
+        "Remove",
+        `Remove ${anchor.label}`,
+        () => {
+          removeAnchor(anchor.id).catch((error) => {
+            console.error(
+              "[GitHub Adhoc Anchors] Failed to remove anchor",
+              error,
+            );
+          });
+        },
+      );
 
       item.appendChild(jump);
       item.appendChild(remove);
@@ -692,6 +707,39 @@
     };
   }
 
+  function normalizeAnchor(anchor, index) {
+    return {
+      id:
+        typeof anchor.id === "string" && anchor.id
+          ? anchor.id
+          : `${Date.now()}-${index}`,
+      label:
+        typeof anchor.label === "string" && anchor.label.trim()
+          ? anchor.label.trim()
+          : `Anchor ${index + 1}`,
+      selector: typeof anchor.selector === "string" ? anchor.selector : "",
+      targetTop: Number.isFinite(anchor.targetTop) ? anchor.targetTop : 0,
+      clickPageY: Number.isFinite(anchor.clickPageY) ? anchor.clickPageY : 0,
+      deltaY: Number.isFinite(anchor.deltaY) ? anchor.deltaY : 0,
+      createdAt:
+        typeof anchor.createdAt === "string" && anchor.createdAt
+          ? anchor.createdAt
+          : createTimestamp(),
+    };
+  }
+
+  function normalizePageData(entry) {
+    return {
+      anchors: (Array.isArray(entry.anchors) ? entry.anchors : [])
+        .filter((anchor) => anchor && typeof anchor === "object")
+        .map((anchor, index) => normalizeAnchor(anchor, index)),
+      updatedAt:
+        typeof entry.updatedAt === "string" && entry.updatedAt
+          ? entry.updatedAt
+          : createTimestamp(),
+    };
+  }
+
   function normalizeImportedData(rawData) {
     if (!rawData || typeof rawData !== "object" || Array.isArray(rawData)) {
       throw new Error("Imported data must be a JSON object");
@@ -703,37 +751,7 @@
         continue;
       }
 
-      const anchors = Array.isArray(entry.anchors) ? entry.anchors : [];
-      const validAnchors = anchors
-        .filter((anchor) => anchor && typeof anchor === "object")
-        .map((anchor, index) => ({
-          id:
-            typeof anchor.id === "string" && anchor.id
-              ? anchor.id
-              : `${Date.now()}-${index}`,
-          label:
-            typeof anchor.label === "string" && anchor.label.trim()
-              ? anchor.label.trim()
-              : `Anchor ${index + 1}`,
-          selector: typeof anchor.selector === "string" ? anchor.selector : "",
-          targetTop: Number.isFinite(anchor.targetTop) ? anchor.targetTop : 0,
-          clickPageY: Number.isFinite(anchor.clickPageY)
-            ? anchor.clickPageY
-            : 0,
-          deltaY: Number.isFinite(anchor.deltaY) ? anchor.deltaY : 0,
-          createdAt:
-            typeof anchor.createdAt === "string" && anchor.createdAt
-              ? anchor.createdAt
-              : createTimestamp(),
-        }));
-
-      normalized[url] = {
-        anchors: validAnchors,
-        updatedAt:
-          typeof entry.updatedAt === "string" && entry.updatedAt
-            ? entry.updatedAt
-            : createTimestamp(),
-      };
+      normalized[url] = normalizePageData(entry);
     }
 
     return normalized;
@@ -745,7 +763,11 @@
 
     GM.setClipboard(json, "text");
 
-    notify("GitHub Adhoc Anchors", "Anchors JSON copied. Paste into github-url-notes.", 2500);
+    notify(
+      "GitHub Adhoc Anchors",
+      "Anchors JSON copied. Paste into github-url-notes.",
+      2500,
+    );
   }
 
   async function importAnchorsFromNotes() {
