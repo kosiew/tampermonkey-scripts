@@ -533,9 +533,15 @@
           ? document.querySelector(anchor.selector)
           : null;
         const rect = element ? element.getBoundingClientRect() : null;
-        badge.style.position = "fixed";
-        badge.style.right = "8px";
-        badge.style.top = `${Math.max(20, rect ? rect.top + 12 : top - window.scrollY)}px`;
+        const parent = scrollRoot && scrollRoot !== document.body ? scrollRoot : document.body;
+
+        badge.style.position = "absolute";
+        badge.style.left = rect ? `${Math.max(8, rect.right - 14)}px` : "8px";
+        badge.style.top = rect ? `${Math.max(8, rect.top + 12)}px` : "20px";
+        badge.style.right = "auto";
+
+        parent.appendChild(badge);
+        return;
       } else if (
         scrollRoot &&
         scrollRoot !== document.body &&
