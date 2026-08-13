@@ -406,10 +406,7 @@
       try {
         await savePanelPosition(panel);
       } catch (error) {
-        console.warn(
-          "[GitHub Adhoc Anchors] Failed to save panel position",
-          error,
-        );
+        console.warn("[Adhoc Anchors] Failed to save panel position", error);
       }
     };
 
@@ -679,10 +676,7 @@
         `Remove ${anchor.label}`,
         () => {
           removeAnchor(anchor.id).catch((error) => {
-            console.error(
-              "[GitHub Adhoc Anchors] Failed to remove anchor",
-              error,
-            );
+            console.error("[Adhoc Anchors] Failed to remove anchor", error);
           });
         },
       );
@@ -764,7 +758,7 @@
     GM.setClipboard(json, "text");
 
     notify(
-      "GitHub Adhoc Anchors",
+      "Adhoc Anchors",
       "Anchors JSON copied. Paste into github-url-notes.",
       2500,
     );
@@ -790,7 +784,7 @@
       refreshCurrentPage();
 
       notify(
-        "GitHub Adhoc Anchors",
+        "Adhoc Anchors",
         `Import complete. Pages: ${Object.keys(allAnchorData).length}`,
         2500,
       );
@@ -805,7 +799,7 @@
     await persistAllData();
     renderList();
 
-    notify("GitHub Adhoc Anchors", "Anchor removed", 1500);
+    notify("Adhoc Anchors", "Anchor removed", 1500);
   }
 
   function setAddMode(enabled) {
@@ -874,9 +868,9 @@
       renderList();
       setAddMode(false);
 
-      notify("GitHub Adhoc Anchors", `Saved: ${newAnchor.label}`, 1800);
+      notify("Adhoc Anchors", `Saved: ${newAnchor.label}`, 1800);
     } catch (error) {
-      console.error("[GitHub Adhoc Anchors] Failed to save anchor", error);
+      console.error("[Adhoc Anchors] Failed to save anchor", error);
       alert(`Failed to save anchor: ${error.message}`);
       setAddMode(false);
     }
@@ -925,7 +919,7 @@
     const clearButton = panel.querySelector("#gh-adhoc-anchor-clear");
     clearButton.addEventListener("click", () => {
       clearCurrentPageAnchors().catch((error) => {
-        console.error("[GitHub Adhoc Anchors] Failed to clear anchors", error);
+        console.error("[Adhoc Anchors] Failed to clear anchors", error);
       });
     });
   }
@@ -991,7 +985,7 @@
       "click",
       (event) => {
         addAnchorFromClick(event).catch((error) => {
-          console.error("[GitHub Adhoc Anchors] Failed to add anchor", error);
+          console.error("[Adhoc Anchors] Failed to add anchor", error);
           setAddMode(false);
         });
       },
@@ -1029,12 +1023,12 @@
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {
       init().catch((error) => {
-        console.error("[GitHub Adhoc Anchors] Initialization failed", error);
+        console.error("[Adhoc Anchors] Initialization failed", error);
       });
     });
   } else {
     init().catch((error) => {
-      console.error("[GitHub Adhoc Anchors] Initialization failed", error);
+      console.error("[Adhoc Anchors] Initialization failed", error);
     });
   }
 })();
