@@ -439,10 +439,14 @@
     if (anchor.selector) {
       const element = document.querySelector(anchor.selector);
       if (element) {
-        return (
-          getElementPageTop(element) +
-          (Number.isFinite(anchor.deltaY) ? anchor.deltaY : 0)
-        );
+        if (window.location.hostname === "chatgpt.com") {
+          return (
+            getElementPageTop(element) +
+            (Number.isFinite(anchor.deltaY) ? anchor.deltaY : 0)
+          );
+        }
+
+        return getElementPageTop(element);
       }
     }
 
