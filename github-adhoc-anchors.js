@@ -415,6 +415,12 @@
     if (anchor.selector) {
       const element = document.querySelector(anchor.selector);
       if (element) {
+        if (window.location.hostname === "chatgpt.com") {
+          return Math.round(
+            element.getBoundingClientRect().top + window.scrollY,
+          );
+        }
+
         return (
           getElementPageTop(element) +
           (Number.isFinite(anchor.deltaY) ? anchor.deltaY : 0)
@@ -430,13 +436,26 @@
   }
 
   function jumpToAnchor(anchor) {
-    const scrollRoot = getScrollRoot();
+    if (window.location.hostname === "chatgpt.com") {
+      const element = anchor.selector
+        ? document.querySelector(anchor.selector)
+        : null;
+      if (element) {
+        element.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "nearest",
+        });
+        return;
+      }
+    }
+
     const targetTop = Math.max(0, findAnchorTop(anchor) - 80);
 
+    const scrollRoot = getScrollRoot();
     if (
       scrollRoot &&
       scrollRoot !== document.body &&
-      scrollRoot !== document.documentElement &&
       typeof scrollRoot.scrollTo === "function"
     ) {
       scrollRoot.scrollTo({ top: targetTop, behavior: "smooth" });
@@ -466,7 +485,15 @@
       const scrollRoot = getScrollRoot();
       const top = findAnchorTop(anchor);
 
-      if (
+      if (window.location.hostname === "chatgpt.com") {
+        const element = anchor.selector
+          ? document.querySelector(anchor.selector)
+          : null;
+        const rect = element ? element.getBoundingClientRect() : null;
+        badge.style.position = "fixed";
+        badge.style.right = "8px";
+        badge.style.top = `${Math.max(20, rect ? rect.top + 12 : top - window.scrollY)}px`;
+      } else if (
         scrollRoot &&
         scrollRoot !== document.body &&
         scrollRoot !== document.documentElement
