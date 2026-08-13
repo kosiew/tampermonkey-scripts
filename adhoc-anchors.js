@@ -52,7 +52,7 @@
     if (window.location.hostname === "chatgpt.com") {
       const candidates = Array.from(
         document.querySelectorAll(
-          '[class*="scroll-root"], [data-testid="conversation-turn"], [data-message-id]',
+          '[data-scroll-root], [class*="scroll-root"], [data-testid="conversation-turn"], [data-message-id]',
         ),
       ).filter((node) => {
         const style = window.getComputedStyle(node);
