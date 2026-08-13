@@ -102,7 +102,7 @@
     }
 
     if (window.location.hostname === "chatgpt.com") {
-      const scrollRoot = getScrollRoot();
+      const scrollRoot = getMessageScrollRoot(element);
       if (scrollRoot && scrollRoot !== document.body) {
         const rootRect = scrollRoot.getBoundingClientRect();
         return Math.max(
@@ -482,6 +482,7 @@
       const scrollRoot = getScrollRoot();
       if (scrollRoot && scrollRoot !== document.body) {
         scrollRoot.scrollTop = Math.max(0, targetTop);
+        requestAnimationFrame(() => renderBadges());
         return;
       }
 
@@ -491,6 +492,7 @@
           block: "center",
           inline: "nearest",
         });
+        requestAnimationFrame(() => renderBadges());
         return;
       }
     }
