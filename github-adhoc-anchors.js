@@ -50,13 +50,26 @@
 
   function getScrollRoot() {
     if (window.location.hostname === "chatgpt.com") {
+      const candidates = Array.from(
+        document.querySelectorAll(
+          '[class*="scroll-root"], [data-testid="conversation-turn"], [data-message-id]',
+        ),
+      ).filter((node) => {
+        const style = window.getComputedStyle(node);
+        const overflowY = style.overflowY || style.overflow;
+        return (
+          node.scrollHeight > node.clientHeight + 10 &&
+          (overflowY.includes("auto") || overflowY.includes("scroll"))
+        );
+      });
+
+      if (candidates.length) {
+        candidates.sort((a, b) => b.scrollHeight - a.scrollHeight);
+        return candidates[0];
+      }
+
       return (
-        document.querySelector(
-          '[class*="group/scroll-root"], [class*="scroll-root"], [data-testid="conversation-turn"]',
-        ) ||
-        document.scrollingElement ||
-        document.documentElement ||
-        document.body
+        document.scrollingElement || document.documentElement || document.body
       );
     }
 
@@ -468,13 +481,13 @@
     if (window.location.hostname === "chatgpt.com") {
       const scrollRoot = getScrollRoot();
       if (scrollRoot && scrollRoot !== document.body) {
-        scrollRoot.scrollTo({ top: targetTop, behavior: "smooth" });
+        scrollRoot.scrollTop = Math.max(0, targetTop);
         return;
       }
 
       if (element) {
         element.scrollIntoView({
-          behavior: "smooth",
+          behavior: "auto",
           block: "center",
           inline: "nearest",
         });
