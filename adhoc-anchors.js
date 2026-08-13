@@ -35,6 +35,14 @@
   let trackedScrollRoot = null;
   let badgeRenderFrame = null;
 
+  function createTimestamp() {
+    return new Date().toISOString();
+  }
+
+  function notify(title, text, timeout) {
+    GM.notification({ title, text, timeout });
+  }
+
   function isSupportedPage() {
     const hostname = window.location.hostname;
 
@@ -155,16 +163,13 @@
 
   function getCurrentAnchors() {
     const pageData = allAnchorData[currentUrlKey];
-    if (!pageData || !Array.isArray(pageData.anchors)) {
-      return [];
-    }
-    return pageData.anchors;
+    return pageData && Array.isArray(pageData.anchors) ? pageData.anchors : [];
   }
 
   function setCurrentAnchors(anchors) {
     allAnchorData[currentUrlKey] = {
       anchors,
-      updatedAt: new Date().toISOString(),
+      updatedAt: createTimestamp(),
     };
   }
 
@@ -332,6 +337,34 @@
     await GM.setValue(PANEL_POSITION_KEY, panelPosition);
   }
 
+  function getScrollRootListenerTarget() {
+    const scrollRoot = getScrollRoot();
+    if (
+      !scrollRoot ||
+      scrollRoot === document.body ||
+      scrollRoot === document.documentElement ||
+      scrollRoot === window
+    ) {
+      return null;
+    }
+
+    return scrollRoot;
+  }
+
+  function setTrackedScrollRoot(nextScrollRoot) {
+    if (trackedScrollRoot && trackedScrollRoot.removeEventListener) {
+      trackedScrollRoot.removeEventListener("scroll", scheduleBadgeRender);
+    }
+
+    trackedScrollRoot = nextScrollRoot;
+
+    if (trackedScrollRoot) {
+      trackedScrollRoot.addEventListener("scroll", scheduleBadgeRender, {
+        passive: true,
+      });
+    }
+  }
+
   function makePanelDraggable(panel) {
     const header = panel.querySelector(".gh-anchor-header");
     if (!header || header.dataset.dragEnabled === "true") {
@@ -450,7 +483,7 @@
       targetTop,
       clickPageY,
       deltaY: clickPageY - targetTop,
-      createdAt: new Date().toISOString(),
+      createdAt: createTimestamp(),
     };
   }
 
@@ -523,6 +556,44 @@
       .forEach((node) => node.remove());
   }
 
+  function createBadge(anchor, index) {
+    const badge = document.createElement("button");
+    badge.type = "button";
+    badge.className = "gh-adhoc-anchor-badge";
+    badge.textContent = `${index + 1}`;
+    badge.title = `${anchor.label} (double click to remove)`;
+    badge.addEventListener("click", () => jumpToAnchor(anchor));
+    badge.addEventListener("dblclick", async () => {
+      await removeAnchor(anchor.id);
+    });
+    return badge;
+  }
+
+  function placeChatGPTBadge(badge, anchor) {
+    const element = anchor.selector
+      ? document.querySelector(anchor.selector)
+      : null;
+
+    if (!element || !element.getBoundingClientRect()) {
+      badge.style.display = "none";
+      document.body.appendChild(badge);
+      return;
+    }
+
+    badge.style.display = "block";
+    badge.style.position = "absolute";
+    badge.style.left = "auto";
+    badge.style.top = `${Math.max(
+      12,
+      Number.isFinite(anchor.deltaY) ? anchor.deltaY : 12,
+    )}px`;
+    badge.style.right = "8px";
+    badge.style.bottom = "auto";
+    badge.style.transform = "none";
+    element.classList.add("gh-adhoc-anchor-target");
+    element.appendChild(badge);
+  }
+
   function scheduleBadgeRender() {
     if (badgeRenderFrame !== null) {
       return;
@@ -539,49 +610,16 @@
 
     const anchors = getCurrentAnchors();
     anchors.forEach((anchor, index) => {
-      const badge = document.createElement("button");
-      badge.type = "button";
-      badge.className = "gh-adhoc-anchor-badge";
-      badge.textContent = `${index + 1}`;
-      badge.title = `${anchor.label} (double click to remove)`;
-      badge.addEventListener("click", () => jumpToAnchor(anchor));
-      badge.addEventListener("dblclick", async () => {
-        await removeAnchor(anchor.id);
-      });
-
-      const scrollRoot = getScrollRoot();
+      const badge = createBadge(anchor, index);
+      const scrollRoot = getScrollRootListenerTarget();
       const top = findAnchorTop(anchor);
 
       if (window.location.hostname === "chatgpt.com") {
-        const element = anchor.selector
-          ? document.querySelector(anchor.selector)
-          : null;
-        const rect = element ? element.getBoundingClientRect() : null;
-
-        if (!rect) {
-          badge.style.display = "none";
-          document.body.appendChild(badge);
-          return;
-        }
-
-        badge.style.display = "block";
-        badge.style.position = "absolute";
-        badge.style.left = "auto";
-        badge.style.top = `${Math.max(
-          12,
-          Number.isFinite(anchor.deltaY) ? anchor.deltaY : 12,
-        )}px`;
-        badge.style.right = "8px";
-        badge.style.bottom = "auto";
-        badge.style.transform = "none";
-        element.classList.add("gh-adhoc-anchor-target");
-        element.appendChild(badge);
+        placeChatGPTBadge(badge, anchor);
         return;
-      } else if (
-        scrollRoot &&
-        scrollRoot !== document.body &&
-        scrollRoot !== document.documentElement
-      ) {
+      }
+
+      if (scrollRoot) {
         badge.style.position = "fixed";
         badge.style.right = "8px";
         badge.style.top = `${Math.max(20, top - getPageScrollTop())}px`;
@@ -649,7 +687,7 @@
   function buildExportPayload() {
     return {
       format: "github_adhoc_anchors_v1",
-      exportedAt: new Date().toISOString(),
+      exportedAt: createTimestamp(),
       github_adhoc_anchors: allAnchorData,
     };
   }
@@ -686,7 +724,7 @@
           createdAt:
             typeof anchor.createdAt === "string" && anchor.createdAt
               ? anchor.createdAt
-              : new Date().toISOString(),
+              : createTimestamp(),
         }));
 
       normalized[url] = {
@@ -694,7 +732,7 @@
         updatedAt:
           typeof entry.updatedAt === "string" && entry.updatedAt
             ? entry.updatedAt
-            : new Date().toISOString(),
+            : createTimestamp(),
       };
     }
 
@@ -707,11 +745,7 @@
 
     GM.setClipboard(json, "text");
 
-    GM.notification({
-      title: "GitHub Adhoc Anchors",
-      text: "Anchors JSON copied. Paste into github-url-notes.",
-      timeout: 2500,
-    });
+    notify("GitHub Adhoc Anchors", "Anchors JSON copied. Paste into github-url-notes.", 2500);
   }
 
   async function importAnchorsFromNotes() {
@@ -733,11 +767,11 @@
       await persistAllData();
       refreshCurrentPage();
 
-      GM.notification({
-        title: "GitHub Adhoc Anchors",
-        text: `Import complete. Pages: ${Object.keys(allAnchorData).length}`,
-        timeout: 2500,
-      });
+      notify(
+        "GitHub Adhoc Anchors",
+        `Import complete. Pages: ${Object.keys(allAnchorData).length}`,
+        2500,
+      );
     } catch (error) {
       alert(`Failed to import anchors: ${error.message}`);
     }
@@ -749,11 +783,7 @@
     await persistAllData();
     renderList();
 
-    GM.notification({
-      title: "GitHub Adhoc Anchors",
-      text: "Anchor removed",
-      timeout: 1500,
-    });
+    notify("GitHub Adhoc Anchors", "Anchor removed", 1500);
   }
 
   function setAddMode(enabled) {
@@ -822,11 +852,7 @@
       renderList();
       setAddMode(false);
 
-      GM.notification({
-        title: "GitHub Adhoc Anchors",
-        text: `Saved: ${newAnchor.label}`,
-        timeout: 1800,
-      });
+      notify("GitHub Adhoc Anchors", `Saved: ${newAnchor.label}`, 1800);
     } catch (error) {
       console.error("[GitHub Adhoc Anchors] Failed to save anchor", error);
       alert(`Failed to save anchor: ${error.message}`);
@@ -883,46 +909,7 @@
   }
 
   function syncScrollTracking() {
-    const nextScrollRoot = getScrollRoot();
-
-    if (
-      trackedScrollRoot &&
-      trackedScrollRoot !== nextScrollRoot &&
-      trackedScrollRoot.removeEventListener
-    ) {
-      trackedScrollRoot.removeEventListener("scroll", scheduleBadgeRender);
-    }
-
-    if (
-      nextScrollRoot &&
-      nextScrollRoot !== document.body &&
-      nextScrollRoot !== document.documentElement &&
-      nextScrollRoot !== window
-    ) {
-      nextScrollRoot.addEventListener("scroll", scheduleBadgeRender, {
-        passive: true,
-      });
-      trackedScrollRoot = nextScrollRoot;
-      return;
-    }
-
-    trackedScrollRoot = null;
-  }
-
-  function attachScrollListeners() {
-    if (trackedScrollRoot && trackedScrollRoot.removeEventListener) {
-      trackedScrollRoot.removeEventListener("scroll", scheduleBadgeRender);
-    }
-
-    const scrollRoot = getScrollRoot();
-    if (scrollRoot && scrollRoot !== document.body) {
-      scrollRoot.addEventListener("scroll", scheduleBadgeRender, {
-        passive: true,
-      });
-      trackedScrollRoot = scrollRoot;
-    } else {
-      trackedScrollRoot = null;
-    }
+    setTrackedScrollRoot(getScrollRootListenerTarget());
   }
 
   function refreshCurrentPage() {
@@ -931,12 +918,11 @@
     if (!allAnchorData[currentUrlKey]) {
       allAnchorData[currentUrlKey] = {
         anchors: [],
-        updatedAt: new Date().toISOString(),
+        updatedAt: createTimestamp(),
       };
     }
 
     syncScrollTracking();
-    attachScrollListeners();
     renderList();
   }
 
@@ -1000,7 +986,7 @@
       if (panel) {
         applyPanelPosition(panel);
       }
-      attachScrollListeners();
+      syncScrollTracking();
       renderBadges();
     });
 
