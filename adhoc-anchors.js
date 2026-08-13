@@ -534,8 +534,12 @@
           : null;
         const rect = element ? element.getBoundingClientRect() : null;
         badge.style.position = "fixed";
-        badge.style.right = "8px";
-        badge.style.top = `${Math.max(20, rect ? rect.top + 12 : top - window.scrollY)}px`;
+        badge.style.left = rect
+          ? `${Math.min(window.innerWidth - 40, Math.max(12, rect.right - 18))}px`
+          : "12px";
+        badge.style.top = rect ? `${Math.max(20, rect.top + 12)}px` : "20px";
+        badge.style.right = "auto";
+        badge.style.bottom = "auto";
       } else if (
         scrollRoot &&
         scrollRoot !== document.body &&
