@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         GitHub + ChatGPT Adhoc Anchors
+// @name         Adhoc Anchors
 // @namespace    http://tampermonkey.net/
 // @version      1.0
 // @description  Add temporary anchors on GitHub issue/PR pages and ChatGPT conversations
@@ -18,12 +18,12 @@
 (function () {
   "use strict";
 
-  const STORAGE_KEY = "github_adhoc_anchors";
-  const PANEL_POSITION_KEY = "github_adhoc_anchors_panel_position";
+  const STORAGE_KEY = "adhoc_anchors";
+  const PANEL_POSITION_KEY = "adhoc_anchors_panel_position";
 
-  const PANEL_ID = "gh-adhoc-anchors-panel";
-  const LIST_ID = "gh-adhoc-anchors-list";
-  const ADD_BUTTON_ID = "gh-adhoc-anchor-add";
+  const PANEL_ID = "adhoc-anchors-panel";
+  const LIST_ID = "adhoc-anchors-list";
+  const ADD_BUTTON_ID = "adhoc-anchor-add";
 
   const GITHUB_PAGE_REGEX = /^\/[^/]+\/[^/]+\/(issues|pull)\/\d+/;
 
