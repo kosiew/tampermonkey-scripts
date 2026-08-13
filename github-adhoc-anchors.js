@@ -32,6 +32,7 @@
   let currentUrlKey = "";
   let lastHref = window.location.href;
   let panelPosition = null;
+  let trackedScrollRoot = null;
 
   function isSupportedPage() {
     const hostname = window.location.hostname;
@@ -832,6 +833,33 @@
     });
   }
 
+  function syncScrollTracking() {
+    const nextScrollRoot = getScrollRoot();
+
+    if (
+      trackedScrollRoot &&
+      trackedScrollRoot !== nextScrollRoot &&
+      trackedScrollRoot.removeEventListener
+    ) {
+      trackedScrollRoot.removeEventListener("scroll", renderBadges);
+    }
+
+    if (
+      nextScrollRoot &&
+      nextScrollRoot !== document.body &&
+      nextScrollRoot !== document.documentElement &&
+      nextScrollRoot !== window
+    ) {
+      nextScrollRoot.addEventListener("scroll", renderBadges, {
+        passive: true,
+      });
+      trackedScrollRoot = nextScrollRoot;
+      return;
+    }
+
+    trackedScrollRoot = null;
+  }
+
   function refreshCurrentPage() {
     currentUrlKey = normalizeUrl(window.location.href);
 
@@ -842,6 +870,7 @@
       };
     }
 
+    syncScrollTracking();
     renderList();
   }
 
@@ -901,6 +930,7 @@
       if (panel) {
         applyPanelPosition(panel);
       }
+      syncScrollTracking();
       renderBadges();
     });
 
