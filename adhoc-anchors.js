@@ -33,6 +33,7 @@
   let lastHref = window.location.href;
   let panelPosition = null;
   let trackedScrollRoot = null;
+  let badgeRenderFrame = null;
 
   function isSupportedPage() {
     const hostname = window.location.hostname;
@@ -518,6 +519,17 @@
       .forEach((node) => node.remove());
   }
 
+  function scheduleBadgeRender() {
+    if (badgeRenderFrame !== null) {
+      return;
+    }
+
+    badgeRenderFrame = requestAnimationFrame(() => {
+      badgeRenderFrame = null;
+      renderBadges();
+    });
+  }
+
   function renderBadges() {
     clearBadges();
 
@@ -887,7 +899,7 @@
       trackedScrollRoot !== nextScrollRoot &&
       trackedScrollRoot.removeEventListener
     ) {
-      trackedScrollRoot.removeEventListener("scroll", renderBadges);
+      trackedScrollRoot.removeEventListener("scroll", scheduleBadgeRender);
     }
 
     if (
@@ -896,7 +908,7 @@
       nextScrollRoot !== document.documentElement &&
       nextScrollRoot !== window
     ) {
-      nextScrollRoot.addEventListener("scroll", renderBadges, {
+      nextScrollRoot.addEventListener("scroll", scheduleBadgeRender, {
         passive: true,
       });
       trackedScrollRoot = nextScrollRoot;
@@ -908,12 +920,14 @@
 
   function attachScrollListeners() {
     if (trackedScrollRoot && trackedScrollRoot.removeEventListener) {
-      trackedScrollRoot.removeEventListener("scroll", renderBadges);
+      trackedScrollRoot.removeEventListener("scroll", scheduleBadgeRender);
     }
 
     const scrollRoot = getScrollRoot();
     if (scrollRoot && scrollRoot !== document.body) {
-      scrollRoot.addEventListener("scroll", renderBadges, { passive: true });
+      scrollRoot.addEventListener("scroll", scheduleBadgeRender, {
+        passive: true,
+      });
       trackedScrollRoot = scrollRoot;
     } else {
       trackedScrollRoot = null;
@@ -985,7 +999,11 @@
       true,
     );
 
-    window.addEventListener("scroll", renderBadges, { passive: true });
+    window.addEventListener("scroll", scheduleBadgeRender, { passive: true });
+    document.addEventListener("scroll", scheduleBadgeRender, {
+      capture: true,
+      passive: true,
+    });
     window.addEventListener("resize", () => {
       const panel = document.getElementById(PANEL_ID);
       if (panel) {
