@@ -537,11 +537,17 @@
           ? document.querySelector(anchor.selector)
           : null;
         const rect = element ? element.getBoundingClientRect() : null;
+
+        if (!rect || rect.bottom < 0 || rect.top > window.innerHeight) {
+          badge.style.display = "none";
+          document.body.appendChild(badge);
+          return;
+        }
+
+        badge.style.display = "block";
         badge.style.position = "fixed";
-        badge.style.left = rect
-          ? `${Math.min(window.innerWidth - 40, Math.max(12, rect.right - 18))}px`
-          : "12px";
-        badge.style.top = rect ? `${Math.max(20, rect.top + 12)}px` : "20px";
+        badge.style.left = `${Math.min(window.innerWidth - 40, Math.max(12, rect.right - 18))}px`;
+        badge.style.top = `${clamp(rect.top + 12, 20, window.innerHeight - 20)}px`;
         badge.style.right = "auto";
         badge.style.bottom = "auto";
       } else if (
