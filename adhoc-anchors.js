@@ -482,6 +482,8 @@
       const scrollRoot = getScrollRoot();
       if (scrollRoot && scrollRoot !== document.body) {
         scrollRoot.scrollTop = Math.max(0, targetTop);
+        requestAnimationFrame(() => renderBadges());
+        setTimeout(() => renderBadges(), 120);
         return;
       }
 
@@ -491,6 +493,8 @@
           block: "center",
           inline: "nearest",
         });
+        requestAnimationFrame(() => renderBadges());
+        setTimeout(() => renderBadges(), 120);
         return;
       }
     }
