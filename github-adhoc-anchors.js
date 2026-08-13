@@ -51,7 +51,7 @@
     if (window.location.hostname === "chatgpt.com") {
       return (
         document.querySelector(
-          'div[role="presentation"] div.overflow-y-auto',
+          '[class*="group/scroll-root"], [class*="scroll-root"], [data-testid="conversation-turn"]',
         ) ||
         document.scrollingElement ||
         document.documentElement ||
@@ -66,6 +66,12 @@
 
   function getPageScrollTop() {
     const scrollRoot = getScrollRoot();
+    if (window.location.hostname === "chatgpt.com") {
+      return scrollRoot && scrollRoot !== document.body
+        ? scrollRoot.scrollTop
+        : window.scrollY || 0;
+    }
+
     if (
       scrollRoot &&
       scrollRoot !== document.body &&
@@ -77,6 +83,26 @@
   }
 
   function getElementPageTop(element) {
+    if (!element) {
+      return 0;
+    }
+
+    if (window.location.hostname === "chatgpt.com") {
+      const scrollRoot = getScrollRoot();
+      if (scrollRoot && scrollRoot !== document.body) {
+        const rootRect = scrollRoot.getBoundingClientRect();
+        return Math.max(
+          0,
+          Math.round(
+            scrollRoot.scrollTop +
+              element.getBoundingClientRect().top -
+              rootRect.top,
+          ),
+        );
+      }
+      return Math.round(window.scrollY + element.getBoundingClientRect().top);
+    }
+
     const scrollRoot = getScrollRoot();
     const rootTop =
       scrollRoot &&
@@ -92,9 +118,7 @@
 
   function findAnchorTarget(target) {
     if (window.location.hostname === "chatgpt.com") {
-      const messageTarget = target.closest(
-        "[data-message-id], [data-message-author-role], [data-testid='conversation-turn']",
-      );
+      const messageTarget = target.closest("[data-message-id]");
       if (messageTarget) {
         return messageTarget;
       }
@@ -415,12 +439,6 @@
     if (anchor.selector) {
       const element = document.querySelector(anchor.selector);
       if (element) {
-        if (window.location.hostname === "chatgpt.com") {
-          return Math.round(
-            element.getBoundingClientRect().top + window.scrollY,
-          );
-        }
-
         return (
           getElementPageTop(element) +
           (Number.isFinite(anchor.deltaY) ? anchor.deltaY : 0)
@@ -436,10 +454,19 @@
   }
 
   function jumpToAnchor(anchor) {
+    const element = anchor.selector
+      ? document.querySelector(anchor.selector)
+      : null;
+
+    const targetTop = Math.max(0, findAnchorTop(anchor) - 80);
+
     if (window.location.hostname === "chatgpt.com") {
-      const element = anchor.selector
-        ? document.querySelector(anchor.selector)
-        : null;
+      const scrollRoot = getScrollRoot();
+      if (scrollRoot && scrollRoot !== document.body) {
+        scrollRoot.scrollTo({ top: targetTop, behavior: "smooth" });
+        return;
+      }
+
       if (element) {
         element.scrollIntoView({
           behavior: "smooth",
@@ -449,8 +476,6 @@
         return;
       }
     }
-
-    const targetTop = Math.max(0, findAnchorTop(anchor) - 80);
 
     const scrollRoot = getScrollRoot();
     if (
@@ -719,7 +744,15 @@
       return;
     }
 
-    const clickPageY = Math.round(getPageScrollTop() + event.clientY);
+    const scrollRoot = getScrollRoot();
+    const rootRect =
+      scrollRoot && scrollRoot.getBoundingClientRect
+        ? scrollRoot.getBoundingClientRect()
+        : null;
+    const clickPageY = Math.round(
+      getPageScrollTop() +
+        (rootRect ? event.clientY - rootRect.top : event.clientY),
+    );
     const newAnchor = createAnchorDescriptor(
       event.target,
       clickPageY,
