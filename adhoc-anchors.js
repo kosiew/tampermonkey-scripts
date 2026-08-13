@@ -537,19 +537,45 @@
           ? document.querySelector(anchor.selector)
           : null;
         const rect = element ? element.getBoundingClientRect() : null;
+        const rootRect =
+          scrollRoot && scrollRoot.getBoundingClientRect
+            ? scrollRoot.getBoundingClientRect()
+            : null;
 
-        if (!rect || rect.bottom < 0 || rect.top > window.innerHeight) {
+        if (!rect || !rootRect) {
           badge.style.display = "none";
           document.body.appendChild(badge);
           return;
         }
 
+        const isVisible =
+          rect.bottom >= rootRect.top - 12 && rect.top <= rootRect.bottom + 12;
+        if (!isVisible) {
+          badge.style.display = "none";
+          document.body.appendChild(badge);
+          return;
+        }
+
+        const left = clamp(
+          rect.right - rootRect.left - 16,
+          8,
+          Math.max(8, scrollRoot.clientWidth - 28),
+        );
+        const top = clamp(
+          rect.top - rootRect.top + 12,
+          8,
+          Math.max(8, scrollRoot.clientHeight - 18),
+        );
+
         badge.style.display = "block";
-        badge.style.position = "fixed";
-        badge.style.left = `${Math.min(window.innerWidth - 40, Math.max(12, rect.right - 18))}px`;
-        badge.style.top = `${clamp(rect.top + 12, 20, window.innerHeight - 20)}px`;
+        badge.style.position = "absolute";
+        badge.style.left = `${left}px`;
+        badge.style.top = `${top}px`;
         badge.style.right = "auto";
         badge.style.bottom = "auto";
+        badge.style.transform = "none";
+        scrollRoot.appendChild(badge);
+        return;
       } else if (
         scrollRoot &&
         scrollRoot !== document.body &&
