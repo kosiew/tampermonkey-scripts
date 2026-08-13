@@ -537,27 +537,41 @@
           ? document.querySelector(anchor.selector)
           : null;
         const rect = element ? element.getBoundingClientRect() : null;
+        const rootRect =
+          scrollRoot && scrollRoot.getBoundingClientRect
+            ? scrollRoot.getBoundingClientRect()
+            : null;
 
-        if (!rect) {
+        if (!rect || !rootRect) {
           badge.style.display = "none";
           document.body.appendChild(badge);
           return;
         }
 
-        if (rect.bottom < -40 || rect.top > window.innerHeight + 40) {
+        const isVisible =
+          rect.bottom >= rootRect.top - 40 && rect.top <= rootRect.bottom + 40;
+        if (!isVisible) {
           badge.style.display = "none";
           document.body.appendChild(badge);
           return;
         }
 
         badge.style.display = "block";
-        badge.style.position = "fixed";
-        badge.style.left = `${clamp(rect.right - 18, 8, window.innerWidth - 20)}px`;
-        badge.style.top = `${clamp(rect.top + 12, 20, window.innerHeight - 20)}px`;
+        badge.style.position = "absolute";
+        badge.style.left = `${clamp(
+          rect.right - rootRect.left - 18,
+          8,
+          Math.max(8, rootRect.width - 24),
+        )}px`;
+        badge.style.top = `${clamp(
+          rect.top - rootRect.top + 12,
+          8,
+          Math.max(8, rootRect.height - 18),
+        )}px`;
         badge.style.right = "auto";
         badge.style.bottom = "auto";
         badge.style.transform = "none";
-        document.body.appendChild(badge);
+        scrollRoot.appendChild(badge);
         return;
       } else if (
         scrollRoot &&
