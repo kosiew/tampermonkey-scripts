@@ -2,7 +2,7 @@
 // @name         GitHub PR CI Error Filter
 // @namespace    http://tampermonkey.net/
 // @version      1.0
-// @description  Adds a floating button to hide/show GitHub PRs with CI errors, Draft PRs, and PRs with many comments
+// @description  Adds a floating button to hide/show GitHub PRs with CI errors, Draft PRs, Approved PRs, and PRs with many comments
 // @author       You
 // @match        https://github.com/*/*/pulls*
 // @icon         https://github.githubassets.com/favicons/favicon.svg
@@ -36,6 +36,8 @@
       commentCount: "a.Link--muted",
       // Selector for user links in PR list rows
       authorLink: 'a[data-hovercard-type="user"]',
+      // Review status tooltip shown for approved PRs
+      approvedIndicator: '[aria-label="Approved" i], [title="Approved" i]',
     },
   };
 
@@ -113,7 +115,7 @@
       id: CONFIG.buttonId,
       text: shouldHide ? CONFIG.buttonText.show : CONFIG.buttonText.hide,
       title:
-        "Toggle visibility of PRs with CI errors, Draft PRs, comment-heavy PRs, and Dependabot PRs",
+        "Toggle visibility of PRs with CI errors, Draft PRs, Approved PRs, comment-heavy PRs, and Dependabot PRs",
       onClick: toggleErrorPRs,
       active: shouldHide,
     });
@@ -177,6 +179,25 @@
       CONFIG.selectors.mergeStatusLink,
     );
     return mergeStatusLink && mergeStatusLink.textContent.trim() === "Draft";
+  }
+
+  /**
+   * Checks if a PR has been approved
+   * @param {HTMLElement} prElement - The PR element to check
+   * @returns {boolean} True if the PR has an approval review status
+   */
+  function isApproved(prElement) {
+    if (prElement.querySelector(CONFIG.selectors.approvedIndicator)) {
+      return true;
+    }
+
+    return Array.from(
+      prElement.querySelectorAll(CONFIG.selectors.mergeStatusLink),
+    ).some((link) => {
+      const text = (link.textContent || "").trim();
+      const ariaLabel = (link.getAttribute("aria-label") || "").trim();
+      return text === "Approved" || /\breview approval\b/i.test(ariaLabel);
+    });
   }
 
   /**
@@ -253,7 +274,7 @@
   }
 
   /**
-   * Checks if a PR should be hidden (has CI errors, is a draft, is comment-heavy, or is Dependabot-authored)
+   * Checks if a PR should be hidden (has CI errors, is a draft, is approved, is comment-heavy, or is Dependabot-authored)
    * @param {HTMLElement} prElement - The PR element to check
    * @returns {boolean} True if the PR should be hidden
    */
@@ -261,13 +282,14 @@
     return (
       hasCIErrors(prElement) ||
       isDraft(prElement) ||
+      isApproved(prElement) ||
       hasManyComments(prElement) ||
       (CONFIG.hideDependabotPRs && isDependabotPR(prElement))
     );
   }
 
   /**
-   * Toggles the visibility of PRs with CI errors, Draft PRs, comment-heavy PRs, and Dependabot PRs
+   * Toggles the visibility of PRs with CI errors, Draft PRs, Approved PRs, comment-heavy PRs, and Dependabot PRs
    * @returns {void}
    */
   function toggleErrorPRs() {
@@ -286,6 +308,7 @@
 
       let ciErrorCount = 0;
       let draftCount = 0;
+      let approvedCount = 0;
       let commentHeavyCount = 0;
       let dependabotCount = 0;
 
@@ -296,6 +319,7 @@
           if (isHiding) {
             if (hasCIErrors(pr)) ciErrorCount++;
             if (isDraft(pr)) draftCount++;
+            if (isApproved(pr)) approvedCount++;
             if (hasManyComments(pr)) commentHeavyCount++;
             if (CONFIG.hideDependabotPRs && isDependabotPR(pr))
               dependabotCount++;
@@ -316,6 +340,11 @@
         }
         if (draftCount > 0) {
           parts.push(`${draftCount} draft${draftCount !== 1 ? "s" : ""}`);
+        }
+        if (approvedCount > 0) {
+          parts.push(
+            `${approvedCount} approved PR${approvedCount !== 1 ? "s" : ""}`,
+          );
         }
         if (commentHeavyCount > 0) {
           parts.push(
