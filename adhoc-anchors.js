@@ -20,10 +20,12 @@
 
   const STORAGE_KEY = "adhoc_anchors";
   const PANEL_POSITION_KEY = "adhoc_anchors_panel_position";
+  const PANEL_MINIMIZED_KEY = "adhoc_anchors_panel_minimized";
 
   const PANEL_ID = "adhoc-anchors-panel";
   const LIST_ID = "adhoc-anchors-list";
   const ADD_BUTTON_ID = "adhoc-anchor-add";
+  const MINIMIZE_BUTTON_ID = "adhoc-anchor-minimize";
 
   const GITHUB_PAGE_REGEX = /^\/[^/]+\/[^/]+\/(issues|pull)\/\d+/;
 
@@ -32,6 +34,7 @@
   let currentUrlKey = "";
   let lastHref = window.location.href;
   let panelPosition = null;
+  let panelMinimized = false;
   let trackedScrollRoot = null;
   let badgeRenderFrame = null;
   let pageAdapter = null;
@@ -397,6 +400,10 @@
         outline: 2px solid var(--color-accent-fg, #1f6feb);
       }
 
+      #${PANEL_ID}.minimized #${LIST_ID} {
+        display: none;
+      }
+
       #${PANEL_ID} .gh-anchor-header {
         display: flex;
         align-items: center;
@@ -496,6 +503,38 @@
 
   async function loadPanelPosition() {
     panelPosition = await GM.getValue(PANEL_POSITION_KEY, null);
+    panelMinimized = await GM.getValue(PANEL_MINIMIZED_KEY, false);
+  }
+
+  function applyPanelMinimized(panel) {
+    if (!panel) {
+      return;
+    }
+
+    panel.classList.toggle("minimized", panelMinimized);
+
+    const minimizeButton = panel.querySelector(`#${MINIMIZE_BUTTON_ID}`);
+    if (minimizeButton) {
+      minimizeButton.textContent = panelMinimized ? "Restore" : "Minimize";
+      minimizeButton.title = panelMinimized
+        ? "Restore the anchor list"
+        : "Minimize the anchor list";
+      minimizeButton.setAttribute(
+        "aria-label",
+        panelMinimized ? "Restore the anchor list" : "Minimize the anchor list",
+      );
+    }
+  }
+
+  async function setPanelMinimized(minimized) {
+    panelMinimized = minimized;
+    applyPanelMinimized(document.getElementById(PANEL_ID));
+
+    try {
+      await GM.setValue(PANEL_MINIMIZED_KEY, panelMinimized);
+    } catch (error) {
+      console.warn("[Adhoc Anchors] Failed to save panel state", error);
+    }
   }
 
   function applyPanelPosition(panel) {
@@ -1013,6 +1052,7 @@
         <div class="gh-anchor-actions">
           <button id="${ADD_BUTTON_ID}" type="button" title="Add an anchor by clicking on the page">Add</button>
           <button id="gh-adhoc-anchor-clear" type="button" title="Remove all anchors for this page">Clear</button>
+          <button id="${MINIMIZE_BUTTON_ID}" type="button" title="Minimize the anchor list">Minimize</button>
         </div>
       </div>
       <ul id="${LIST_ID}"></ul>
@@ -1020,10 +1060,16 @@
 
     document.body.appendChild(panel);
     applyPanelPosition(panel);
+    applyPanelMinimized(panel);
     makePanelDraggable(panel);
 
     const addButton = panel.querySelector(`#${ADD_BUTTON_ID}`);
     addButton.addEventListener("click", () => setAddMode(!isAddMode));
+
+    const minimizeButton = panel.querySelector(`#${MINIMIZE_BUTTON_ID}`);
+    minimizeButton.addEventListener("click", () => {
+      setPanelMinimized(!panelMinimized);
+    });
 
     const clearButton = panel.querySelector("#gh-adhoc-anchor-clear");
     clearButton.addEventListener("click", () => {
