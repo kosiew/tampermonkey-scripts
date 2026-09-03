@@ -121,8 +121,11 @@
     });
   }
 
-  // Wait for the page to fully load before running the script
-  window.addEventListener("load", () => {
+  if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", addFilterButton, {
+      once: true,
+    });
+  } else {
     addFilterButton();
-  });
+  }
 })();
