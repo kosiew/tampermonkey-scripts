@@ -18,6 +18,8 @@
   const STORAGE_DAYS = 30; // Number of days to keep read links.
   const TTL_MS = STORAGE_DAYS * 24 * 60 * 60 * 1000;
   const LINK_ID_REGEX = /^issue_(\d+)_link$/;
+  const PR_LINK_SELECTOR =
+    'a[data-testid="listitem-title-link"][data-hovercard-type="pull_request"], a[data-hovercard-type="pull_request"]';
   const READ_CLASS = "tm-pulls-read-link";
 
   const StorageStrategies = {
@@ -128,8 +130,15 @@
   }
 
   function getTrackedLinks() {
-    const links = document.querySelectorAll('a[id^="issue_"][id$="_link"]');
-    return Array.from(links).filter((link) => LINK_ID_REGEX.test(link.id));
+    return Array.from(document.querySelectorAll(PR_LINK_SELECTOR)).map(
+      (link) => {
+        const match = link.href.match(/\/pull\/(\d+)(?:[/?#]|$)/);
+        if (match && !LINK_ID_REGEX.test(link.id)) {
+          link.id = `issue_${match[1]}_link`;
+        }
+        return link;
+      },
+    );
   }
 
   function markLinksForCurrentRepo() {
@@ -160,9 +169,12 @@
 
   function markLinkAsRead(link) {
     const repoKey = getRepoKey();
-    if (!repoKey || !LINK_ID_REGEX.test(link.id)) {
+    const trackedLink = getTrackedLink(link);
+    if (!repoKey || !trackedLink) {
       return;
     }
+
+    const linkId = trackedLink.id;
 
     const now = Date.now();
     const store = loadStore();
@@ -172,10 +184,25 @@
       store[repoKey] = {};
     }
 
-    store[repoKey][link.id] = now;
+    store[repoKey][linkId] = now;
     saveStore(store);
 
-    link.classList.add(READ_CLASS);
+    trackedLink.classList.add(READ_CLASS);
+  }
+
+  function getTrackedLink(element) {
+    const link = element.closest(PR_LINK_SELECTOR);
+    if (!link) {
+      return null;
+    }
+
+    const match = link.href.match(/\/pull\/(\d+)(?:[/?#]|$)/);
+    if (!match) {
+      return null;
+    }
+
+    link.id = `issue_${match[1]}_link`;
+    return link;
   }
 
   function onDocumentClick(event) {
@@ -184,8 +211,8 @@
       return;
     }
 
-    const link = target.closest('a[id^="issue_"][id$="_link"]');
-    if (!link || !LINK_ID_REGEX.test(link.id)) {
+    const link = getTrackedLink(target);
+    if (!link) {
       return;
     }
 
@@ -217,6 +244,8 @@
     });
 
     window.addEventListener("pjax:end", scheduleMarking, true);
+    window.addEventListener("turbo:load", scheduleMarking, true);
+    window.addEventListener("turbo:render", scheduleMarking, true);
     window.addEventListener("popstate", scheduleMarking, true);
   }
 
