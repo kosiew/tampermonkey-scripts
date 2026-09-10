@@ -35,7 +35,7 @@
       // Selector for merge status links (we'll check text content)
       mergeStatusLink: 'a.Link--muted[href*="#partial-pull-merging"]',
       // Selector for comment count elements in PR list rows
-      commentCount: "a.Link--muted",
+      commentCount: "a.Link--muted, svg.octicon-comment",
       // Selector for user links in PR list rows
       authorLink: 'a[data-hovercard-type="user"]',
       // Review status tooltip shown for approved PRs
@@ -262,23 +262,33 @@
     const commentLink = Array.from(
       prElement.querySelectorAll(CONFIG.selectors.commentCount),
     ).find((link) => {
-      const label = (link.getAttribute("aria-label") || "").trim();
-      const text = link.textContent.trim();
+      const countElement = link.matches("svg.octicon-comment")
+        ? link.parentElement
+        : link;
+      const label = (countElement?.getAttribute("aria-label") || "").trim();
+      const text = (countElement?.textContent || "").trim();
       return /comment(s)?/i.test(label) || /comment(s)?/i.test(text);
     });
 
     if (!commentLink) {
-      return 0;
+      const commentIcon = prElement.querySelector("svg.octicon-comment");
+      const metadataText = commentIcon?.parentElement?.textContent || "";
+      const metadataMatch = metadataText.match(/\d+/);
+      return metadataMatch ? parseInt(metadataMatch[0], 10) : 0;
     }
 
+    const countElement = commentLink.matches("svg.octicon-comment")
+      ? commentLink.parentElement
+      : commentLink;
+
     // Prefer aria-label like "4 comments"; fallback to visible text number.
-    const ariaLabel = (commentLink.getAttribute("aria-label") || "").trim();
+    const ariaLabel = (countElement?.getAttribute("aria-label") || "").trim();
     const ariaMatch = ariaLabel.match(/^(\d+)/);
     if (ariaMatch) {
       return parseInt(ariaMatch[1], 10);
     }
 
-    const textSpan = commentLink.querySelector("span.text-small.text-bold");
+    const textSpan = countElement?.querySelector("span.text-small.text-bold");
     if (textSpan) {
       const spanText = textSpan.textContent.trim();
       const spanMatch = spanText.match(/^(\d+)/);
@@ -287,7 +297,7 @@
       }
     }
 
-    const countText = commentLink.textContent.trim();
+    const countText = (countElement?.textContent || "").trim();
     const countMatch = countText.match(/^(\d+)/);
     return countMatch ? parseInt(countMatch[1], 10) : 0;
   }
