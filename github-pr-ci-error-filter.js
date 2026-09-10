@@ -245,7 +245,11 @@
     ).some((link) => {
       const text = (link.textContent || "").trim();
       const ariaLabel = (link.getAttribute("aria-label") || "").trim();
-      return text === "Approved" || /\breview approval\b/i.test(ariaLabel);
+      return (
+        /\bApproved\b/i.test(text) ||
+        /\bApproved\b/i.test(ariaLabel) ||
+        /\breview approval\b/i.test(ariaLabel)
+      );
     });
   }
 
