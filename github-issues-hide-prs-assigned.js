@@ -205,9 +205,7 @@
     const listContainer = Array.from(
       document.querySelectorAll(CONFIG.selectors.issueListContainer),
     ).find((candidate) => candidate.querySelector(CONFIG.selectors.issueRow));
-    const observerTarget =
-      listContainer || document.querySelector("main") || document.body;
-    if (!observerTarget) {
+    if (!listContainer) {
       return;
     }
 
@@ -221,14 +219,11 @@
         return;
       }
 
-      let hasAddedNodes = false;
       for (const mutation of mutations) {
         mutation.addedNodes.forEach((node) => {
           if (node.nodeType !== Node.ELEMENT_NODE) {
             return;
           }
-
-          hasAddedNodes = true;
 
           if (
             node.matches?.(CONFIG.selectors.issueRow) &&
@@ -247,13 +242,9 @@
             });
         });
       }
-
-        if (hasAddedNodes) {
-          applyIssueVisibility(true);
-        }
     });
 
-      listObserver.observe(observerTarget, { childList: true, subtree: true });
+    listObserver.observe(listContainer, { childList: true, subtree: true });
   }
 
   /**
@@ -265,12 +256,7 @@
       return;
     }
 
-    const existingButton = document.getElementById(CONFIG.buttonId);
-    if (existingButton) {
-      const shouldHide = localStorage.getItem(CONFIG.storageKey) === "true";
-      syncButtonState(existingButton, shouldHide);
-      applyIssueVisibility(shouldHide);
-      observeIssueList(existingButton);
+    if (document.getElementById(CONFIG.buttonId)) {
       return;
     }
 
@@ -302,7 +288,5 @@
   }
 
   uiManager.waitForUILibrary(initializeScript);
-  document.addEventListener("turbo:load", initializeScript);
-  document.addEventListener("turbo:render", initializeScript);
   document.addEventListener("pjax:end", initializeScript);
 })();
