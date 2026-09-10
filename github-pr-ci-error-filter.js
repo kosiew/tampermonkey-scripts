@@ -27,9 +27,11 @@
       hide: "Hide CI/Draft/Heavy/Deps",
     },
     selectors: {
-      prList: ".js-issue-row",
+      prList:
+        'li.ListItem-module__listItem__wBJcm, [data-testid="pull-request-row"], .js-issue-row',
       // More specific selector for CI error status
-      errorIndicator: ".color-fg-danger .octicon-x",
+      errorIndicator:
+        '.color-fg-danger .octicon-x, [data-testid="checks-status-badge-button"][aria-label*="failure" i], [data-testid="checks-status-badge-button"][aria-label*="error" i]',
       // Selector for merge status links (we'll check text content)
       mergeStatusLink: 'a.Link--muted[href*="#partial-pull-merging"]',
       // Selector for comment count elements in PR list rows
@@ -102,13 +104,26 @@
    * Initializes the script
    */
   function initializeScript() {
-    // Add styles for the hidden class
-    const hiddenStyles = document.createElement("style");
-    hiddenStyles.textContent = `.${CONFIG.hiddenClass} { display: none !important; }`;
-    document.head.appendChild(hiddenStyles);
+    if (!document.getElementById(`${CONFIG.hiddenClass}-styles`)) {
+      const hiddenStyles = document.createElement("style");
+      hiddenStyles.id = `${CONFIG.hiddenClass}-styles`;
+      hiddenStyles.textContent = `.${CONFIG.hiddenClass} { display: none !important; }`;
+      document.head.appendChild(hiddenStyles);
+    }
 
     // Check saved preference
     const shouldHide = localStorage.getItem(CONFIG.storageKey) === "true";
+
+    const existingButton = document.getElementById(CONFIG.buttonId);
+    if (existingButton) {
+      existingButton.classList.toggle("active", shouldHide);
+      existingButton.textContent = shouldHide
+        ? CONFIG.buttonText.show
+        : CONFIG.buttonText.hide;
+      applyVisibility(shouldHide);
+      observePRList(existingButton);
+      return;
+    }
 
     // Add button
     const button = uiManager.addButton({
@@ -120,20 +135,31 @@
       active: shouldHide,
     });
 
-    // Apply hiding if needed
-    if (shouldHide) {
-      const allPRs = document.querySelectorAll(CONFIG.selectors.prList);
-      allPRs.forEach((pr) => {
-        if (shouldHidePR(pr)) {
-          pr.classList.add(CONFIG.hiddenClass);
-        }
-      });
-    }
+    applyVisibility(shouldHide);
+    observePRList(button);
+  }
 
+  /**
+   * Applies the saved visibility state to all currently rendered PR rows.
+   * @param {boolean} shouldHide - Whether matching PRs should be hidden
+   */
+  function applyVisibility(shouldHide) {
+    document.querySelectorAll(CONFIG.selectors.prList).forEach((pr) => {
+      pr.classList.toggle(CONFIG.hiddenClass, shouldHide && shouldHidePR(pr));
+    });
+  }
+
+  /**
+   * Observes the current page for PR rows rendered or replaced by GitHub.
+   * @param {HTMLButtonElement} button - The filter button
+   */
+  function observePRList(button) {
     // For dynamic content loading, we can use a MutationObserver
     const observer = new MutationObserver((mutations) => {
+      let hasAddedNodes = false;
       for (const mutation of mutations) {
         if (mutation.addedNodes.length > 0) {
+          hasAddedNodes = true;
           // Check if PRs should be hidden and apply hiding
           if (button.classList.contains("active")) {
             mutation.addedNodes.forEach((node) => {
@@ -145,18 +171,28 @@
                   node.classList.add(CONFIG.hiddenClass);
                 }
               }
+
+              if (node.nodeType === 1) {
+                node.querySelectorAll(CONFIG.selectors.prList).forEach((pr) => {
+                  if (shouldHidePR(pr)) {
+                    pr.classList.add(CONFIG.hiddenClass);
+                  }
+                });
+              }
             });
           }
         }
       }
+
+      if (hasAddedNodes && button.classList.contains("active")) {
+        applyVisibility(true);
+      }
     });
 
     // Start observing
-    const prListContainer = document.querySelector(
-      ".js-active-navigation-container",
-    );
-    if (prListContainer) {
-      observer.observe(prListContainer, { childList: true, subtree: true });
+    const observerTarget = document.querySelector("main") || document.body;
+    if (observerTarget) {
+      observer.observe(observerTarget, { childList: true, subtree: true });
     }
   }
 
@@ -175,10 +211,21 @@
    * @returns {boolean} True if the PR is a draft
    */
   function isDraft(prElement) {
+    if (
+      prElement.querySelector(
+        '[aria-label="Draft pull request"], .octicon-git-pull-request-draft',
+      )
+    ) {
+      return true;
+    }
+
     const mergeStatusLink = prElement.querySelector(
       CONFIG.selectors.mergeStatusLink,
     );
-    return mergeStatusLink && mergeStatusLink.textContent.trim() === "Draft";
+    return (
+      (mergeStatusLink && mergeStatusLink.textContent.trim() === "Draft") ||
+      /\bDraft\b/i.test(prElement.textContent || "")
+    );
   }
 
   /**
@@ -192,7 +239,9 @@
     }
 
     return Array.from(
-      prElement.querySelectorAll(CONFIG.selectors.mergeStatusLink),
+      prElement.querySelectorAll(
+        `${CONFIG.selectors.mergeStatusLink}, [data-testid="review-decision-icon"]`,
+      ),
     ).some((link) => {
       const text = (link.textContent || "").trim();
       const ariaLabel = (link.getAttribute("aria-label") || "").trim();
@@ -376,4 +425,10 @@
   } else {
     uiManager.waitForUILibrary(initializeScript);
   }
+  document.addEventListener("turbo:load", () =>
+    uiManager.waitForUILibrary(initializeScript),
+  );
+  document.addEventListener("turbo:render", () =>
+    uiManager.waitForUILibrary(initializeScript),
+  );
 })();
