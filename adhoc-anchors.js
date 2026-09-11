@@ -389,7 +389,7 @@
         overflow: hidden;
         border: 1px solid var(--color-border-default, #d0d7de);
         border-radius: 10px;
-        background: var(--color-canvas-default, #ffffff);
+        background-color: rgba(255, 214, 102, 0.95);
         color: var(--color-fg-default, #1f2328);
         z-index: 99999;
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
