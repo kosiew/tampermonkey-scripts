@@ -1,11 +1,10 @@
 // ==UserScript==
 // @name         GitHub PR successful checks monitor
 // @namespace    https://github.com/kosiew/tampermonkey-scripts
-// @version      0.2
-// @description  Monitor GitHub PR checks and provide quick up/down page scrolling controls in the shared floating container
+// @version      0.3
+// @description  Monitor GitHub PR checks and notify when they complete
 // @author       auto-generated
 // @match        https://github.com/*/*/pull/*
-// @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js?v=20260811-1
 // @grant        GM_notification
 // @grant        GM.notification
 // @run-at       document-idle
@@ -26,96 +25,6 @@
   // parse PR number from URL
   const prMatch = location.pathname.match(/\/pull\/(\d+)/);
   const prNumber = prMatch ? prMatch[1] : "unknown";
-
-  /**
-   * Class for managing the shared TampermonkeyUI container
-   */
-  class UIManager {
-    constructor(options = {}) {
-      this.ui = null;
-      this.options = {
-        containerClass: "tm-scripts-container",
-        containerParent: ".Header",
-        ...options,
-      };
-    }
-
-    /**
-     * Initializes the UI manager by waiting for the shared library to be available
-     * @param {Function} initFn - The initialization function to call when the UI is ready
-     */
-    waitForUILibrary(initFn) {
-      if (window.TampermonkeyUI) {
-        this.ui = new window.TampermonkeyUI(this.options);
-        initFn();
-      } else {
-        setTimeout(() => this.waitForUILibrary(initFn), 50);
-      }
-    }
-
-    /**
-     * Adds a button to the shared container
-     * @param {Object} options - Button configuration options
-     * @returns {HTMLElement} The created button
-     */
-    addButton(options) {
-      return this.ui.addButton(options);
-    }
-  }
-
-  const uiManager = new UIManager();
-
-  function scrollToTop() {
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-  }
-
-  function scrollToBottom() {
-    window.scrollTo({
-      top: document.body.scrollHeight,
-      behavior: "smooth",
-    });
-  }
-
-  function initializeScrollButtons() {
-    const topButtonId = "tm-scroll-to-top-button";
-    const bottomButtonId = "tm-scroll-to-bottom-button";
-
-    if (!document.getElementById(topButtonId)) {
-      uiManager.addButton({
-        id: topButtonId,
-        text: "↑",
-        title: "Scroll to the top of the PR page",
-        onClick: scrollToTop,
-      });
-    }
-
-    if (!document.getElementById(bottomButtonId)) {
-      uiManager.addButton({
-        id: bottomButtonId,
-        text: "↓",
-        title: "Scroll to the bottom of the PR page",
-        onClick: scrollToBottom,
-      });
-    }
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () =>
-      uiManager.waitForUILibrary(initializeScrollButtons),
-    );
-  } else {
-    uiManager.waitForUILibrary(initializeScrollButtons);
-  }
-
-  document.addEventListener("turbo:load", () => {
-    uiManager.waitForUILibrary(initializeScrollButtons);
-  });
-  document.addEventListener("turbo:render", () => {
-    uiManager.waitForUILibrary(initializeScrollButtons);
-  });
 
   /**
    * Send notification message

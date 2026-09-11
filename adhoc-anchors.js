@@ -2,7 +2,7 @@
 // @name         Adhoc Anchors
 // @namespace    http://tampermonkey.net/
 // @version      1.0
-// @description  Add temporary anchors on GitHub issue/PR pages and ChatGPT conversations
+// @description  Add temporary anchors on GitHub issue/PR pages and ChatGPT conversations, with quick scroll-to-top/bottom controls
 // @author       Siew Kam Onn
 // @match        https://github.com/*/*/issues/*
 // @match        https://github.com/*/*/pull/*
@@ -26,6 +26,8 @@
   const LIST_ID = "adhoc-anchors-list";
   const ADD_BUTTON_ID = "adhoc-anchor-add";
   const MINIMIZE_BUTTON_ID = "adhoc-anchor-minimize";
+  const SCROLL_TOP_BUTTON_ID = "tm-scroll-to-top-button";
+  const SCROLL_BOTTOM_BUTTON_ID = "tm-scroll-to-bottom-button";
 
   const GITHUB_PAGE_REGEX = /^\/[^/]+\/[^/]+\/(issues|pull)\/\d+/;
 
@@ -171,6 +173,25 @@
     }
 
     window.scrollTo({ top: targetTop, behavior });
+  }
+
+  function getPageScrollHeight() {
+    const scrollRoot = getScrollRootListenerTarget();
+    if (scrollRoot && scrollRoot !== document.body) {
+      return scrollRoot.scrollHeight;
+    }
+
+    return (
+      document.scrollingElement || document.documentElement || document.body
+    ).scrollHeight;
+  }
+
+  function scrollToTop() {
+    scrollToPageTop(0, "smooth");
+  }
+
+  function scrollToBottom() {
+    scrollToPageTop(getPageScrollHeight(), "smooth");
   }
 
   function createGitHubAdapter() {
@@ -420,7 +441,13 @@
 
       #${PANEL_ID} .gh-anchor-actions {
         display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
         gap: 6px;
+      }
+
+      #${PANEL_ID} .gh-anchor-scroll {
+        padding: 6px 10px;
       }
 
       #${PANEL_ID} button {
@@ -1061,6 +1088,8 @@
           <button id="${ADD_BUTTON_ID}" type="button" title="Add an anchor by clicking on the page">Add</button>
           <button id="gh-adhoc-anchor-clear" type="button" title="Remove all anchors for this page">Clear</button>
           <button id="${MINIMIZE_BUTTON_ID}" type="button" title="Minimize the anchor list">Minimize</button>
+          <button id="${SCROLL_TOP_BUTTON_ID}" class="gh-anchor-scroll" type="button" title="Scroll to the top of the page">↑</button>
+          <button id="${SCROLL_BOTTOM_BUTTON_ID}" class="gh-anchor-scroll" type="button" title="Scroll to the bottom of the page">↓</button>
         </div>
       </div>
       <ul id="${LIST_ID}"></ul>
@@ -1078,6 +1107,14 @@
     minimizeButton.addEventListener("click", () => {
       setPanelMinimized(!panelMinimized);
     });
+
+    const scrollTopButton = panel.querySelector(`#${SCROLL_TOP_BUTTON_ID}`);
+    scrollTopButton.addEventListener("click", scrollToTop);
+
+    const scrollBottomButton = panel.querySelector(
+      `#${SCROLL_BOTTOM_BUTTON_ID}`,
+    );
+    scrollBottomButton.addEventListener("click", scrollToBottom);
 
     const clearButton = panel.querySelector("#gh-adhoc-anchor-clear");
     clearButton.addEventListener("click", () => {
