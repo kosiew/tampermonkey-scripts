@@ -428,7 +428,7 @@
         border-radius: 6px;
         padding: 4px 8px;
         font-size: 12px;
-        background: var(--color-btn-bg, #f6f8fa);
+        background: var(--color-accent-fg, #1f6feb);
         color: var(--color-fg-default, #1f2328);
         cursor: pointer;
       }
