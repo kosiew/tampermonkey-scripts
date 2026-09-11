@@ -424,17 +424,20 @@
       }
 
       #${PANEL_ID} button {
-        border: 1px solid var(--color-border-default, #d0d7de);
+        border: none;
         border-radius: 6px;
-        padding: 4px 8px;
+        padding: 6px 12px;
         font-size: 12px;
-        background: var(--color-btn-bg, #f6f8fa);
-        color: var(--color-fg-default, #1f2328);
+        font-weight: bold;
+        background-color: #2ea44f;
+        color: white;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        transition: background-color 0.2s;
         cursor: pointer;
       }
 
       #${PANEL_ID} button:hover {
-        opacity: 0.9;
+        background-color: #2c974b;
       }
 
       #${PANEL_ID} .gh-anchor-empty {
@@ -467,7 +470,12 @@
       }
 
       #${LIST_ID} .remove {
-        color: var(--color-danger-fg, #cf222e);
+        background-color: #cf222e;
+        color: white;
+      }
+
+      #${LIST_ID} .remove:hover {
+        background-color: #a40e26;
       }
 
       .gh-adhoc-anchor-badge {
