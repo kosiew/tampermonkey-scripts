@@ -39,7 +39,8 @@
       // Selector for user links in PR list rows
       authorLink: 'a[data-hovercard-type="user"]',
       // Review status tooltip shown for approved PRs
-      approvedIndicator: '[aria-label="Approved" i], [title="Approved" i]',
+      approvedIndicator:
+        '[aria-label="Approved" i], [title="Approved" i], [aria-label*="Filter by review: Approved" i]',
     },
   };
 
