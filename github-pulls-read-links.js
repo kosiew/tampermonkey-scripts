@@ -218,9 +218,22 @@
       return;
     }
 
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
+
     link.target = "_blank";
     link.rel = "noopener noreferrer";
     link.title = NEW_TAB_TITLE;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    window.open(link.href, "_blank", "noopener,noreferrer");
     markLinkAsRead(link);
   }
 
