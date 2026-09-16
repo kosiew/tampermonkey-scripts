@@ -21,6 +21,7 @@
   const PR_LINK_SELECTOR =
     'a[data-testid="listitem-title-link"][data-hovercard-type="pull_request"], a[data-hovercard-type="pull_request"]';
   const READ_CLASS = "tm-pulls-read-link";
+  const NEW_TAB_TITLE = "Open pull request in a new tab";
 
   const StorageStrategies = {
     localStorage: {
@@ -158,6 +159,7 @@
     for (const link of getTrackedLinks()) {
       link.target = "_blank";
       link.rel = "noopener noreferrer";
+      link.title = NEW_TAB_TITLE;
 
       if (Object.prototype.hasOwnProperty.call(repoData, link.id)) {
         link.classList.add(READ_CLASS);
@@ -218,6 +220,7 @@
 
     link.target = "_blank";
     link.rel = "noopener noreferrer";
+    link.title = NEW_TAB_TITLE;
     markLinkAsRead(link);
   }
 
