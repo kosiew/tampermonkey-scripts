@@ -6,7 +6,6 @@
 // @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-utils.js
 // @author       You
 // @match        https://chatgpt.com/settings/usage*
-// @match        https://chatgpt.com/*
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
