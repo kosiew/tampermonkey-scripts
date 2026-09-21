@@ -6,6 +6,7 @@
 // @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-utils.js
 // @author       You
 // @match        https://chatgpt.com/settings/usage
+// @match        https://chatgpt.com/
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
@@ -548,20 +549,33 @@
     });
   }
 
+  function isUsagePage() {
+    if (window.location.pathname === "/settings/usage") return true;
+    return (
+      window.location.pathname === "/" &&
+      /#settings\/usage/i.test(window.location.hash)
+    );
+  }
+
+  let monitorStarted = false;
+  function startMonitor() {
+    if (monitorStarted || !isUsagePage()) return;
+    monitorStarted = true;
+    main();
+    scheduleReload();
+  }
+
   // Run main once DOM is loaded (guard for non-browser environments like Node)
   if (typeof document !== "undefined") {
     if (
       document.readyState === "complete" ||
       document.readyState === "interactive"
     ) {
-      main();
-      scheduleReload();
+      startMonitor();
     } else {
-      document.addEventListener("DOMContentLoaded", () => {
-        main();
-        scheduleReload();
-      });
+      document.addEventListener("DOMContentLoaded", startMonitor);
     }
+    window.addEventListener("hashchange", startMonitor);
   }
 
   // Export functions for Node-based tests (when running under Node)
