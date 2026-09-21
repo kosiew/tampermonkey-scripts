@@ -57,18 +57,32 @@
 
   // Parse a resetting date string like "Resets Nov 21, 2025 3:18 PM",
   // "Reset date: Nov 21, 2025", or a split "Reset date" label/value pair.
-  function parseResetDate(text) {
+  function parseResetDate(text, nowParam) {
     if (!text || typeof text !== "string") return null;
     const m = text.match(/Resets?\s*(?:date)?\s*[:\-]?\s*(.+)$/i);
     if (!m) return null;
     // Removing trailing/leading whitespace
     const dateStr = m[1].trim();
+    const now = nowParam || new Date();
+
+    // The current Usage page displays relative reset durations such as "Resets in 5d 8h".
+    const relativeTimeMatch = dateStr.match(
+      /^in\s+(?:(\d+)\s*d(?:ays?)?)?\s*(?:(\d+)\s*h(?:ours?)?)?\s*(?:(\d+)\s*m(?:in(?:utes?)?)?)?$/i,
+    );
+    if (relativeTimeMatch && relativeTimeMatch.slice(1).some(Boolean)) {
+      const days = Number(relativeTimeMatch[1] || 0);
+      const hours = Number(relativeTimeMatch[2] || 0);
+      const minutes = Number(relativeTimeMatch[3] || 0);
+      return new Date(
+        now.getTime() + ((days * 24 + hours) * 60 + minutes) * 60 * 1000,
+      );
+    }
 
     // If the string is time-only (eg. "3:18 PM" or "15:18"), parse the time and return today's date at that time
     const timeOnlyRe = /^(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])?$/;
     const timeOnlyMatch = dateStr.match(timeOnlyRe);
     if (timeOnlyMatch) {
-      const today = new Date();
+      const today = now;
       let hours = parseInt(timeOnlyMatch[1], 10);
       const minutes = timeOnlyMatch[2] ? parseInt(timeOnlyMatch[2], 10) : 0;
       const ampm = timeOnlyMatch[3];
@@ -355,21 +369,39 @@
       return results;
     }
 
-    // Search for an element that contains "Weekly usage limit"
+    // Search for the weekly usage card. The new page calls it "Weekly limit";
+    // retain the old phrase for compatibility with the previous page.
     // Try a few selectors to be resilient to markup changes, and keep trying for up to 10s
     const triedSelectors = ["article", "section", "div", "*"];
     const MAX_FIND_WAIT_MS = 10000; // per user request: try at least 10s
 
     function findWeeklyUsage() {
+      const usagePhrases = ["Weekly limit", "Weekly usage limit"];
+      const candidates = [];
+
       for (const s of triedSelectors) {
-        try {
-          const res = extractFn("Weekly usage limit", { selector: s });
-          if (res && res.length) return res;
-        } catch (err) {
-          // swallow errors from extractFn calls
+        for (const phrase of usagePhrases) {
+          try {
+            const res = extractFn(phrase, { selector: s }) || [];
+            candidates.push(
+              ...res.filter((candidate) =>
+                (candidate.texts || []).some(
+                  (text) => parsePercent(text) != null,
+                ),
+              ),
+            );
+          } catch (err) {
+            // Continue with the next selector and phrase.
+          }
         }
       }
-      return [];
+
+      candidates.sort(
+        (left, right) =>
+          (left.texts || []).join(" ").length -
+          (right.texts || []).join(" ").length,
+      );
+      return candidates.slice(0, 1);
     }
 
     // Try immediate find first

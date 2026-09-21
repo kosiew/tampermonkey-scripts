@@ -89,4 +89,13 @@ function approxEqual(actual, expected, tol = 1e-2) {
   console.log("testInlineResetDate passed");
 })();
 
+// Test 7: current settings page relative reset duration
+(function testRelativeResetDate() {
+  const now = new Date(2026, 0, 1, 4, 0);
+  const actual = parseResetDate("Resets in 5d 8h", now);
+  const expected = new Date(2026, 0, 6, 12, 0);
+  assert(actual && actual.getTime() === expected.getTime());
+  console.log("testRelativeResetDate passed");
+})();
+
 console.log("All tests passed");
