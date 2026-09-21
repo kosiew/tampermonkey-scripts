@@ -5,8 +5,8 @@
 // @description  Computes daily surplus/deficit for ChatGPT Codex weekly usage limit and displays a friendly indicator
 // @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-utils.js
 // @author       You
-// @match        https://chatgpt.com/settings/usage
-// @match        https://chatgpt.com/
+// @match        https://chatgpt.com/settings/usage*
+// @match        https://chatgpt.com/*
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
