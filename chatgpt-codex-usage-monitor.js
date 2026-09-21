@@ -5,8 +5,7 @@
 // @description  Computes daily surplus/deficit for ChatGPT Codex weekly usage limit and displays a friendly indicator
 // @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-utils.js
 // @author       You
-// @match        https://chatgpt.com/codex/cloud/settings/usage
-// @match        https://chatgpt.com/codex/cloud/settings/analytics
+// @match        https://chatgpt.com/settings/usage
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
@@ -56,10 +55,11 @@
     return m ? parseFloat(m[1]) : null;
   }
 
-  // Parse a resetting date string like "Resets Nov 21, 2025 3:18 PM" or "Resets Nov 21, 2025"
+  // Parse a resetting date string like "Resets Nov 21, 2025 3:18 PM",
+  // "Reset date: Nov 21, 2025", or a split "Reset date" label/value pair.
   function parseResetDate(text) {
     if (!text || typeof text !== "string") return null;
-    const m = text.match(/Resets\s+(.+)$/i);
+    const m = text.match(/Resets?\s*(?:date)?\s*[:\-]?\s*(.+)$/i);
     if (!m) return null;
     // Removing trailing/leading whitespace
     const dateStr = m[1].trim();
@@ -110,6 +110,24 @@
 
     // Otherwise return midnight local for the parsed date
     return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+
+  function parseResetDateFromTexts(texts) {
+    if (!Array.isArray(texts)) return null;
+
+    for (let index = 0; index < texts.length; index += 1) {
+      const text = texts[index];
+      const parsed = parseResetDate(text);
+      if (parsed) return parsed;
+
+      if (/^reset(?:s| date)?\s*[:\-]?$/i.test(text.trim())) {
+        const value = texts.slice(index + 1, index + 3).join(" ");
+        const splitValue = parseResetDate(`Resets ${value}`);
+        if (splitValue) return splitValue;
+      }
+    }
+
+    return null;
   }
 
   // Returns difference in days (integer) ignoring time portion
@@ -408,18 +426,14 @@
     const match = matches[0];
     const texts = match.texts || [];
 
-    // Find remaining percent and reset date text
+    // Find remaining percent and reset date text in the usage match.
     let remainingPercent = null;
-    let resetDate = null;
+    let resetDate = parseResetDateFromTexts(texts);
 
     texts.forEach((t) => {
       if (remainingPercent == null) {
         const p = parsePercent(t);
         if (p != null) remainingPercent = p;
-      }
-      if (!resetDate) {
-        const d = parseResetDate(t);
-        if (d) resetDate = d;
       }
     });
 
@@ -430,10 +444,27 @@
     }
 
     if (!resetDate) {
-      // We might find a separate text like "Resets Nov 21, 2025 3:18 PM" or simply the date; attempt a more permissive parse
-      const resetText = texts.find((t) => /Resets/i.test(t));
-      if (resetText) {
-        resetDate = parseResetDate(resetText);
+      // The new settings page renders the reset label/value outside the quota match.
+      const resetSelectors = [
+        "time",
+        "article",
+        "section",
+        "div",
+        "span",
+        "p",
+        "*",
+      ];
+      for (const selector of resetSelectors) {
+        try {
+          const resetMatches = extractFn("reset", { selector });
+          for (const resetMatch of resetMatches || []) {
+            resetDate = parseResetDateFromTexts(resetMatch.texts);
+            if (resetDate) break;
+          }
+          if (resetDate) break;
+        } catch (err) {
+          // Continue with the next selector if a page-specific node is unavailable.
+        }
       }
     }
 
@@ -507,6 +538,7 @@
       computeSurplusOrDeficit,
       parsePercent,
       parseResetDate,
+      parseResetDateFromTexts,
       daysBetweenIgnoreTime,
     };
   }

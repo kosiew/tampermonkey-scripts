@@ -1,6 +1,10 @@
 "use strict";
 const assert = require("assert");
-const { computeSurplusOrDeficit } = require("./chatgpt-codex-usage-monitor.js");
+const {
+  computeSurplusOrDeficit,
+  parseResetDate,
+  parseResetDateFromTexts,
+} = require("./chatgpt-codex-usage-monitor.js");
 
 function approxEqual(actual, expected, tol = 1e-2) {
   return Math.abs(actual - expected) <= tol;
@@ -68,6 +72,21 @@ function approxEqual(actual, expected, tol = 1e-2) {
   assert(r && r.ok, "Result should be ok");
   assert(approxEqual(r.daysRemaining, 8 / 24));
   console.log("testTimeOnlyResetFractional passed");
+})();
+
+// Test 5: new settings page reset label/value markup
+(function testSplitResetDate() {
+  const expected = new Date(2026, 0, 4, 15, 18);
+  const actual = parseResetDateFromTexts(["Reset date", "Jan 4, 2026 3:18 PM"]);
+  assert(actual && actual.getTime() === expected.getTime());
+  console.log("testSplitResetDate passed");
+})();
+
+// Test 6: reset date label with an inline value
+(function testInlineResetDate() {
+  const actual = parseResetDate("Reset date: Jan 4, 2026");
+  assert(actual && actual.getTime() === new Date(2026, 0, 4).getTime());
+  console.log("testInlineResetDate passed");
 })();
 
 console.log("All tests passed");
