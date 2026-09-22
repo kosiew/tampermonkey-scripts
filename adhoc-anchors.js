@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Adhoc Anchors
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  Add temporary anchors on GitHub issue/PR pages and ChatGPT conversations, with quick scroll-to-top/bottom controls
 // @author       Siew Kam Onn
 // @match        https://github.com/*/*/issues/*
@@ -168,56 +168,14 @@
     return pageAdapter;
   }
 
-  // Native `scrollTo({ behavior: "smooth" })` is unreliable on some inner
-  // scroll containers (e.g. ChatGPT's conversation pane), so animate manually.
-  function animateScrollTo(getTop, setTop, targetTop, duration = 350) {
-    const startTop = getTop();
-    const distance = targetTop - startTop;
-
-    if (Math.abs(distance) < 1) {
-      setTop(targetTop);
-      return;
-    }
-
-    const startTime = performance.now();
-
-    function step(now) {
-      const progress = Math.min(1, (now - startTime) / duration);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setTop(startTop + distance * eased);
-
-      if (progress < 1) {
-        requestAnimationFrame(step);
-      }
-    }
-
-    requestAnimationFrame(step);
-  }
-
-  function scrollToPageTop(targetTop, behavior = "smooth") {
+  // requestAnimationFrame (and native scrollTo smooth-animation) is throttled
+  // or never fires on background/inactive tabs, so jump instantly instead of
+  // animating — correctness over smoothness.
+  function scrollToPageTop(targetTop) {
     const scrollRoot = getScrollRootListenerTarget();
 
     if (scrollRoot) {
-      if (behavior === "smooth") {
-        animateScrollTo(
-          () => scrollRoot.scrollTop,
-          (value) => {
-            scrollRoot.scrollTop = value;
-          },
-          targetTop,
-        );
-      } else {
-        scrollRoot.scrollTop = targetTop;
-      }
-      return;
-    }
-
-    if (behavior === "smooth") {
-      animateScrollTo(
-        () => window.scrollY || 0,
-        (value) => window.scrollTo(0, value),
-        targetTop,
-      );
+      scrollRoot.scrollTop = targetTop;
       return;
     }
 
@@ -238,11 +196,11 @@
   }
 
   function scrollToTop() {
-    scrollToPageTop(0, "smooth");
+    scrollToPageTop(0);
   }
 
   function scrollToBottom() {
-    scrollToPageTop(getPageScrollHeight(), "smooth");
+    scrollToPageTop(getPageScrollHeight());
   }
 
   function createGitHubAdapter() {
@@ -278,7 +236,7 @@
       },
       jumpToAnchor(anchor) {
         const targetTop = Math.max(0, findAnchorTop(anchor) - 80);
-        scrollToPageTop(targetTop, "smooth");
+        scrollToPageTop(targetTop);
       },
       placeBadge(badge, anchor) {
         const top = findAnchorTop(anchor);
@@ -342,7 +300,7 @@
       },
       jumpToAnchor(anchor) {
         const targetTop = Math.max(0, findAnchorTop(anchor) - 80);
-        scrollToPageTop(targetTop, "smooth");
+        scrollToPageTop(targetTop);
       },
       placeBadge(badge, anchor) {
         // Appending into ChatGPT's message DOM gets wiped on React re-renders,
@@ -824,10 +782,11 @@
       return;
     }
 
-    badgeRenderFrame = requestAnimationFrame(() => {
+    // setTimeout (unlike requestAnimationFrame) still fires on inactive tabs.
+    badgeRenderFrame = setTimeout(() => {
       badgeRenderFrame = null;
       renderBadges();
-    });
+    }, 16);
   }
 
   function renderBadges() {
