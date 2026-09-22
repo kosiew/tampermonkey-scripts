@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Adhoc Anchors
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.4
 // @description  Add temporary anchors on GitHub issue/PR pages and ChatGPT conversations, with quick scroll-to-top/bottom controls
 // @author       Siew Kam Onn
 // @match        https://github.com/*/*/issues/*
@@ -31,6 +31,16 @@
 
   const GITHUB_PAGE_REGEX = /^\/[^/]+\/[^/]+\/(issues|pull)\/\d+/;
 
+  // Stable per-message attributes, in order of preference.
+  const CHATGPT_MESSAGE_ATTRIBUTES = [
+    "data-message-id",
+    "data-chatgpt-selection-message-id",
+    "data-turn-key",
+  ];
+  const CHATGPT_MESSAGE_SELECTOR = CHATGPT_MESSAGE_ATTRIBUTES.map(
+    (name) => `[${name}]`,
+  ).join(", ");
+
   let isAddMode = false;
   let allAnchorData = {};
   let currentUrlKey = "";
@@ -55,16 +65,55 @@
     );
   }
 
-  function getDefaultPageScrollTop(scrollRoot) {
-    if (
+  function isInnerScrollRoot(scrollRoot) {
+    return Boolean(
       scrollRoot &&
-      scrollRoot !== document.body &&
-      scrollRoot !== document.documentElement
-    ) {
-      return scrollRoot.scrollTop;
+        scrollRoot !== document.body &&
+        scrollRoot !== document.documentElement &&
+        scrollRoot !== window,
+    );
+  }
+
+  function getMaxScrollOffset(scrollRoot) {
+    return Math.max(0, scrollRoot.scrollHeight - scrollRoot.clientHeight);
+  }
+
+  // ChatGPT's thread container uses flex-direction: column-reverse, where
+  // scrollTop is 0 at the bottom and negative towards the top.
+  function isReversedScrollRoot(scrollRoot) {
+    return (
+      isInnerScrollRoot(scrollRoot) &&
+      window.getComputedStyle(scrollRoot).flexDirection === "column-reverse"
+    );
+  }
+
+  // Scroll offset measured from the top of the content (0 = top), regardless
+  // of the container's flex direction.
+  function getDefaultPageScrollTop(scrollRoot) {
+    if (isInnerScrollRoot(scrollRoot)) {
+      return isReversedScrollRoot(scrollRoot)
+        ? scrollRoot.scrollTop + getMaxScrollOffset(scrollRoot)
+        : scrollRoot.scrollTop;
     }
 
     return window.scrollY || 0;
+  }
+
+  function setDefaultPageScrollTop(scrollRoot, offset) {
+    if (isInnerScrollRoot(scrollRoot)) {
+      scrollRoot.scrollTop = isReversedScrollRoot(scrollRoot)
+        ? offset - getMaxScrollOffset(scrollRoot)
+        : offset;
+      return;
+    }
+
+    window.scrollTo(0, offset);
+  }
+
+  function getScrollRootViewportTop(scrollRoot) {
+    return isInnerScrollRoot(scrollRoot)
+      ? scrollRoot.getBoundingClientRect().top
+      : 0;
   }
 
   function getDefaultElementPageTop(element, scrollRoot) {
@@ -72,17 +121,10 @@
       return 0;
     }
 
-    const rootTop =
-      scrollRoot &&
-      scrollRoot !== document.body &&
-      scrollRoot !== document.documentElement
-        ? scrollRoot.getBoundingClientRect().top
-        : 0;
-
     return Math.round(
       getDefaultPageScrollTop(scrollRoot) +
         element.getBoundingClientRect().top -
-        rootTop,
+        getScrollRootViewportTop(scrollRoot),
     );
   }
 
@@ -172,27 +214,7 @@
   // or never fires on background/inactive tabs, so jump instantly instead of
   // animating — correctness over smoothness.
   function scrollToPageTop(targetTop) {
-    const scrollRoot = getScrollRootListenerTarget();
-
-    if (scrollRoot) {
-      scrollRoot.scrollTop = targetTop;
-      return;
-    }
-
-    window.scrollTo(0, targetTop);
-  }
-
-  function getPageScrollHeight() {
-    const scrollRoot = getScrollRootListenerTarget();
-    if (scrollRoot && scrollRoot !== document.body) {
-      return scrollRoot.scrollHeight;
-    }
-
-    return (
-      document.scrollingElement ||
-      document.documentElement ||
-      document.body
-    ).scrollHeight;
+    setDefaultPageScrollTop(getScrollRootListenerTarget(), targetTop);
   }
 
   function scrollToTop() {
@@ -200,7 +222,7 @@
   }
 
   function scrollToBottom() {
-    scrollToPageTop(getPageScrollHeight());
+    scrollToPageTop(getMaxScrollOffset(getScrollRoot()));
   }
 
   function createGitHubAdapter() {
@@ -245,7 +267,7 @@
         if (scrollRoot) {
           badge.style.position = "fixed";
           badge.style.right = "8px";
-          badge.style.top = `${Math.max(20, top - getDefaultPageScrollTop(getActiveScrollRoot()))}px`;
+          badge.style.top = `${Math.max(20, getScrollRootViewportTop(scrollRoot) + top - getDefaultPageScrollTop(scrollRoot))}px`;
         } else {
           badge.style.position = "absolute";
           badge.style.right = "8px";
@@ -258,21 +280,27 @@
   }
 
   function createChatGPTAdapter() {
+    // Generic detection can pick the sidebar before the thread has rendered,
+    // so prefer ChatGPT's thread container when present.
+    const getChatScrollRoot = () =>
+      document.querySelector(".thread-scroll-container") ||
+      getActiveScrollRoot();
+
     return {
       isSupportedPage() {
         return true;
       },
       getScrollRoot() {
-        return getActiveScrollRoot();
+        return getChatScrollRoot();
       },
       getPageScrollTop() {
-        return getDefaultPageScrollTop(getActiveScrollRoot());
+        return getDefaultPageScrollTop(getChatScrollRoot());
       },
       getElementPageTop(element) {
-        return getDefaultElementPageTop(element, getActiveScrollRoot());
+        return getDefaultElementPageTop(element, getChatScrollRoot());
       },
       findAnchorTarget(target) {
-        const messageTarget = target.closest("[data-message-id]");
+        const messageTarget = target.closest(CHATGPT_MESSAGE_SELECTOR);
         if (messageTarget) {
           return messageTarget;
         }
@@ -280,7 +308,7 @@
         return getDefaultAnchorTarget(target);
       },
       getAnchorTop(anchor) {
-        const scrollRoot = getActiveScrollRoot();
+        const scrollRoot = getChatScrollRoot();
 
         if (anchor.selector) {
           const element = document.querySelector(anchor.selector);
@@ -316,7 +344,7 @@
 
         if (scrollRoot) {
           badge.style.position = "fixed";
-          badge.style.top = `${Math.max(20, top - getDefaultPageScrollTop(scrollRoot))}px`;
+          badge.style.top = `${Math.max(20, getScrollRootViewportTop(scrollRoot) + top - getDefaultPageScrollTop(scrollRoot))}px`;
         } else {
           badge.style.position = "absolute";
           badge.style.top = `${Math.max(50, top)}px`;
@@ -716,11 +744,15 @@
     const anchorTarget = findAnchorTarget(target);
     const targetTop = getElementPageTop(anchorTarget);
 
+    const messageAttribute = CHATGPT_MESSAGE_ATTRIBUTES.find((name) =>
+      anchorTarget.hasAttribute(name),
+    );
+
     let selector = "";
-    if (anchorTarget.id) {
+    if (messageAttribute) {
+      selector = `[${messageAttribute}="${CSS.escape(anchorTarget.getAttribute(messageAttribute))}"]`;
+    } else if (anchorTarget.id) {
       selector = `#${CSS.escape(anchorTarget.id)}`;
-    } else if (anchorTarget.dataset && anchorTarget.dataset.messageId) {
-      selector = `[data-message-id="${CSS.escape(anchorTarget.dataset.messageId)}"]`;
     } else {
       selector = fallbackSelector(anchorTarget);
     }
@@ -1010,14 +1042,10 @@
       return;
     }
 
-    const scrollRoot = getScrollRoot();
-    const rootRect =
-      scrollRoot && scrollRoot.getBoundingClientRect
-        ? scrollRoot.getBoundingClientRect()
-        : null;
     const clickPageY = Math.round(
       getPageScrollTop() +
-        (rootRect ? event.clientY - rootRect.top : event.clientY),
+        event.clientY -
+        getScrollRootViewportTop(getScrollRoot()),
     );
     const newAnchor = createAnchorDescriptor(
       event.target,
