@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Adhoc Anchors
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.5
 // @description  Add temporary anchors on GitHub issue/PR pages and ChatGPT conversations, with quick scroll-to-top/bottom controls
 // @author       Siew Kam Onn
 // @match        https://github.com/*/*/issues/*
@@ -114,6 +114,20 @@
     return isInnerScrollRoot(scrollRoot)
       ? scrollRoot.getBoundingClientRect().top
       : 0;
+  }
+
+  // Pin a badge to its anchor's on-screen position inside an inner scroll
+  // container, hiding it once the anchor scrolls out of the visible area.
+  function placeFixedBadge(badge, top, scrollRoot) {
+    const rootRect = scrollRoot.getBoundingClientRect();
+    const viewportTop =
+      rootRect.top + top - getDefaultPageScrollTop(scrollRoot);
+    const isVisible =
+      viewportTop >= rootRect.top && viewportTop <= rootRect.bottom;
+
+    badge.style.position = "fixed";
+    badge.style.top = `${viewportTop}px`;
+    badge.style.visibility = isVisible ? "visible" : "hidden";
   }
 
   function getDefaultElementPageTop(element, scrollRoot) {
@@ -265,9 +279,8 @@
         const scrollRoot = getScrollRootListenerTarget();
 
         if (scrollRoot) {
-          badge.style.position = "fixed";
           badge.style.right = "8px";
-          badge.style.top = `${Math.max(20, getScrollRootViewportTop(scrollRoot) + top - getDefaultPageScrollTop(scrollRoot))}px`;
+          placeFixedBadge(badge, top, scrollRoot);
         } else {
           badge.style.position = "absolute";
           badge.style.right = "8px";
@@ -343,8 +356,7 @@
         badge.style.transform = "none";
 
         if (scrollRoot) {
-          badge.style.position = "fixed";
-          badge.style.top = `${Math.max(20, getScrollRootViewportTop(scrollRoot) + top - getDefaultPageScrollTop(scrollRoot))}px`;
+          placeFixedBadge(badge, top, scrollRoot);
         } else {
           badge.style.position = "absolute";
           badge.style.top = `${Math.max(50, top)}px`;
