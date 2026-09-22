@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Adhoc Anchors
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Add temporary anchors on GitHub issue/PR pages and ChatGPT conversations, with quick scroll-to-top/bottom controls
 // @author       Siew Kam Onn
 // @match        https://github.com/*/*/issues/*
@@ -86,52 +86,59 @@
     );
   }
 
-  function getChatGPTScrollRoot() {
-    const candidates = Array.from(
-      document.querySelectorAll(
-        '[data-scroll-root], [class*="scroll-root"], [data-testid="conversation-turn"], [data-message-id]',
-      ),
-    ).filter((node) => {
-      const style = window.getComputedStyle(node);
-      const overflowY = style.overflowY || style.overflow;
-      return (
-        node.scrollHeight > node.clientHeight + 10 &&
-        (overflowY.includes("auto") || overflowY.includes("scroll"))
-      );
-    });
+  let cachedScrollRoot = null;
 
-    if (candidates.length) {
-      candidates.sort((a, b) => b.scrollHeight - a.scrollHeight);
-      return candidates[0];
+  function isElementScrollable(node) {
+    if (!node || !node.isConnected) {
+      return false;
     }
 
-    return getDefaultScrollRoot();
+    const style = window.getComputedStyle(node);
+    const overflowY = style.overflowY || style.overflow;
+
+    return (
+      node.scrollHeight > node.clientHeight + 40 &&
+      (overflowY.includes("auto") ||
+        overflowY.includes("scroll") ||
+        overflowY.includes("overlay"))
+    );
   }
 
-  function getChatGPTPageScrollTop(scrollRoot) {
-    return scrollRoot && scrollRoot !== document.body
-      ? scrollRoot.scrollTop
-      : window.scrollY || 0;
+  // Sites like GitHub's newer issue/PR UI and ChatGPT scroll an inner
+  // container instead of the document, so detect the real scrolling element.
+  function detectActiveScrollRoot() {
+    const documentRoot = getDefaultScrollRoot();
+    if (documentRoot.scrollHeight > documentRoot.clientHeight + 40) {
+      return documentRoot;
+    }
+
+    const candidates = Array.from(document.querySelectorAll("body *")).filter(
+      isElementScrollable,
+    );
+
+    if (!candidates.length) {
+      return documentRoot;
+    }
+
+    candidates.sort((a, b) => b.clientHeight - a.clientHeight);
+    return candidates[0];
   }
 
-  function getChatGPTElementPageTop(element, scrollRoot) {
-    if (!element) {
-      return 0;
+  function getActiveScrollRoot() {
+    if (cachedScrollRoot && isElementScrollable(cachedScrollRoot)) {
+      return cachedScrollRoot;
     }
 
-    if (scrollRoot && scrollRoot !== document.body) {
-      const rootRect = scrollRoot.getBoundingClientRect();
-      return Math.max(
-        0,
-        Math.round(
-          scrollRoot.scrollTop +
-            element.getBoundingClientRect().top -
-            rootRect.top,
-        ),
-      );
+    if (cachedScrollRoot && cachedScrollRoot === getDefaultScrollRoot()) {
+      return cachedScrollRoot;
     }
 
-    return Math.round(window.scrollY + element.getBoundingClientRect().top);
+    cachedScrollRoot = detectActiveScrollRoot();
+    return cachedScrollRoot;
+  }
+
+  function invalidateActiveScrollRoot() {
+    cachedScrollRoot = null;
   }
 
   function getDefaultAnchorTarget(target) {
@@ -182,7 +189,9 @@
     }
 
     return (
-      document.scrollingElement || document.documentElement || document.body
+      document.scrollingElement ||
+      document.documentElement ||
+      document.body
     ).scrollHeight;
   }
 
@@ -200,13 +209,13 @@
         return GITHUB_PAGE_REGEX.test(window.location.pathname);
       },
       getScrollRoot() {
-        return getDefaultScrollRoot();
+        return getActiveScrollRoot();
       },
       getPageScrollTop() {
-        return getDefaultPageScrollTop(getDefaultScrollRoot());
+        return getDefaultPageScrollTop(getActiveScrollRoot());
       },
       getElementPageTop(element) {
-        return getDefaultElementPageTop(element, getDefaultScrollRoot());
+        return getDefaultElementPageTop(element, getActiveScrollRoot());
       },
       findAnchorTarget(target) {
         return getDefaultAnchorTarget(target);
@@ -215,7 +224,7 @@
         if (anchor.selector) {
           const element = document.querySelector(anchor.selector);
           if (element) {
-            return getDefaultElementPageTop(element, getDefaultScrollRoot());
+            return getDefaultElementPageTop(element, getActiveScrollRoot());
           }
         }
 
@@ -236,7 +245,7 @@
         if (scrollRoot) {
           badge.style.position = "fixed";
           badge.style.right = "8px";
-          badge.style.top = `${Math.max(20, top - getDefaultPageScrollTop(getDefaultScrollRoot()))}px`;
+          badge.style.top = `${Math.max(20, top - getDefaultPageScrollTop(getActiveScrollRoot()))}px`;
         } else {
           badge.style.position = "absolute";
           badge.style.right = "8px";
@@ -254,15 +263,13 @@
         return true;
       },
       getScrollRoot() {
-        return getChatGPTScrollRoot();
+        return getActiveScrollRoot();
       },
       getPageScrollTop() {
-        const scrollRoot = getChatGPTScrollRoot();
-        return getChatGPTPageScrollTop(scrollRoot);
+        return getDefaultPageScrollTop(getActiveScrollRoot());
       },
       getElementPageTop(element) {
-        const scrollRoot = getChatGPTScrollRoot();
-        return getChatGPTElementPageTop(element, scrollRoot);
+        return getDefaultElementPageTop(element, getActiveScrollRoot());
       },
       findAnchorTarget(target) {
         const messageTarget = target.closest("[data-message-id]");
@@ -273,13 +280,13 @@
         return getDefaultAnchorTarget(target);
       },
       getAnchorTop(anchor) {
-        const scrollRoot = getChatGPTScrollRoot();
+        const scrollRoot = getActiveScrollRoot();
 
         if (anchor.selector) {
           const element = document.querySelector(anchor.selector);
           if (element) {
             return (
-              getChatGPTElementPageTop(element, scrollRoot) +
+              getDefaultElementPageTop(element, scrollRoot) +
               (Number.isFinite(anchor.deltaY) ? anchor.deltaY : 0)
             );
           }
@@ -292,7 +299,7 @@
         return anchor.targetTop || 0;
       },
       jumpToAnchor(anchor) {
-        const scrollRoot = getChatGPTScrollRoot();
+        const scrollRoot = getActiveScrollRoot();
         const targetTop = Math.max(0, findAnchorTop(anchor) - 80);
         const element = anchor.selector
           ? document.querySelector(anchor.selector)
@@ -1138,6 +1145,7 @@
       };
     }
 
+    invalidateActiveScrollRoot();
     syncScrollTracking();
     renderList();
   }
