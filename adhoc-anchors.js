@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Adhoc Anchors
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  Add temporary anchors on GitHub issue/PR pages and ChatGPT conversations, with quick scroll-to-top/bottom controls
 // @author       Siew Kam Onn
 // @match        https://github.com/*/*/issues/*
@@ -168,18 +168,60 @@
     return pageAdapter;
   }
 
-  function scrollToPageTop(targetTop, behavior = "smooth") {
-    const scrollRoot = getScrollRootListenerTarget();
-    if (
-      scrollRoot &&
-      scrollRoot !== document.body &&
-      typeof scrollRoot.scrollTo === "function"
-    ) {
-      scrollRoot.scrollTo({ top: targetTop, behavior });
+  // Native `scrollTo({ behavior: "smooth" })` is unreliable on some inner
+  // scroll containers (e.g. ChatGPT's conversation pane), so animate manually.
+  function animateScrollTo(getTop, setTop, targetTop, duration = 350) {
+    const startTop = getTop();
+    const distance = targetTop - startTop;
+
+    if (Math.abs(distance) < 1) {
+      setTop(targetTop);
       return;
     }
 
-    window.scrollTo({ top: targetTop, behavior });
+    const startTime = performance.now();
+
+    function step(now) {
+      const progress = Math.min(1, (now - startTime) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setTop(startTop + distance * eased);
+
+      if (progress < 1) {
+        requestAnimationFrame(step);
+      }
+    }
+
+    requestAnimationFrame(step);
+  }
+
+  function scrollToPageTop(targetTop, behavior = "smooth") {
+    const scrollRoot = getScrollRootListenerTarget();
+
+    if (scrollRoot) {
+      if (behavior === "smooth") {
+        animateScrollTo(
+          () => scrollRoot.scrollTop,
+          (value) => {
+            scrollRoot.scrollTop = value;
+          },
+          targetTop,
+        );
+      } else {
+        scrollRoot.scrollTop = targetTop;
+      }
+      return;
+    }
+
+    if (behavior === "smooth") {
+      animateScrollTo(
+        () => window.scrollY || 0,
+        (value) => window.scrollTo(0, value),
+        targetTop,
+      );
+      return;
+    }
+
+    window.scrollTo(0, targetTop);
   }
 
   function getPageScrollHeight() {
@@ -299,55 +341,30 @@
         return anchor.targetTop || 0;
       },
       jumpToAnchor(anchor) {
-        const scrollRoot = getActiveScrollRoot();
         const targetTop = Math.max(0, findAnchorTop(anchor) - 80);
-        const element = anchor.selector
-          ? document.querySelector(anchor.selector)
-          : null;
-
-        if (scrollRoot && scrollRoot !== document.body) {
-          scrollRoot.scrollTop = Math.max(0, targetTop);
-          requestAnimationFrame(() => renderBadges());
-          setTimeout(() => renderBadges(), 120);
-          return;
-        }
-
-        if (element) {
-          element.scrollIntoView({
-            behavior: "auto",
-            block: "center",
-            inline: "nearest",
-          });
-          requestAnimationFrame(() => renderBadges());
-          setTimeout(() => renderBadges(), 120);
-          return;
-        }
-
         scrollToPageTop(targetTop, "smooth");
       },
       placeBadge(badge, anchor) {
-        const element = anchor.selector
-          ? document.querySelector(anchor.selector)
-          : null;
-
-        if (!element || !element.getBoundingClientRect()) {
-          badge.style.display = "none";
-          document.body.appendChild(badge);
-          return;
-        }
+        // Appending into ChatGPT's message DOM gets wiped on React re-renders,
+        // so keep badges in document.body and reposition on every scroll.
+        const top = findAnchorTop(anchor);
+        const scrollRoot = getScrollRootListenerTarget();
 
         badge.style.display = "block";
-        badge.style.position = "absolute";
         badge.style.left = "auto";
-        badge.style.top = `${Math.max(
-          12,
-          Number.isFinite(anchor.deltaY) ? anchor.deltaY : 12,
-        )}px`;
         badge.style.right = "8px";
         badge.style.bottom = "auto";
         badge.style.transform = "none";
-        element.classList.add("gh-adhoc-anchor-target");
-        element.appendChild(badge);
+
+        if (scrollRoot) {
+          badge.style.position = "fixed";
+          badge.style.top = `${Math.max(20, top - getDefaultPageScrollTop(scrollRoot))}px`;
+        } else {
+          badge.style.position = "absolute";
+          badge.style.top = `${Math.max(50, top)}px`;
+        }
+
+        document.body.appendChild(badge);
       },
     };
   }
