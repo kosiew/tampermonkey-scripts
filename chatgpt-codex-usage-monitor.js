@@ -65,20 +65,21 @@
     // The overview page can merge the label and value in one text node,
     // e.g. "Weekly limitResets in 2d 2h62% left".
     // Look for the reset keyword anywhere in the text instead of requiring it to start the string.
-    const m = text.match(/Resets?\s*(?:date)?\s*[:\-]?\s*(.+)/i);
+    const m = text.match(/Resets?\s*(?:date)?\s*(?:in)?\s*[:\-]?\s*(.+)/i);
     if (!m) return null;
 
     // Removing trailing/leading whitespace and trailing page noise such as "% left".
     const dateStr = m[1]
       .trim()
       .replace(/\s*%\s*.*$/i, "")
+      .replace(/^(?:in)\s+/i, "")
       .trim();
     const now = nowParam || new Date();
 
     // The current Usage page displays relative reset durations such as "Resets in 5d 8h".
-    // Accept a prefix match so merged strings like "in 2d 2h62% left" still parse.
+    // Accept a prefix match so merged strings like "in 2d 2h62% left" or split strings like "2d 2h" still parse.
     const relativeTimeMatch = dateStr.match(
-      /^in\s+(?:(\d+)\s*d(?:ays?)?)?\s*(?:(\d+)\s*h(?:ours?)?)?\s*(?:(\d+)\s*m(?:in(?:utes?)?)?)?/i,
+      /^(?:in\s+)?(?:(\d+)\s*d(?:ays?)?)?\s*(?:(\d+)\s*h(?:ours?)?)?\s*(?:(\d+)\s*m(?:in(?:utes?)?)?)?/i,
     );
     if (relativeTimeMatch && relativeTimeMatch.slice(1).some(Boolean)) {
       const days = Number(relativeTimeMatch[1] || 0);
@@ -149,7 +150,10 @@
 
       if (/^reset(?:s| date)?\s*[:\-]?$/i.test(text.trim())) {
         const value = texts.slice(index + 1, index + 3).join(" ");
-        const splitValue = parseResetDate(`Resets ${value}`);
+        const splitValue =
+          parseResetDate(`Resets ${value}`) ||
+          parseResetDate(`Resets in ${value}`) ||
+          parseResetDate(`Resets: ${value}`);
         if (splitValue) return splitValue;
       }
     }
