@@ -109,5 +109,15 @@ function approxEqual(actual, expected, tol = 1e-2) {
   );
   console.log("testCombinedUsageText passed");
 })();
-
+// Test 9: current ChatGPT Usage modal labels the reset value separately as "Resets in" + "2h 32m"
+(function testSplitResetLabelWithIn() {
+  const actual = parseResetDateFromTexts(["Resets in", "2h 32m"]);
+  assert(actual !== null, "reset should be parsed from split label and value");
+  const expected = new Date(Date.now() + (2 * 60 + 32) * 60 * 1000);
+  assert(
+    Math.abs(actual.getTime() - expected.getTime()) < 1000,
+    "split label/value should resolve to the same reset time",
+  );
+  console.log("testSplitResetLabelWithIn passed");
+})();
 console.log("All tests passed");

@@ -148,7 +148,7 @@
       const parsed = parseResetDate(text);
       if (parsed) return parsed;
 
-      if (/^reset(?:s| date)?\s*[:\-]?$/i.test(text.trim())) {
+      if (/^resets?\s*(?:date)?\s*(?:in)?\s*[:\-]?\s*$/i.test(text.trim())) {
         const value = texts.slice(index + 1, index + 3).join(" ");
         const splitValue =
           parseResetDate(`Resets ${value}`) ||
