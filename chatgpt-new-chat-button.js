@@ -4,7 +4,7 @@
 // @version      1.1
 // @description  Adds a floating New Chat button on GPT pages and triggers the native New chat action.
 // @author       You
-// @match        https://chatgpt.com/g/*
+// @match        https://chatgpt.com/c/*
 // @grant        none
 // ==/UserScript==
 
