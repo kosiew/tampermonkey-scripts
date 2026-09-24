@@ -98,4 +98,16 @@ function approxEqual(actual, expected, tol = 1e-2) {
   console.log("testRelativeResetDate passed");
 })();
 
+// Test 8: overview settings page merges the label, reset duration, and remaining % in one text node
+(function testCombinedUsageText() {
+  const actual = parseResetDate("Weekly limitResets in 2d 2h62% left");
+  assert(actual !== null, "reset should be parsed from combined usage text");
+  const expected = new Date(Date.now() + (2 * 24 + 2) * 60 * 60 * 1000);
+  assert(
+    Math.abs(actual.getTime() - expected.getTime()) < 1000,
+    "relative reset window should be parsed from the combined text",
+  );
+  console.log("testCombinedUsageText passed");
+})();
+
 console.log("All tests passed");

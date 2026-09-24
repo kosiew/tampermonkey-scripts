@@ -6,6 +6,7 @@
 // @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-utils.js
 // @author       You
 // @match        https://chatgpt.com/settings/usage*
+// @match        https://chatgpt.com/?tab=overview#settings/Usage
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
@@ -59,15 +60,24 @@
   // "Reset date: Nov 21, 2025", or a split "Reset date" label/value pair.
   function parseResetDate(text, nowParam) {
     if (!text || typeof text !== "string") return null;
-    const m = text.match(/Resets?\s*(?:date)?\s*[:\-]?\s*(.+)$/i);
+
+    // The overview page can merge the label and value in one text node,
+    // e.g. "Weekly limitResets in 2d 2h62% left".
+    // Look for the reset keyword anywhere in the text instead of requiring it to start the string.
+    const m = text.match(/Resets?\s*(?:date)?\s*[:\-]?\s*(.+)/i);
     if (!m) return null;
-    // Removing trailing/leading whitespace
-    const dateStr = m[1].trim();
+
+    // Removing trailing/leading whitespace and trailing page noise such as "% left".
+    const dateStr = m[1]
+      .trim()
+      .replace(/\s*%\s*.*$/i, "")
+      .trim();
     const now = nowParam || new Date();
 
     // The current Usage page displays relative reset durations such as "Resets in 5d 8h".
+    // Accept a prefix match so merged strings like "in 2d 2h62% left" still parse.
     const relativeTimeMatch = dateStr.match(
-      /^in\s+(?:(\d+)\s*d(?:ays?)?)?\s*(?:(\d+)\s*h(?:ours?)?)?\s*(?:(\d+)\s*m(?:in(?:utes?)?)?)?$/i,
+      /^in\s+(?:(\d+)\s*d(?:ays?)?)?\s*(?:(\d+)\s*h(?:ours?)?)?\s*(?:(\d+)\s*m(?:in(?:utes?)?)?)?/i,
     );
     if (relativeTimeMatch && relativeTimeMatch.slice(1).some(Boolean)) {
       const days = Number(relativeTimeMatch[1] || 0);
@@ -78,8 +88,9 @@
       );
     }
 
-    // If the string is time-only (eg. "3:18 PM" or "15:18"), parse the time and return today's date at that time
-    const timeOnlyRe = /^(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])?$/;
+    // If the string is time-only (eg. "3:18 PM" or "15:18"), parse the time and return today's date at that time.
+    // Accept a prefix match so the value may sit next to page noise like "3:18 PM62% left".
+    const timeOnlyRe = /^(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])?/;
     const timeOnlyMatch = dateStr.match(timeOnlyRe);
     if (timeOnlyMatch) {
       const today = now;
@@ -101,7 +112,8 @@
       );
     }
 
-    // Try a natural date next
+    // Try a natural date next. Use the cleaned string as-is so pages with
+    // merged text like "Jan 4, 2026 3:18 PM62% left" still parse correctly.
     let d = new Date(dateStr);
     if (isNaN(d)) {
       // Try to parse without time (fail gracefully)
