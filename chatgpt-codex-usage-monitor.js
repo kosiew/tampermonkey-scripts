@@ -567,6 +567,9 @@
 
   function isUsagePage() {
     if (window.location.pathname === "/settings/usage") return true;
+    if (window.location.pathname === "/codex/cloud/settings/analytics") {
+      return /#usage/i.test(window.location.hash);
+    }
     return (
       window.location.pathname === "/" &&
       /#settings\/usage/i.test(window.location.hash)
