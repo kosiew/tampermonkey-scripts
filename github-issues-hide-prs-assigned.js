@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         GitHub Issues Hide Assigned/Has-PR
 // @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  Adds a button to hide GitHub issues that already have a PR or are assigned
+// @version      1.1
+// @description  Adds a button to hide GitHub issues that already have a PR, are assigned, or have many comments
 // @author       You
 // @match        https://github.com/*/*/issues*
 // @icon         https://github.githubassets.com/favicons/favicon.svg
@@ -13,13 +13,15 @@
 (function () {
   "use strict";
 
+  const MAX_COMMENTS = 3;
+
   const CONFIG = {
     buttonId: "tm-hide-filtered-issues-button",
     hiddenClass: "tm-hidden-filtered-issue",
     storageKey: "github-issues-hide-filtered",
     buttonText: {
-      show: "Show Assigned/PR",
-      hide: "Hide Assigned/PR",
+      show: "Show Assigned/PR/Busy",
+      hide: "Hide Assigned/PR/Busy",
     },
     selectors: {
       issueRow:
@@ -30,6 +32,7 @@
         '[aria-label*="linked pull request" i], a[href*="/pull/"], svg.octicon-git-pull-request',
       assigneeAvatar:
         'img[data-component="Avatar"][src*="avatars.githubusercontent.com"], img.avatar[src*="avatars.githubusercontent.com"]',
+      commentCount: '[aria-label*="comment" i], svg.octicon-comment',
     },
   };
 
@@ -150,12 +153,54 @@
   }
 
   /**
+   * Gets the comment count shown in the issue row.
+   * @param {HTMLElement} issueElement The issue row.
+   * @returns {number}
+   */
+  function getCommentCount(issueElement) {
+    for (const element of issueElement.querySelectorAll(
+      CONFIG.selectors.commentCount,
+    )) {
+      const countElement = element.matches("svg.octicon-comment")
+        ? element.parentElement
+        : element;
+      const label = countElement?.getAttribute("aria-label") || "";
+      const labelMatch = label.match(/(\d+)\s*comments?/i);
+      if (labelMatch) {
+        return parseInt(labelMatch[1], 10);
+      }
+
+      if (element.matches("svg.octicon-comment")) {
+        const textMatch = (countElement?.textContent || "").match(/\d+/);
+        if (textMatch) {
+          return parseInt(textMatch[0], 10);
+        }
+      }
+    }
+
+    return 0;
+  }
+
+  /**
+   * Checks whether the issue row has more than MAX_COMMENTS comments.
+   * @param {HTMLElement} issueElement The issue row.
+   * @returns {boolean}
+   */
+  function hasTooManyComments(issueElement) {
+    return getCommentCount(issueElement) > MAX_COMMENTS;
+  }
+
+  /**
    * Determines whether an issue should be hidden.
    * @param {HTMLElement} issueElement The issue row.
    * @returns {boolean}
    */
   function shouldHideIssue(issueElement) {
-    return hasPullRequest(issueElement) || hasAssignee(issueElement);
+    return (
+      hasPullRequest(issueElement) ||
+      hasAssignee(issueElement) ||
+      hasTooManyComments(issueElement)
+    );
   }
 
   /**
@@ -267,7 +312,7 @@
       id: CONFIG.buttonId,
       text: shouldHide ? CONFIG.buttonText.show : CONFIG.buttonText.hide,
       title:
-        "Toggle visibility of issues that already have a PR or an assignee",
+        `Toggle visibility of issues that already have a PR, an assignee, or more than ${MAX_COMMENTS} comments`,
       active: shouldHide,
       onClick: () => {
         const nextShouldHide = !button.classList.contains("active");
