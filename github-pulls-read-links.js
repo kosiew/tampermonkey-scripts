@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         GitHub Pulls Read Links
 // @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  Open PR links in new tabs and mark visited PRs as read for 30 days.
+// @version      1.1
+// @description  Open PR/issue links in new tabs and mark visited PRs/issues as read for 30 days.
 // @author       You
 // @match        https://github.com/*/*/pulls*
+// @match        https://github.com/*/*/issues*
 // @grant        GM_getValue
 // @grant        GM_setValue
 // ==/UserScript==
@@ -18,10 +19,17 @@
   const STORAGE_DAYS = 30; // Number of days to keep read links.
   const TTL_MS = STORAGE_DAYS * 24 * 60 * 60 * 1000;
   const LINK_ID_REGEX = /^issue_(\d+)_link$/;
-  const PR_LINK_SELECTOR =
-    'a[data-testid="listitem-title-link"][data-hovercard-type="pull_request"], a[data-hovercard-type="pull_request"]';
+  const TRACKED_LINK_SELECTOR = [
+    'a[data-hovercard-type="pull_request"]',
+    'a[data-hovercard-type="issue"]',
+    'a[data-testid="issue-pr-title-link"]',
+  ].join(", ");
+  // PRs and issues share one number space per repo, so ids never collide.
+  const LINK_NUMBER_REGEX = /\/(?:pull|issues)\/(\d+)(?:[/?#]|$)/;
+  // List pages only; skips detail pages like /issues/123 matched by @match.
+  const LIST_PAGE_REGEX = /^\/[^/]+\/[^/]+\/(?:pulls|issues)(?!\/\d)/;
   const READ_CLASS = "tm-pulls-read-link";
-  const NEW_TAB_TITLE = "Open pull request in a new tab";
+  const NEW_TAB_TITLE = "Open in a new tab";
 
   const StorageStrategies = {
     localStorage: {
@@ -50,6 +58,10 @@
 
   const storageStrategy =
     StorageStrategies[STORAGE_BACKEND] || StorageStrategies.localStorage;
+
+  function isListPage() {
+    return LIST_PAGE_REGEX.test(window.location.pathname);
+  }
 
   function getRepoKey() {
     const parts = window.location.pathname.split("/").filter(Boolean);
@@ -131,20 +143,14 @@
   }
 
   function getTrackedLinks() {
-    return Array.from(document.querySelectorAll(PR_LINK_SELECTOR)).map(
-      (link) => {
-        const match = link.href.match(/\/pull\/(\d+)(?:[/?#]|$)/);
-        if (match && !LINK_ID_REGEX.test(link.id)) {
-          link.id = `issue_${match[1]}_link`;
-        }
-        return link;
-      },
-    );
+    return Array.from(document.querySelectorAll(TRACKED_LINK_SELECTOR))
+      .map((link) => getTrackedLink(link))
+      .filter(Boolean);
   }
 
   function markLinksForCurrentRepo() {
     const repoKey = getRepoKey();
-    if (!repoKey) {
+    if (!repoKey || !isListPage()) {
       return;
     }
 
@@ -193,23 +199,25 @@
   }
 
   function getTrackedLink(element) {
-    const link = element.closest(PR_LINK_SELECTOR);
+    const link = element.closest(TRACKED_LINK_SELECTOR);
     if (!link) {
       return null;
     }
 
-    const match = link.href.match(/\/pull\/(\d+)(?:[/?#]|$)/);
+    const match = link.href.match(LINK_NUMBER_REGEX);
     if (!match) {
       return null;
     }
 
-    link.id = `issue_${match[1]}_link`;
+    if (!LINK_ID_REGEX.test(link.id)) {
+      link.id = `issue_${match[1]}_link`;
+    }
     return link;
   }
 
   function onDocumentClick(event) {
     const target = event.target;
-    if (!(target instanceof Element)) {
+    if (!(target instanceof Element) || !isListPage()) {
       return;
     }
 
