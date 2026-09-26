@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitHub Pulls Read Links
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  Open PR/issue links in new tabs and mark visited PRs/issues as read for 30 days.
 // @author       You
 // @match        https://github.com/*/*/pulls*
@@ -22,7 +22,7 @@
   const TRACKED_LINK_SELECTOR = [
     'a[data-hovercard-type="pull_request"]',
     'a[data-hovercard-type="issue"]',
-    'a[data-testid="issue-pr-title-link"]',
+    'a[data-testid="issue-listitem-title-link"]',
   ].join(", ");
   // PRs and issues share one number space per repo, so ids never collide.
   const LINK_NUMBER_REGEX = /\/(?:pull|issues)\/(\d+)(?:[/?#]|$)/;
