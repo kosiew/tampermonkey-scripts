@@ -413,10 +413,16 @@
         }
       }
 
+      // Prefer candidates that carry their own reset date. Otherwise the smallest
+      // match can be a header with only the percent, and the global reset fallback
+      // then picks up the 5 hour limit's reset time instead of the weekly one.
+      const hasReset = (candidate) =>
+        parseResetDateFromTexts(candidate.texts || []) != null ? 0 : 1;
       candidates.sort(
         (left, right) =>
+          hasReset(left) - hasReset(right) ||
           (left.texts || []).join(" ").length -
-          (right.texts || []).join(" ").length,
+            (right.texts || []).join(" ").length,
       );
       return candidates.slice(0, 1);
     }
