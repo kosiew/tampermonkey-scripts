@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto Close YouTube Ads
 // @namespace    http://tampermonkey.net/
-// @version      0.2
+// @version      0.3
 // @description  Close and/or Mute YouTube ads automatically!
 // @author       claude+kosiew
 // @run-at       document-body
@@ -13,7 +13,8 @@
 // @grant        GM_registerMenuCommand
 // @require      https://cdn.jsdelivr.net/gh/fuzetsu/userscripts@ec863aa92cea78a20431f92e80ac0e93262136df/wait-for-elements/wait-for-elements.js
 // @require      https://cdn.jsdelivr.net/gh/kufii/My-UserScripts@23586fd0a72b587a1786f7bb9088e807a5b53e79/libs/gm_config.js
-// @downloadURL https://update.greasyfork.org/scripts/9165/Auto%20Close%20YouTube%20Ads.user.js
+// @downloadURL  https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/youtube-close-ads.js
+// @updateURL    https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/youtube-close-ads.js
 // ==/UserScript==
 /* globals GM_getValue GM_setValue GM_deleteValue GM_registerMenuCommand GM_config waitForElems waitForUrl */
 /**
