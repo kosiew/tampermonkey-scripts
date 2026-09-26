@@ -28,7 +28,7 @@ This is a collection of Tampermonkey user scripts for browser automation and enh
 
 ### Script Validation
 - **Syntax Check**: `node -c script-name.js` to validate JavaScript syntax
-- **Metadata Validation**: Ensure all scripts start with `// ==UserScript==` block
+- **Metadata Validation**: Ensure all scripts start with `// ==UserScript==` block, include `@downloadURL`/`@updateURL`, and have a bumped `@version`
 - **URL Matching**: Verify `@match` patterns align with intended domains
 
 ### Common Patterns
@@ -48,14 +48,24 @@ This is a collection of Tampermonkey user scripts for browser automation and enh
 // ==UserScript==
 // @name         Script Name
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      0.1
 // @description  Brief description
 // @author       You
 // @match        https://target-domain.com/*
 // @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/tampermonkey-ui-library.js
 // @grant        none|GM.notification
+// @downloadURL  https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/script-name.js
+// @updateURL    https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/script-name.js
 // ==/UserScript==
 ```
+
+### Auto-Update Convention
+- Every installable script sets `@downloadURL` and `@updateURL` to its own raw GitHub URL on `main` (file name must match exactly)
+- Never point these at upstream sources (e.g. Greasy Fork) — Tampermonkey would overwrite local changes with the upstream script
+- **Bump `@version` on every change pushed to `main`**; Tampermonkey only updates when the remote version is higher
+- Use numeric versions (`0.1`, `1.2`, `0.1.1`), not dates; new scripts start at `0.1`
+- Shared libraries loaded via `@require` (`tampermonkey-ui-library.js`, `tampermonkey-utils.js`) don't need update URLs
+- Installed copies only pick up a changed update URL after a one-time reinstall from the raw URL
 
 ### Code Style
 - Use `const` by default, `let` only when reassignment needed
