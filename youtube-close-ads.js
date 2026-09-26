@@ -14,7 +14,6 @@
 // @require      https://cdn.jsdelivr.net/gh/fuzetsu/userscripts@ec863aa92cea78a20431f92e80ac0e93262136df/wait-for-elements/wait-for-elements.js
 // @require      https://cdn.jsdelivr.net/gh/kufii/My-UserScripts@23586fd0a72b587a1786f7bb9088e807a5b53e79/libs/gm_config.js
 // @downloadURL https://update.greasyfork.org/scripts/9165/Auto%20Close%20YouTube%20Ads.user.js
-// @updateURL https://update.greasyfork.org/scripts/9165/Auto%20Close%20YouTube%20Ads.meta.js
 // ==/UserScript==
 /* globals GM_getValue GM_setValue GM_deleteValue GM_registerMenuCommand GM_config waitForElems waitForUrl */
 /**
