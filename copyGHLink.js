@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         GitHub Copy Title and URL as Markdown
 // @namespace    xizun
-// @version      1.0
+// @version      1.1
 // @description  Adds a button to copy the title and URL of GitHub issues and pull requests as markdown
 // @author       Siew Kam Onn
 // @match        https://github.com/*/issues/*
 // @match        https://github.com/*/pull/*
 // @grant        none
+// @downloadURL  https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/copyGHLink.js
+// @updateURL    https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/copyGHLink.js
 // ==/UserScript==
 
 (function () {

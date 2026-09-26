@@ -1,13 +1,15 @@
 // ==UserScript==
 // @name         GitHub PR Diff Button
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.4
 // @description  Adds a button to view PR diff in new tab
 // @author       Siew Kam Onn
 // @match        https://github.com/*/pull/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
 // @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js?v=20260811-1
 // @grant        GM.openInTab
+// @downloadURL  https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/github-pr-diff-button.js
+// @updateURL    https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/github-pr-diff-button.js
 // ==/UserScript==
 
 (function () {

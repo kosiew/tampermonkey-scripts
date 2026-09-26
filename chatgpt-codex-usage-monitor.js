@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT Codex Weekly Usage Monitor
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Computes daily surplus/deficit for ChatGPT Codex weekly usage limit and displays a friendly indicator
 // @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-utils.js
 // @author       You
@@ -10,6 +10,8 @@
 // @match        https://chatgpt.com/*
 // @grant        none
 // @run-at       document-idle
+// @downloadURL  https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/chatgpt-codex-usage-monitor.js
+// @updateURL    https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/chatgpt-codex-usage-monitor.js
 // ==/UserScript==
 
 (function () {

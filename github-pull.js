@@ -1,13 +1,15 @@
 // ==UserScript==
 // @name         GitHub PR successful checks monitor
 // @namespace    https://github.com/kosiew/tampermonkey-scripts
-// @version      0.3
+// @version      0.4
 // @description  Monitor GitHub PR checks and notify when they complete
 // @author       auto-generated
 // @match        https://github.com/*/*/pull/*
 // @grant        GM_notification
 // @grant        GM.notification
 // @run-at       document-idle
+// @downloadURL  https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/github-pull.js
+// @updateURL    https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/github-pull.js
 // ==/UserScript==
 
 (function () {

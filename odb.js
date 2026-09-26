@@ -1,13 +1,15 @@
 // ==UserScript==
 // @name         Our Daily Bread Plus
 // @namespace    http://tampermonkey.net/
-// @version      2025-06-09
+// @version      0.1
 // @description  Our Daily Bread Plus
 // @author       You
 // @match        https://www.odb.org/
 // @match        https://odb.org/
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=odb.org
 // @grant        none
+// @downloadURL  https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/odb.js
+// @updateURL    https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/odb.js
 // ==/UserScript==
 
 (function () {

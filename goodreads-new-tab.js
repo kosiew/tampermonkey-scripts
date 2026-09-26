@@ -1,13 +1,15 @@
 // ==UserScript==
 // @name         Goodreads Book Links in New Tab
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Makes all book title links open in a new tab on Goodreads search pages
 // @author       Siew Kam Onn
 // @match        https://www.goodreads.com/search*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=goodreads.com
 
 // @grant        none
+// @downloadURL  https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/goodreads-new-tab.js
+// @updateURL    https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/goodreads-new-tab.js
 // ==/UserScript==
 
 (function () {

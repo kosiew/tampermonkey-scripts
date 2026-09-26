@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         GitHub Copilot Usage Alert
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Shows Copilot usage excess or deficit percentage on GitHub Copilot features page
 // @author       Siew Kam Onn
 // @match        https://github.com/settings/copilot/features
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
 // @grant        none
+// @downloadURL  https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/github-copilot-usage-alert.js
+// @updateURL    https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/github-copilot-usage-alert.js
 // ==/UserScript==
 
 (function () {

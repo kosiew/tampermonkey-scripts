@@ -1,13 +1,15 @@
 // ==UserScript==
 // @name         GitHub CI Activity Auto-Done for Failures
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Auto-click "Done" for CI activity rows that show a failed status in GitHub Notifications page.
 // @author       You
 // @match        https://github.com/notifications*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
 // @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js?v=20260811-1
 // @grant        GM.notification
+// @downloadURL  https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/github-autodone-ci-failures.js
+// @updateURL    https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/github-autodone-ci-failures.js
 // ==/UserScript==
 
 (function () {

@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name         KLSE Screener Auto Filter
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Automatically applies advanced filters on KLSE Screener
 // @author       Your Name
 // @match        https://www.klsescreener.com/v2/
 // @grant        none
+// @downloadURL  https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/klsescreener.js
+// @updateURL    https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/klsescreener.js
 // ==/UserScript==
 
 (function () {

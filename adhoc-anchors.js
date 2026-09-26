@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Adhoc Anchors
 // @namespace    http://tampermonkey.net/
-// @version      1.5
+// @version      1.6
 // @description  Add temporary anchors on GitHub issue/PR pages and ChatGPT conversations, with quick scroll-to-top/bottom controls
 // @author       Siew Kam Onn
 // @match        https://github.com/*/*/issues/*
@@ -13,6 +13,8 @@
 // @grant        GM.registerMenuCommand
 // @grant        GM.notification
 // @grant        GM.setClipboard
+// @downloadURL  https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/adhoc-anchors.js
+// @updateURL    https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/adhoc-anchors.js
 // ==/UserScript==
 
 (function () {

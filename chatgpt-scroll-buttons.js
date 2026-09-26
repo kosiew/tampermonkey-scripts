@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         ChatGPT Scroll Control Buttons
 // @namespace    http://tampermonkey.net/
-// @version      1.8
+// @version      1.9
 // @description  Add scroll up and down buttons, including navigation between user messages and message-id divs
 // @author       Your Name
 // @match        https://chatgpt.com/*
 // @exclude      https://chatgpt.com/codex/*
 // @grant        none
+// @downloadURL  https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/chatgpt-scroll-buttons.js
+// @updateURL    https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/chatgpt-scroll-buttons.js
 // ==/UserScript==
 
 (function () {

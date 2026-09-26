@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         GitHub Pulls - Sort by Repository
 // @namespace    http://tampermonkey.net/
-// @version      0.6
+// @version      0.7
 // @description  Sort GitHub pull requests by repository name in repository view
 // @author       You
 // @match        https://github.com/pulls/inbox
 // @match        https://github.com/pulls?*
 // @grant        none
+// @downloadURL  https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/github-pulls.js
+// @updateURL    https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/github-pulls.js
 // ==/UserScript==
 
 (function () {

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitHub Actions Monitor
 // @namespace    https://github.com/kosiew/tampermonkey-scripts
-// @version      0.1.0
+// @version      0.1.1
 // @description  Monitor GitHub Actions page for "In progress" runs and notify when all are finished
 // @author       Your Name
 // @match        https://github.com/*/*/actions*
@@ -10,6 +10,8 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @run-at       document-idle
+// @downloadURL  https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/github-actions.js
+// @updateURL    https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/github-actions.js
 // ==/UserScript==
 
 (function () {

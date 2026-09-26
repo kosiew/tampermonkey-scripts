@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         ChatGPT Codex Job Completion Monitor
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Monitor for job completion on ChatGPT Codex by detecting when stop buttons disappear
 // @author       Siew Kam Onn
 // @match        https://chatgpt.com/codex
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=chatgpt.com
 // @grant        GM.notification
+// @downloadURL  https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/chatgpt-codex-job-monitor.js
+// @updateURL    https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/chatgpt-codex-job-monitor.js
 // ==/UserScript==
 
 (function () {

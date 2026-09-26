@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name         ODBM Today's Devotional Auto-Click
 // @namespace    http://tampermonkey.net/
-// @version      2026-04-13
+// @version      0.1
 // @description  Automatically clicks the first Today's Devotional link on odbm.org/en-GB
 // @author       You
 // @match        https://www.odbm.org/en-GB/devotional*
 // @grant        none
+// @downloadURL  https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/odbm-todays-devotional.js
+// @updateURL    https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/odbm-todays-devotional.js
 // ==/UserScript==
 
 (function () {

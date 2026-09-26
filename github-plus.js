@@ -2,7 +2,7 @@
 // @name         Github Plus
 // @namespace    https://wpcomhappy.wordpress.com/
 // @icon         https://raw.githubusercontent.com/soufianesakhi/feedly-filtering-and-sorting/master/web-ext/icons/128.png
-// @version      1.1
+// @version      1.2
 // @description  Tool for enhancing Github for calypso issues
 // @author       Siew "@xizun"
 // @match        https://github.com/*/issues/*
@@ -17,6 +17,8 @@
 // @grant        GM_setClipboard
 // @grant        GM_setValue
 // @grant        GM_getValue
+// @downloadURL  https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/github-plus.js
+// @updateURL    https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/github-plus.js
 // ==/UserScript==
 
 (function ($) {
