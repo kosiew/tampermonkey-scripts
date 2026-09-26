@@ -27,7 +27,7 @@
       issueListContainer: 'main ul, main [role="list"]',
       issueLink: 'a[href*="/issues/"]',
       linkedPullRequestIndicator:
-        '[aria-label*="linked PR"], svg.octicon-git-pull-request',
+        '[aria-label*="linked pull request" i], a[href*="/pull/"], svg.octicon-git-pull-request',
       assigneeAvatar:
         'img[data-component="Avatar"][src*="avatars.githubusercontent.com"], img.avatar[src*="avatars.githubusercontent.com"]',
     },
