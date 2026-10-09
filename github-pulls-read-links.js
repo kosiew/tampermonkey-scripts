@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         GitHub Pulls Read Links
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.4
 // @description  Open PR/issue links in new tabs and mark visited PRs/issues as read for 30 days.
-// @author       You
+// @author       Siew Kam Onn
 // @match        https://github.com/*/*/pulls*
 // @match        https://github.com/*/*/issues*
 // @grant        GM_getValue

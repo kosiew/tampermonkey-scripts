@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      1.0
 // @description  Utility functions shared across Tampermonkey scripts
-// @author       You
+// @author       Siew Kam Onn
 // @match        https://*/*
 // @grant        none
 // @run-at       document-start

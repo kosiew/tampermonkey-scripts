@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         GitHub Branches Bulk Delete
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  Bulk delete all branches on a GitHub branches page with one click
-// @author       You
+// @author       Siew Kam Onn
 // @match        https://github.com/*/branches*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
 // @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js?v=20260811-1

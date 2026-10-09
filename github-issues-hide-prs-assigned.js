@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         GitHub Issues Hide Assigned/Has-PR
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  Adds a button to hide GitHub issues that already have a PR, are assigned, or have many comments
-// @author       You
+// @author       Siew Kam Onn
 // @match        https://github.com/*/*/issues*
 // @icon         https://github.githubassets.com/favicons/favicon.svg
 // @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js?v=20260811-1

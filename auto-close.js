@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Auto Close Tab
 // @namespace    http://tampermonkey.net/
-// @version      0.1
+// @version      0.2
 // @description  Automatically closes tabs that match specified URLs
-// @author       You
+// @author       Siew Kam Onn
 // @match        https://ultimatesurferprotector.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=ultimatesurferprotector.com
 // @grant        none

@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      1.0
 // @description  Shared UI library for Tampermonkey scripts
-// @author       You
+// @author       Siew Kam Onn
 // @match        https://github.com/*
 // @grant        none
 // @run-at       document-start

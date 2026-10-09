@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Our Daily Bread Plus
 // @namespace    http://tampermonkey.net/
-// @version      0.1
+// @version      0.2
 // @description  Our Daily Bread Plus
-// @author       You
+// @author       Siew Kam Onn
 // @match        https://www.odb.org/
 // @match        https://odb.org/
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=odb.org

@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         GitHub Pulls - Sort by Repository
 // @namespace    http://tampermonkey.net/
-// @version      0.7
+// @version      0.8
 // @description  Sort GitHub pull requests by repository name in repository view
-// @author       You
+// @author       Siew Kam Onn
 // @match        https://github.com/pulls/inbox
 // @match        https://github.com/pulls?*
 // @grant        none
