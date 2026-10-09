@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT New Chat Floating Button
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  Adds a floating New Chat button on GPT pages and triggers the native New chat action.
 // @author       You
 // @match        https://chatgpt.com/*
@@ -34,7 +34,7 @@
     button.style.padding = "10px 14px";
     button.style.border = "none";
     button.style.borderRadius = "8px";
-    button.style.background = "#111827";
+    button.style.background = "#0f766e";
     button.style.color = "#ffffff";
     button.style.fontSize = "14px";
     button.style.fontWeight = "600";
