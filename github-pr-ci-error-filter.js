@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitHub PR CI Error Filter
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  Adds a floating button to hide/show GitHub PRs with CI errors, Draft PRs, Approved PRs, and PRs with many comments
 // @author       Siew Kam Onn
 // @match        https://github.com/*/*/pulls*
@@ -30,7 +30,8 @@
     },
     selectors: {
       prList:
-        'li.ListItem-module__listItem__wBJcm, [data-testid="pull-request-row"], .js-issue-row',
+        // Match on stable test ids, not hashed CSS-module class names
+        'li:has([data-testid="listitem-title-link"]), [data-testid="pull-request-row"], .js-issue-row',
       // More specific selector for CI error status
       errorIndicator:
         '.color-fg-danger .octicon-x, [data-testid="checks-status-badge-button"][aria-label*="failure" i], [data-testid="checks-status-badge-button"][aria-label*="error" i]',
