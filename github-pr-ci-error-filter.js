@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitHub PR CI Error Filter
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.5
 // @description  Adds a floating button to hide/show GitHub PRs with CI errors, Draft PRs, Approved PRs, PRs with many comments, and "Prolific Author" labeled PRs
 // @author       Siew Kam Onn
 // @match        https://github.com/*/*/pulls*
@@ -43,9 +43,10 @@
       commentCount: "a.Link--muted, svg.octicon-comment",
       // Selector for user links in PR list rows
       authorLink: 'a[data-hovercard-type="user"]',
-      // Label chips in PR list rows (classic and React list views)
+      // Label chips in PR list rows; React view uses hashed classes like
+      // "prc-Token-IssueLabel-2IazM" on a <button>, so match by substring
       label:
-        '.IssueLabel, a[href*="label%3A"], a[href*="label:"], [data-testid*="label" i]',
+        '[class*="IssueLabel"], a[href*="label%3A"], a[href*="label:"], [data-testid*="label" i]',
       // Review status tooltip shown for approved PRs
       approvedIndicator:
         '[aria-label="Approved" i], [title="Approved" i], [aria-label*="Filter by review: Approved" i]',
