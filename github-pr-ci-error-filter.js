@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         GitHub PR CI Error Filter
 // @namespace    http://tampermonkey.net/
-// @version      1.3
-// @description  Adds a floating button to hide/show GitHub PRs with CI errors, Draft PRs, Approved PRs, and PRs with many comments
+// @version      1.4
+// @description  Adds a floating button to hide/show GitHub PRs with CI errors, Draft PRs, Approved PRs, PRs with many comments, and "Prolific Author" labeled PRs
 // @author       Siew Kam Onn
 // @match        https://github.com/*/*/pulls*
 // @icon         https://github.githubassets.com/favicons/favicon.svg
@@ -24,9 +24,11 @@
     storageKey: "github-pr-hide-ci-errors",
     commentThreshold: 3,
     hideDependabotPRs: true,
+    // Labels (case-insensitive) whose PRs should be hidden
+    hiddenLabels: ["prolific author"],
     buttonText: {
-      show: "Show CI/Draft/Heavy/Deps",
-      hide: "Hide CI/Draft/Heavy/Deps",
+      show: "Show CI/Draft/Heavy/Deps/Prolific",
+      hide: "Hide CI/Draft/Heavy/Deps/Prolific",
     },
     selectors: {
       prList:
@@ -41,6 +43,9 @@
       commentCount: "a.Link--muted, svg.octicon-comment",
       // Selector for user links in PR list rows
       authorLink: 'a[data-hovercard-type="user"]',
+      // Label chips in PR list rows (classic and React list views)
+      label:
+        '.IssueLabel, a[href*="label%3A"], a[href*="label:"], [data-testid*="label" i]',
       // Review status tooltip shown for approved PRs
       approvedIndicator:
         '[aria-label="Approved" i], [title="Approved" i], [aria-label*="Filter by review: Approved" i]',
@@ -134,7 +139,7 @@
       id: CONFIG.buttonId,
       text: shouldHide ? CONFIG.buttonText.show : CONFIG.buttonText.hide,
       title:
-        "Toggle visibility of PRs with CI errors, Draft PRs, Approved PRs, comment-heavy PRs, and Dependabot PRs",
+        "Toggle visibility of PRs with CI errors, Draft PRs, Approved PRs, comment-heavy PRs, Dependabot PRs, and 'Prolific Author' labeled PRs",
       onClick: toggleErrorPRs,
       active: shouldHide,
     });
@@ -341,7 +346,21 @@
   }
 
   /**
-   * Checks if a PR should be hidden (has CI errors, is a draft, is approved, is comment-heavy, or is Dependabot-authored)
+   * Checks if a PR carries one of the configured hidden labels
+   * @param {HTMLElement} prElement - The PR element to check
+   * @returns {boolean} True if the PR has a hidden label
+   */
+  function hasHiddenLabel(prElement) {
+    return Array.from(prElement.querySelectorAll(CONFIG.selectors.label)).some(
+      (label) =>
+        CONFIG.hiddenLabels.includes(
+          (label.textContent || "").trim().toLowerCase(),
+        ),
+    );
+  }
+
+  /**
+   * Checks if a PR should be hidden (has CI errors, is a draft, is approved, is comment-heavy, is Dependabot-authored, or has a hidden label)
    * @param {HTMLElement} prElement - The PR element to check
    * @returns {boolean} True if the PR should be hidden
    */
@@ -351,12 +370,13 @@
       isDraft(prElement) ||
       isApproved(prElement) ||
       hasManyComments(prElement) ||
-      (CONFIG.hideDependabotPRs && isDependabotPR(prElement))
+      (CONFIG.hideDependabotPRs && isDependabotPR(prElement)) ||
+      hasHiddenLabel(prElement)
     );
   }
 
   /**
-   * Toggles the visibility of PRs with CI errors, Draft PRs, Approved PRs, comment-heavy PRs, and Dependabot PRs
+   * Toggles the visibility of PRs with CI errors, Draft PRs, Approved PRs, comment-heavy PRs, Dependabot PRs, and labeled PRs
    * @returns {void}
    */
   function toggleErrorPRs() {
@@ -378,6 +398,7 @@
       let approvedCount = 0;
       let commentHeavyCount = 0;
       let dependabotCount = 0;
+      let labeledCount = 0;
 
       // Toggle visibility for PRs with errors, drafts, many comments, or Dependabot authorship
       allPRs.forEach((pr) => {
@@ -390,6 +411,7 @@
             if (hasManyComments(pr)) commentHeavyCount++;
             if (CONFIG.hideDependabotPRs && isDependabotPR(pr))
               dependabotCount++;
+            if (hasHiddenLabel(pr)) labeledCount++;
           }
         }
       });
@@ -423,6 +445,11 @@
         if (dependabotCount > 0) {
           parts.push(
             `${dependabotCount} Dependabot PR${dependabotCount !== 1 ? "s" : ""}`,
+          );
+        }
+        if (labeledCount > 0) {
+          parts.push(
+            `${labeledCount} Prolific Author PR${labeledCount !== 1 ? "s" : ""}`,
           );
         }
         const message =
