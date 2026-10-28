@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Adhoc Anchors
 // @namespace    http://tampermonkey.net/
-// @version      1.6
+// @version      1.7
 // @description  Add temporary anchors on GitHub issue/PR pages and ChatGPT conversations, with quick scroll-to-top/bottom controls
 // @author       Siew Kam Onn
 // @match        https://github.com/*/*/issues/*
@@ -315,19 +315,20 @@
         return getDefaultElementPageTop(element, getChatScrollRoot());
       },
       findAnchorTarget(target) {
+        // Outside a message, the nearest [id] is ChatGPT's page shell (a
+        // React auto-id that never scrolls), so fall back to the click offset.
         const messageTarget = target.closest(CHATGPT_MESSAGE_SELECTOR);
-        if (messageTarget) {
-          return messageTarget;
-        }
-
-        return getDefaultAnchorTarget(target);
+        return messageTarget && getChatScrollRoot().contains(messageTarget)
+          ? messageTarget
+          : null;
       },
       getAnchorTop(anchor) {
         const scrollRoot = getChatScrollRoot();
 
         if (anchor.selector) {
           const element = document.querySelector(anchor.selector);
-          if (element) {
+          // Older anchors may point at non-scrolling page chrome.
+          if (element && scrollRoot.contains(element)) {
             return (
               getDefaultElementPageTop(element, scrollRoot) +
               (Number.isFinite(anchor.deltaY) ? anchor.deltaY : 0)
@@ -756,6 +757,18 @@
 
   function createAnchorDescriptor(target, clickPageY, label) {
     const anchorTarget = findAnchorTarget(target);
+    if (!anchorTarget) {
+      return {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        label,
+        selector: "",
+        targetTop: clickPageY,
+        clickPageY,
+        deltaY: 0,
+        createdAt: createTimestamp(),
+      };
+    }
+
     const targetTop = getElementPageTop(anchorTarget);
 
     const messageAttribute = CHATGPT_MESSAGE_ATTRIBUTES.find((name) =>
