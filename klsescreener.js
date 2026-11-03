@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KLSE Screener Auto Filter
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  Automatically applies advanced filters on KLSE Screener
 // @author       Your Name
 // @match        https://www.klsescreener.com/v2/
@@ -58,68 +58,41 @@
     });
   }
 
-  // Function to set filter values
+  // Set a field's value and fire bubbling events so the page's delegated
+  // jQuery handlers (formAction on #form / document) register the change.
+  function setField(name, value) {
+    const el = document.querySelector(`#form [name='${name}']`);
+    if (!el) {
+      console.error(`[KLSE Screener] Field not found: ${name}`);
+      return null;
+    }
+    if (el.type === "checkbox") {
+      el.checked = value;
+    } else {
+      el.value = value;
+    }
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+    return el;
+  }
+
   function setFilterValues() {
-    // Wait for the filter form to appear
-    waitForElement("input[name='max_pe']", () => {
-      document.querySelector("input[name='max_pe']").value = "10";
-      document.querySelector("input[name='min_roe']").value = "8";
-      document.querySelector("input[name='min_dy']").value = "8";
-      document.querySelector("input[name='max_ptbv']").value = "1.5";
-      document.querySelector("input[name='min_volume']").value = "100";
+    waitForElement("#form input[name='max_pe']", () => {
+      setField("max_pe", "10");
+      setField("min_roe", "8");
+      setField("min_dy", "8");
+      setField("max_ptbv", "1.5");
+      setField("min_volume", "100");
+      setField("debt_to_equity_max", "0.5");
 
-      const profitableTypeSelect = document.querySelector(
-        "select[name='profitable_type']",
-      );
-      if (profitableTypeSelect) {
-        profitableTypeSelect.value = "years";
-        // Trigger change event to ensure the page reacts to the value change if necessary
-        profitableTypeSelect.dispatchEvent(new Event("change"));
-      }
+      // profitable_type must change first: the page's change handler enables
+      // the otherwise-disabled profitable_years and profitable_strict fields.
+      setField("profitable_type", "years");
+      setField("profitable_years", "5");
+      setField("profitable_strict", true);
 
-      // Set "Continuous Profitable for" to "5 years"
-      const profitableYearsSelect = document.querySelector(
-        "select[name='profitable_years']",
-      );
-      if (profitableYearsSelect) {
-        profitableYearsSelect.value = "5";
-        // Trigger change event
-        profitableYearsSelect.dispatchEvent(new Event("change"));
-      }
-
-      // Enable "Strict Mode" checkbox
-      const strictModeCheckbox = document.querySelector(
-        "input[name='profitable_strict']",
-      );
-      if (strictModeCheckbox && !strictModeCheckbox.checked) {
-        strictModeCheckbox.click();
-      }
-
-      const netCashCheckbox = document.querySelector("input[name='netcash']");
-
-      // Check if the checkbox exists and is not already checked
-      if (netCashCheckbox && !netCashCheckbox.checked) {
-        netCashCheckbox.click(); // Tick the checkbox
-        console.log("Net Cash checkbox ticked.");
-      } else if (netCashCheckbox) {
-        console.log("Net Cash checkbox is already ticked.");
-      } else {
-        console.error("Net Cash checkbox not found.");
-      }
-
-      const debtToEquityInput = document.querySelector(
-        "input[name='debt_to_equity_max']",
-      );
-
-      // Check if the input exists
-      if (debtToEquityInput) {
-        debtToEquityInput.value = "0.5"; // Set the value to 0.5
-        // Trigger an input event to ensure the change is registered by any event listeners
-        debtToEquityInput.dispatchEvent(new Event("input"));
-        console.log("Debt to Equity max set to 0.5.");
-      } else {
-        console.error("Debt to Equity input field not found.");
-      }
+      setField("netcash", true);
+      console.log("[KLSE Screener] Filters applied.");
     });
   }
 
