@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitHub Issues Hide Assigned/Has-PR
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.4
 // @description  Adds a button to hide GitHub issues that already have a PR, are assigned, or have many comments
 // @author       Siew Kam Onn
 // @match        https://github.com/*/*/issues*
@@ -26,8 +26,9 @@
       hide: "Hide Assigned/PR/Busy",
     },
     selectors: {
+      // Avoid hashed CSS-module class names (e.g. listItem__X41oTe); they change on GitHub deploys.
       issueRow:
-        'li.ListItem-module__listItem__wBJcm, [data-testid="issue-row"], [data-testid="issues-list-row"]',
+        'li[id*="list-view-node"], li:has([data-testid="issue-listitem-title-link"]), [data-testid="issue-row"], [data-testid="issues-list-row"]',
       issueListContainer: 'main ul, main [role="list"]',
       issueLink: 'a[href*="/issues/"]',
       linkedPullRequestIndicator:
