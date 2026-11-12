@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Adhoc Anchors
 // @namespace    http://tampermonkey.net/
-// @version      1.10
+// @version      1.11
 // @description  Add temporary anchors on GitHub issue/PR pages and ChatGPT conversations, with quick scroll-to-top/bottom controls
 // @author       Siew Kam Onn
 // @match        https://github.com/*/*/issues/*
@@ -296,10 +296,16 @@
 
   function createChatGPTAdapter() {
     // Generic detection can pick the sidebar before the thread has rendered,
-    // so prefer ChatGPT's thread container when present.
-    const getChatScrollRoot = () =>
-      document.querySelector(".thread-scroll-container") ||
-      getActiveScrollRoot();
+    // so prefer ChatGPT's thread container when present. After starting a new
+    // chat, ChatGPT keeps the home view's (hidden, zero-height) container
+    // mounted ahead of the real transcript, so pick the visible one.
+    const getChatScrollRoot = () => {
+      const candidates = Array.from(
+        document.querySelectorAll(".thread-scroll-container"),
+      ).filter((element) => element.isConnected && element.clientHeight > 0);
+      candidates.sort((a, b) => b.clientHeight - a.clientHeight);
+      return candidates[0] || getActiveScrollRoot();
+    };
 
     return {
       isSupportedPage() {
