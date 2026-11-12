@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         GitHub Issue/PR Copy
 // @namespace    http://tampermonkey.net/
-// @version      2.1
+// @version      2.2
 // @description  Adds a button to copy issue/PR content and comments from GitHub pages
 // @author       Siew Kam Onn
 // @match        https://github.com/*/issues/*
 // @match        https://github.com/*/pull/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
-// @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js?v=20260811-1
+// @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js?v=20261112-1
 // @grant        GM.notification
 // @downloadURL  https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/github-copy-issue.js
 // @updateURL    https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/github-copy-issue.js

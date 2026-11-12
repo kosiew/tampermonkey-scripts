@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         GitHub URL Notes Manager
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.5
 // @description  Adds buttons to manage notes for GitHub URLs with local storage and Gist backup
 // @author       Siew Kam Onn
 // @match        https://github.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
-// @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js?v=20260811-1
+// @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js?v=20261112-1
 // @grant        GM.getValue
 // @grant        GM.setValue
 // @grant        GM.deleteValue
