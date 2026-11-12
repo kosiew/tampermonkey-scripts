@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         GitHub PR CI Error Filter
 // @namespace    http://tampermonkey.net/
-// @version      1.6
+// @version      1.7
 // @description  Adds a floating button to hide/show GitHub PRs with CI errors, Draft PRs, Approved PRs, PRs with many comments, and "Prolific Author" labeled PRs
 // @author       Siew Kam Onn
 // @match        https://github.com/*/*/pulls*
 // @icon         https://github.githubassets.com/favicons/favicon.svg
-// @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js?v=20261112-1
+// @require      https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/refs/heads/main/tampermonkey-ui-library.js?v=20261112-2
 // @grant        none
 // @downloadURL  https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/github-pr-ci-error-filter.js
 // @updateURL    https://raw.githubusercontent.com/kosiew/tampermonkey-scripts/main/github-pr-ci-error-filter.js
