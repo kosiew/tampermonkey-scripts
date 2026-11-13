@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Adhoc Anchors
 // @namespace    http://tampermonkey.net/
-// @version      1.13
+// @version      1.14
 // @description  Add temporary anchors on GitHub issue/PR pages and ChatGPT conversations, with quick scroll-to-top/bottom controls
 // @author       Siew Kam Onn
 // @match        https://github.com/*/*/issues/*
@@ -239,13 +239,36 @@
     }
   }
 
+  // ChatGPT keeps a "stick to latest" scroll mode that only user input
+  // (wheel) toggles: without it, a jump to the top is pulled back to the
+  // bottom, and a jump to the bottom is lost when the transcript briefly
+  // collapses while re-rendering. A synthetic wheel in the direction of
+  // travel updates that mode so ChatGPT keeps the new position itself.
+  function signalScrollIntent(scrollRoot, targetTop) {
+    if (!scrollRoot) {
+      return;
+    }
+
+    const direction = targetTop < getDefaultPageScrollTop(scrollRoot) ? -1 : 1;
+    scrollRoot.dispatchEvent(
+      new WheelEvent("wheel", {
+        deltaY: direction * 100,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  }
+
   // requestAnimationFrame (and native scrollTo smooth-animation) is throttled
   // or never fires on background/inactive tabs, so jump instantly instead of
   // animating — correctness over smoothness.
   function holdScrollPosition(getTargetTop) {
+    const scrollRoot = getScrollRootListenerTarget();
+
+    // Dispatch before starting the hold: the wheel listener cancels holds.
+    signalScrollIntent(scrollRoot, getTargetTop());
     cancelScrollHold();
 
-    const scrollRoot = getScrollRootListenerTarget();
     const scrollEventTarget = scrollRoot || window;
     const deadline = Date.now() + SCROLL_HOLD_MS;
     let timer = null;
