@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Adhoc Anchors
 // @namespace    http://tampermonkey.net/
-// @version      1.16
+// @version      1.17
 // @description  Add temporary anchors on GitHub issue/PR pages and ChatGPT conversations, with quick scroll-to-top/bottom controls
 // @author       Siew Kam Onn
 // @match        https://github.com/*/*/issues/*
@@ -226,12 +226,14 @@
     return pageAdapter;
   }
 
-  // ChatGPT re-renders the transcript after a large instant jump (its height
-  // collapses, e.g. 17177 → 696px), which paints wrong positions and can even
-  // leave the transcript stuck collapsed. Gradual scrolling — like a trackpad —
-  // avoids that, so scroll in a few quick eased steps, then briefly hold the
-  // target in case the page pulls the view away again.
-  const SCROLL_STEP_COUNT = 12;
+  // Near the bottom, ChatGPT renders only the latest ~2400px of the
+  // transcript. A step that leaves that window re-renders it and clamps the
+  // position, flashing the wrong content. So scroll like a trackpad: steps of
+  // at most SCROLL_STEP_MAX_PX, each relative to the current position (which
+  // ChatGPT adjusts when it re-renders), then briefly hold the target in case
+  // the page pulls the view away again.
+  const SCROLL_STEP_MAX_PX = 1200;
+  const SCROLL_MAX_STEPS = 40;
   const SCROLL_STEP_MS = 16;
   const SCROLL_SETTLE_MS = 600;
   const SCROLL_HOLD_INTERVAL_MS = 50;
@@ -270,14 +272,14 @@
   }
 
   // Timers are throttled to ~1s on background tabs, where stepping would take
-  // many seconds, so jump in a single step there.
+  // many seconds, so jump in a single step there. Very long pages also finish
+  // with a single jump after SCROLL_MAX_STEPS, keeping the scroll under ~0.7s.
   function scrollToTarget(getTargetTop) {
     cancelScrollHold();
 
     const scrollRoot = getScrollRootListenerTarget();
     const scrollEventTarget = scrollRoot || window;
-    const fromTop = getDefaultPageScrollTop(scrollRoot);
-    const stepCount = document.hidden ? 1 : SCROLL_STEP_COUNT;
+    const maxSteps = document.hidden ? 1 : SCROLL_MAX_STEPS;
     let step = 0;
     let settleDeadline = 0;
     let timer = null;
@@ -306,15 +308,21 @@
 
     const advance = () => {
       step += 1;
-      const progress = 1 - Math.pow(1 - step / stepCount, 3); // ease-out
+      const currentTop = getDefaultPageScrollTop(scrollRoot);
       const targetTop = getTargetTop();
-      signalScrollIntent(scrollRoot, Math.sign(targetTop - fromTop));
+      const remaining = targetTop - currentTop;
+      const isLastStep =
+        step >= maxSteps || Math.abs(remaining) <= SCROLL_STEP_MAX_PX;
+
+      signalScrollIntent(scrollRoot, Math.sign(remaining));
       setDefaultPageScrollTop(
         scrollRoot,
-        fromTop + (targetTop - fromTop) * progress,
+        isLastStep
+          ? targetTop
+          : currentTop + Math.sign(remaining) * SCROLL_STEP_MAX_PX,
       );
 
-      if (step < stepCount) {
+      if (!isLastStep) {
         timer = setTimeout(advance, SCROLL_STEP_MS);
         return;
       }
