@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Adhoc Anchors
 // @namespace    http://tampermonkey.net/
-// @version      1.12
+// @version      1.13
 // @description  Add temporary anchors on GitHub issue/PR pages and ChatGPT conversations, with quick scroll-to-top/bottom controls
 // @author       Siew Kam Onn
 // @match        https://github.com/*/*/issues/*
@@ -231,12 +231,11 @@
   // target for a short window until it sticks or the user takes over.
   const SCROLL_HOLD_MS = 1500;
   const SCROLL_HOLD_INTERVAL_MS = 50;
-  let scrollHoldTimer = null;
+  let stopScrollHold = null;
 
   function cancelScrollHold() {
-    if (scrollHoldTimer) {
-      clearTimeout(scrollHoldTimer);
-      scrollHoldTimer = null;
+    if (stopScrollHold) {
+      stopScrollHold();
     }
   }
 
@@ -247,24 +246,44 @@
     cancelScrollHold();
 
     const scrollRoot = getScrollRootListenerTarget();
-    const apply = () => setDefaultPageScrollTop(scrollRoot, getTargetTop());
+    const scrollEventTarget = scrollRoot || window;
     const deadline = Date.now() + SCROLL_HOLD_MS;
+    let timer = null;
 
-    const tick = () => {
+    const correct = () => {
       if (Date.now() > deadline) {
-        scrollHoldTimer = null;
+        stop();
         return;
       }
 
-      if (Math.abs(getDefaultPageScrollTop(scrollRoot) - getTargetTop()) > 2) {
-        apply();
+      const targetTop = getTargetTop();
+      if (Math.abs(getDefaultPageScrollTop(scrollRoot) - targetTop) > 2) {
+        setDefaultPageScrollTop(scrollRoot, targetTop);
       }
-
-      scrollHoldTimer = setTimeout(tick, SCROLL_HOLD_INTERVAL_MS);
     };
 
-    apply();
-    scrollHoldTimer = setTimeout(tick, SCROLL_HOLD_INTERVAL_MS);
+    // Scroll events are dispatched before the next paint, so correcting a
+    // revert here keeps the reverted position from ever being drawn. The
+    // timer is a fallback for reverts that don't emit a scroll event.
+    const tick = () => {
+      correct();
+      if (stopScrollHold === stop) {
+        timer = setTimeout(tick, SCROLL_HOLD_INTERVAL_MS);
+      }
+    };
+
+    function stop() {
+      clearTimeout(timer);
+      scrollEventTarget.removeEventListener("scroll", correct);
+      if (stopScrollHold === stop) {
+        stopScrollHold = null;
+      }
+    }
+
+    stopScrollHold = stop;
+    scrollEventTarget.addEventListener("scroll", correct, { passive: true });
+    setDefaultPageScrollTop(scrollRoot, getTargetTop());
+    timer = setTimeout(tick, SCROLL_HOLD_INTERVAL_MS);
   }
 
   function scrollToPageTop(targetTop) {
