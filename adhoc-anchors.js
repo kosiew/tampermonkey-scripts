@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Adhoc Anchors
 // @namespace    http://tampermonkey.net/
-// @version      1.11
+// @version      1.12
 // @description  Add temporary anchors on GitHub issue/PR pages and ChatGPT conversations, with quick scroll-to-top/bottom controls
 // @author       Siew Kam Onn
 // @match        https://github.com/*/*/issues/*
@@ -226,19 +226,59 @@
     return pageAdapter;
   }
 
+  // ChatGPT reverts large programmatic jumps shortly after they happen (the
+  // view flashes at the target, then snaps back), so keep re-applying the
+  // target for a short window until it sticks or the user takes over.
+  const SCROLL_HOLD_MS = 1500;
+  const SCROLL_HOLD_INTERVAL_MS = 50;
+  let scrollHoldTimer = null;
+
+  function cancelScrollHold() {
+    if (scrollHoldTimer) {
+      clearTimeout(scrollHoldTimer);
+      scrollHoldTimer = null;
+    }
+  }
+
   // requestAnimationFrame (and native scrollTo smooth-animation) is throttled
   // or never fires on background/inactive tabs, so jump instantly instead of
   // animating — correctness over smoothness.
+  function holdScrollPosition(getTargetTop) {
+    cancelScrollHold();
+
+    const scrollRoot = getScrollRootListenerTarget();
+    const apply = () => setDefaultPageScrollTop(scrollRoot, getTargetTop());
+    const deadline = Date.now() + SCROLL_HOLD_MS;
+
+    const tick = () => {
+      if (Date.now() > deadline) {
+        scrollHoldTimer = null;
+        return;
+      }
+
+      if (Math.abs(getDefaultPageScrollTop(scrollRoot) - getTargetTop()) > 2) {
+        apply();
+      }
+
+      scrollHoldTimer = setTimeout(tick, SCROLL_HOLD_INTERVAL_MS);
+    };
+
+    apply();
+    scrollHoldTimer = setTimeout(tick, SCROLL_HOLD_INTERVAL_MS);
+  }
+
   function scrollToPageTop(targetTop) {
-    setDefaultPageScrollTop(getScrollRootListenerTarget(), targetTop);
+    holdScrollPosition(() => targetTop);
   }
 
   function scrollToTop() {
     scrollToPageTop(0);
   }
 
+  // Recompute the bottom on every re-apply, since the transcript's height can
+  // change while ChatGPT re-renders after the jump.
   function scrollToBottom() {
-    scrollToPageTop(getMaxScrollOffset(getScrollRoot()));
+    holdScrollPosition(() => getMaxScrollOffset(getScrollRoot()));
   }
 
   function createGitHubAdapter() {
@@ -1236,6 +1276,14 @@
       },
       true,
     );
+
+    // Any manual scrolling input ends a pending scroll hold immediately.
+    for (const type of ["wheel", "touchstart", "keydown", "mousedown"]) {
+      window.addEventListener(type, cancelScrollHold, {
+        capture: true,
+        passive: true,
+      });
+    }
 
     window.addEventListener("scroll", scheduleBadgeRender, { passive: true });
     document.addEventListener("scroll", scheduleBadgeRender, {
