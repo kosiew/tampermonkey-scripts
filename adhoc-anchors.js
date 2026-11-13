@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Adhoc Anchors
 // @namespace    http://tampermonkey.net/
-// @version      1.15
+// @version      1.16
 // @description  Add temporary anchors on GitHub issue/PR pages and ChatGPT conversations, with quick scroll-to-top/bottom controls
 // @author       Siew Kam Onn
 // @match        https://github.com/*/*/issues/*
@@ -226,10 +226,14 @@
     return pageAdapter;
   }
 
-  // ChatGPT reverts large programmatic jumps shortly after they happen (the
-  // view flashes at the target, then snaps back), so keep re-applying the
-  // target for a short window until it sticks or the user takes over.
-  const SCROLL_HOLD_MS = 1500;
+  // ChatGPT re-renders the transcript after a large instant jump (its height
+  // collapses, e.g. 17177 → 696px), which paints wrong positions and can even
+  // leave the transcript stuck collapsed. Gradual scrolling — like a trackpad —
+  // avoids that, so scroll in a few quick eased steps, then briefly hold the
+  // target in case the page pulls the view away again.
+  const SCROLL_STEP_COUNT = 12;
+  const SCROLL_STEP_MS = 16;
+  const SCROLL_SETTLE_MS = 600;
   const SCROLL_HOLD_INTERVAL_MS = 50;
   let stopScrollHold = null;
 
@@ -239,17 +243,23 @@
     }
   }
 
+  // Manual input ends a pending scroll. Synthetic wheels from
+  // signalScrollIntent are untrusted, so they don't cancel our own scroll.
+  function cancelScrollHoldOnUserInput(event) {
+    if (event.isTrusted) {
+      cancelScrollHold();
+    }
+  }
+
   // ChatGPT keeps a "stick to latest" scroll mode that only user input
   // (wheel) toggles: without it, a jump to the top is pulled back to the
-  // bottom, and a jump to the bottom is lost when the transcript briefly
-  // collapses while re-rendering. A synthetic wheel in the direction of
-  // travel updates that mode so ChatGPT keeps the new position itself.
-  function signalScrollIntent(scrollRoot, targetTop) {
-    if (!scrollRoot) {
+  // bottom. A synthetic wheel in the direction of travel updates that mode so
+  // ChatGPT keeps the new position itself.
+  function signalScrollIntent(scrollRoot, direction) {
+    if (!scrollRoot || !direction) {
       return;
     }
 
-    const direction = targetTop < getDefaultPageScrollTop(scrollRoot) ? -1 : 1;
     scrollRoot.dispatchEvent(
       new WheelEvent("wheel", {
         deltaY: direction * 100,
@@ -259,66 +269,21 @@
     );
   }
 
-  // After a jump to the bottom, ChatGPT re-renders the transcript and its
-  // height briefly collapses (e.g. 17177 → 14553 → 696px), so intermediate
-  // positions get painted before it re-pins to the bottom. Cover the
-  // transcript until the position and height have been stable for a moment.
-  // Use an overlay rather than hiding the container itself: with the
-  // container at opacity 0, ChatGPT never finishes re-rendering and the
-  // transcript stays collapsed.
-  const SCROLL_MASK_SETTLE_MS = 150;
-  const SCROLL_MASK_MAX_MS = 600;
-
-  function getOpaqueBackground(element) {
-    for (let node = element; node; node = node.parentElement) {
-      const color = window.getComputedStyle(node).backgroundColor;
-      if (color && color !== "transparent" && color !== "rgba(0, 0, 0, 0)") {
-        return color;
-      }
-    }
-
-    return "Canvas";
-  }
-
-  function maskScrollRoot(scrollRoot) {
-    const rect = scrollRoot.getBoundingClientRect();
-    const overlay = document.createElement("div");
-    Object.assign(overlay.style, {
-      position: "fixed",
-      left: `${rect.left}px`,
-      top: `${rect.top}px`,
-      width: `${rect.width}px`,
-      height: `${rect.height}px`,
-      background: getOpaqueBackground(scrollRoot),
-      // Below the panel (99999) and badges (9998) so they stay visible.
-      zIndex: "9997",
-      pointerEvents: "none",
-    });
-    document.body.appendChild(overlay);
-
-    return () => overlay.remove();
-  }
-
-  // requestAnimationFrame (and native scrollTo smooth-animation) is throttled
-  // or never fires on background/inactive tabs, so jump instantly instead of
-  // animating — correctness over smoothness.
-  function holdScrollPosition(getTargetTop, { mask = false } = {}) {
-    const scrollRoot = getScrollRootListenerTarget();
-
-    // Dispatch before starting the hold: the wheel listener cancels holds.
-    signalScrollIntent(scrollRoot, getTargetTop());
+  // Timers are throttled to ~1s on background tabs, where stepping would take
+  // many seconds, so jump in a single step there.
+  function scrollToTarget(getTargetTop) {
     cancelScrollHold();
 
+    const scrollRoot = getScrollRootListenerTarget();
     const scrollEventTarget = scrollRoot || window;
-    const startedAt = Date.now();
-    const deadline = startedAt + SCROLL_HOLD_MS;
-    const unmask = mask && scrollRoot ? maskScrollRoot(scrollRoot) : null;
+    const fromTop = getDefaultPageScrollTop(scrollRoot);
+    const stepCount = document.hidden ? 1 : SCROLL_STEP_COUNT;
+    let step = 0;
+    let settleDeadline = 0;
     let timer = null;
-    let lastLayout = "";
-    let settledSince = startedAt;
 
     const correct = () => {
-      if (Date.now() > deadline) {
+      if (Date.now() > settleDeadline) {
         stop();
         return;
       }
@@ -329,71 +294,60 @@
       }
     };
 
-    const updateMask = () => {
-      if (!unmask) {
-        return;
-      }
-
-      const now = Date.now();
-      const atTarget =
-        Math.abs(getDefaultPageScrollTop(scrollRoot) - getTargetTop()) <= 2;
-      const layout = `${scrollRoot.scrollHeight}:${atTarget}`;
-      if (layout !== lastLayout) {
-        lastLayout = layout;
-        settledSince = now;
-      }
-
-      if (
-        (atTarget && now - settledSince >= SCROLL_MASK_SETTLE_MS) ||
-        now - startedAt >= SCROLL_MASK_MAX_MS
-      ) {
-        unmask();
-      }
-    };
-
     // Scroll events are dispatched before the next paint, so correcting a
     // revert here keeps the reverted position from ever being drawn. The
     // timer is a fallback for reverts that don't emit a scroll event.
-    const tick = () => {
+    const settle = () => {
       correct();
-      updateMask();
       if (stopScrollHold === stop) {
-        timer = setTimeout(tick, SCROLL_HOLD_INTERVAL_MS);
+        timer = setTimeout(settle, SCROLL_HOLD_INTERVAL_MS);
       }
+    };
+
+    const advance = () => {
+      step += 1;
+      const progress = 1 - Math.pow(1 - step / stepCount, 3); // ease-out
+      const targetTop = getTargetTop();
+      signalScrollIntent(scrollRoot, Math.sign(targetTop - fromTop));
+      setDefaultPageScrollTop(
+        scrollRoot,
+        fromTop + (targetTop - fromTop) * progress,
+      );
+
+      if (step < stepCount) {
+        timer = setTimeout(advance, SCROLL_STEP_MS);
+        return;
+      }
+
+      settleDeadline = Date.now() + SCROLL_SETTLE_MS;
+      scrollEventTarget.addEventListener("scroll", correct, { passive: true });
+      timer = setTimeout(settle, SCROLL_HOLD_INTERVAL_MS);
     };
 
     function stop() {
       clearTimeout(timer);
       scrollEventTarget.removeEventListener("scroll", correct);
-      if (unmask) {
-        unmask();
-      }
       if (stopScrollHold === stop) {
         stopScrollHold = null;
       }
     }
 
     stopScrollHold = stop;
-    scrollEventTarget.addEventListener("scroll", correct, { passive: true });
-    setDefaultPageScrollTop(scrollRoot, getTargetTop());
-    timer = setTimeout(tick, SCROLL_HOLD_INTERVAL_MS);
+    advance();
   }
 
   function scrollToPageTop(targetTop) {
-    holdScrollPosition(() => targetTop);
+    scrollToTarget(() => targetTop);
   }
 
   function scrollToTop() {
     scrollToPageTop(0);
   }
 
-  // Recompute the bottom on every re-apply, since the transcript's height can
-  // change while ChatGPT re-renders after the jump.
+  // Recompute the bottom on every step, since the transcript's height can
+  // change while ChatGPT renders the content being scrolled into view.
   function scrollToBottom() {
-    const adapter = getPageAdapter();
-    holdScrollPosition(() => getMaxScrollOffset(getScrollRoot()), {
-      mask: Boolean(adapter && adapter.masksBottomJump),
-    });
+    scrollToTarget(() => getMaxScrollOffset(getScrollRoot()));
   }
 
   function createGitHubAdapter() {
@@ -463,7 +417,6 @@
     };
 
     return {
-      masksBottomJump: true,
       isSupportedPage() {
         return true;
       },
@@ -1395,7 +1348,7 @@
 
     // Any manual scrolling input ends a pending scroll hold immediately.
     for (const type of ["wheel", "touchstart", "keydown", "mousedown"]) {
-      window.addEventListener(type, cancelScrollHold, {
+      window.addEventListener(type, cancelScrollHoldOnUserInput, {
         capture: true,
         passive: true,
       });
