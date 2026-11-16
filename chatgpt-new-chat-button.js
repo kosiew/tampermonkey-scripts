@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT New Chat Floating Button
 // @namespace    http://tampermonkey.net/
-// @version      1.5
+// @version      1.6
 // @description  Adds a floating New Chat button on GPT pages and triggers the native New chat action.
 // @author       Siew Kam Onn
 // @match        https://chatgpt.com/*
