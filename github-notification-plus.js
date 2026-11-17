@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Github Notification Plus
 // @namespace    http://tampermonkey.net/
-// @version      0.3
-// @description  github notifications enhancement
+// @version      0.4
+// @description  github notifications enhancement: group by repo, PR links in new tab, bulk unsubscribe
 // @author       Siew Kam Onn
 // @match        https://github.com/notifications
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
@@ -107,8 +107,87 @@
     );
   }
 
+  const REPO_SELECTOR = ".d-flex p.m-0.f6.flex-auto";
+  const ITEM_SELECTOR = "li.notifications-list-item, li.notification-unread, li.notification-read";
+  const HEADER_CLASS = "tm-repo-group-header";
+
+  function getRepoName(item) {
+    const repo = item.querySelector(REPO_SELECTOR);
+    if (!repo) {
+      return null;
+    }
+    // Text looks like "owner/repo #1234"; keep just "owner/repo"
+    return repo.textContent.trim().split(/\s+/)[0] || null;
+  }
+
+  function createGroupHeader(repoName, count) {
+    const header = document.createElement("li");
+    header.className = `${HEADER_CLASS} Box-row color-bg-subtle text-bold f5`;
+    header.style.cssText = "padding: 8px 16px; list-style: none;";
+    header.textContent = `${repoName} (${count})`;
+    return header;
+  }
+
+  function groupListByRepo(list) {
+    list.querySelectorAll(`:scope > .${HEADER_CLASS}`).forEach((h) => h.remove());
+    const items = [...list.children].filter((el) => el.matches(ITEM_SELECTOR));
+    const groups = new Map(); // insertion order = first appearance (most recent first)
+    for (const item of items) {
+      const repoName = getRepoName(item) || "Other";
+      if (!groups.has(repoName)) {
+        groups.set(repoName, []);
+      }
+      groups.get(repoName).push(item);
+    }
+    if (items.length === 0) {
+      return;
+    }
+    // Keep the grouped block where the items were, not after other list children
+    const anchor = items[0].previousSibling;
+    const fragment = document.createDocumentFragment();
+    for (const [repoName, groupItems] of groups) {
+      fragment.appendChild(createGroupHeader(repoName, groupItems.length));
+      groupItems.forEach((item) => fragment.appendChild(item));
+    }
+    list.insertBefore(fragment, anchor ? anchor.nextSibling : list.firstChild);
+  }
+
+  function groupNotificationsByRepo() {
+    const lists = new Set(
+      [...document.querySelectorAll(ITEM_SELECTOR)].map((item) => item.parentElement).filter(Boolean),
+    );
+    lists.forEach(groupListByRepo);
+    console.log(`%c==> [groupNotificationsByRepo] grouped ${lists.size} list(s)`, "color: yellow");
+  }
+
+  function watchAndGroupByRepo() {
+    let timer = null;
+    const observer = new MutationObserver((mutations) => {
+      // Ignore mutations caused only by our own headers being added/removed
+      const relevant = mutations.some((m) =>
+        [...m.addedNodes, ...m.removedNodes].some(
+          (n) => n.nodeType === 1 && !n.classList.contains(HEADER_CLASS),
+        ),
+      );
+      if (!relevant) {
+        return;
+      }
+      clearTimeout(timer);
+      timer = setTimeout(run, 200);
+    });
+
+    function run() {
+      observer.disconnect();
+      groupNotificationsByRepo();
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
+
+    run();
+  }
+
   openPullRequestLinksInNewTab();
   addUnsubscribeButton();
+  watchAndGroupByRepo();
 
   console.log(`%c==> [Github Notification Plus done]`, "color: yellow");
 })();
