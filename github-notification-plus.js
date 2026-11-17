@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Github Notification Plus
 // @namespace    http://tampermonkey.net/
-// @version      0.4
+// @version      0.5
 // @description  github notifications enhancement: group by repo, PR links in new tab, bulk unsubscribe
 // @author       Siew Kam Onn
 // @match        https://github.com/notifications
@@ -14,6 +14,9 @@
 (function () {
   console.log(`%c==> [Loading Github Notifications]`, "color: yellow");
   const keep = ["bloom/web-client", "Automattic/support-helper-tools"];
+  const REPO_SELECTOR = ".d-flex p.m-0.f6.flex-auto";
+  const ITEM_SELECTOR = "li.notifications-list-item, li.notification-unread, li.notification-read";
+  const HEADER_CLASS = "tm-repo-group-header";
 
   function insertAfter(referenceNode, newNode) {
     console.log(`%c==> [insertAfter]`, "color: yellow");
@@ -69,18 +72,22 @@
     unsubscribeButton.innerHTML = "Unsubscribe from non-keep repos";
     unsubscribeButton.onclick = unsubscribe;
 
-    const selector = "div.Header-item";
-    const notification = document.querySelector(selector);
-
-    const explore = (function () {
-      // eg '[title="element title attribute value"]'
-      const selector = "a.js-selected-navigation-item";
-      const elems = document.querySelectorAll(selector);
-      const result = [...elems].filter((e) => e.innerHTML == "Explore");
-      return result[0];
-    })();
-
-    insertAfter(explore, unsubscribeButton);
+    // GitHub's header no longer has an "Explore" link; fall back to above the notifications list
+    const explore = [...document.querySelectorAll("a.js-selected-navigation-item")].find(
+      (e) => e.innerHTML == "Explore",
+    );
+    if (explore) {
+      insertAfter(explore, unsubscribeButton);
+      return;
+    }
+    const firstItem = document.querySelector(ITEM_SELECTOR);
+    const listBox = firstItem && firstItem.closest(".Box");
+    if (!listBox) {
+      console.log(`%c==> [addUnsubscribeButton] no anchor found, skipping`, "color: yellow");
+      return;
+    }
+    unsubscribeButton.classList.add("mb-2");
+    listBox.parentNode.insertBefore(unsubscribeButton, listBox);
   }
   function openPullRequestLinksInNewTab() {
     console.log(`%c==> [openPullRequestLinksInNewTab]`, "color: yellow");
@@ -106,10 +113,6 @@
       true,
     );
   }
-
-  const REPO_SELECTOR = ".d-flex p.m-0.f6.flex-auto";
-  const ITEM_SELECTOR = "li.notifications-list-item, li.notification-unread, li.notification-read";
-  const HEADER_CLASS = "tm-repo-group-header";
 
   function getRepoName(item) {
     const repo = item.querySelector(REPO_SELECTOR);
@@ -179,15 +182,21 @@
     function run() {
       observer.disconnect();
       groupNotificationsByRepo();
-      observer.observe(document.body, { childList: true, subtree: true });
+      // Observe <html>, not <body>: Turbo navigations swap out <body>
+      observer.observe(document.documentElement, { childList: true, subtree: true });
     }
 
     run();
   }
 
-  openPullRequestLinksInNewTab();
-  addUnsubscribeButton();
-  watchAndGroupByRepo();
+  // Run each feature independently so one failure doesn't block the others
+  for (const feature of [openPullRequestLinksInNewTab, watchAndGroupByRepo, addUnsubscribeButton]) {
+    try {
+      feature();
+    } catch (error) {
+      console.error(`[Github Notification Plus] ${feature.name} failed`, error);
+    }
+  }
 
   console.log(`%c==> [Github Notification Plus done]`, "color: yellow");
 })();
